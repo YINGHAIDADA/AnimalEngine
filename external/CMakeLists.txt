@@ -72,5 +72,8 @@ endif()
 add_library(animal_stb INTERFACE)
 target_include_directories(animal_stb SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/stb")
 
+add_library(animal_json INTERFACE)
+target_include_directories(animal_json SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/nlohmann")
+
 add_library(animal_gl_headers INTERFACE)
 target_include_directories(animal_gl_headers SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/gl/include")
