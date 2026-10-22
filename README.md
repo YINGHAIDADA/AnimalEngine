@@ -62,8 +62,10 @@ cmake --build --preset windows-ninja-debug
 
 | 参数 | 作用 |
 |---|---|
-| `--backend=opengl\|vulkan` | 选择图形后端（Vulkan 在 M2.5 实现） |
-| `--no-vsync` | 关闭垂直同步 |
+| `--backend=opengl\|vulkan` | 选择图形后端（Vulkan 需要 Vulkan 加载器；macOS 开发期使用 Vulkan SDK） |
+| `--no-vsync` | 关闭垂直同步（自动化运行请始终加上，见 ADR-0005） |
+| `--hide-overlay` | 隐藏调试覆盖层（用于后端截图对比） |
+| `--resize-test` | 运行中多次改变窗口尺寸，验证交换链重建 |
 | `--frames=N` | 渲染 N 帧后退出 |
 | `--screenshot=path.png` | 与 `--frames` 合用，在最后一帧截图（用于验收与渲染回归） |
 
@@ -71,6 +73,15 @@ cmake --build --preset windows-ninja-debug
 
 ```bash
 ctest --preset macos-ninja-debug        # 或 windows-vs2022-debug / windows-ninja-debug / macos-xcode-debug
+```
+
+后端一致性（OpenGL 与 Vulkan 截图逐像素对比）：
+
+```bash
+B=build/macos-ninja-debug/bin/Debug/AnimalGame
+$B --backend=opengl --no-vsync --hide-overlay --frames=120 --screenshot=screenshots/gl.png
+$B --backend=vulkan --no-vsync --hide-overlay --frames=120 --screenshot=screenshots/vk.png
+python3 tools/scripts/compare_images.py screenshots/gl.png screenshots/vk.png
 ```
 
 ## M0 验收条件

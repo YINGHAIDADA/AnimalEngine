@@ -243,6 +243,7 @@ AnimalEngine/
 | 资源格式过早冻结 | 每次改字段都要迁移全部内容 | 开发期格式保持可读；等需求稳定后定义版本化 Cooked 格式。 |
 | 热重载造成崩溃 | 资源生命周期、函数指针或状态不一致 | 先热重载数据/着色器，再考虑游戏代码 DLL 热重载；定义状态迁移和安全边界。 |
 | 包体优化误判 | 二进制化后没有明显缩小 | 每项优化前后测量；避免对已压缩资源重复压缩。 |
+| 垂直同步在无显示时阻塞 | macOS 上 OpenGL 交换在显示器休眠 / 锁屏时无限阻塞；MoltenVK 同样情况下不限速 | 自动化运行使用 `--no-vsync`；M7 前处理遮挡与休眠（暂停渲染或带超时的帧节奏）。见 ADR-0005。 |
 | 跨平台问题积累 | 一个平台长期无法编译；平台条件散落在各模块 | 平台差异集中在 Platform 层和构建脚本；两个平台持续做干净构建（建议 CI 矩阵覆盖 macOS + Windows）。 |
 
 ## 11. Git、构建和交付规则
@@ -304,11 +305,12 @@ ctest --test-dir build/<preset> --output-on-failure
   - ADR-0002 平台层：采用 SDL3，替代 v1.0 中的 SDL2（Accepted）。
   - ADR-0003 跨平台构建：macOS 与 Windows 均为一等平台；CMake 为唯一来源，生成 Xcode、Visual Studio 与 Ninja 构建（Accepted）。
   - ADR-0004 依赖管理与着色器工具链：git 浅子模块固定 tag，单头文件依赖复制进 `external/`；`animal_shaderc` 从源码构建 glslang 与 SPIRV-Cross（Accepted）。
+  - ADR-0005 Vulkan 技术验证结论：RHI 接口成立，两后端逐像素一致；确定 Vulkan 基线与虚拟交换链约定（Accepted）。
 
 ## 13. 当前待确认项（不阻塞 M0）
 
 - macOS 最低系统版本（预设中暂定 13.3，libc++ 的 `std::format` 需要）、是否需要 Universal Binary（arm64 + x86_64）；Windows 最低版本。
-- Vulkan 后端的最低版本与必需扩展（必须在 MoltenVK 支持范围内），以及 M2.5 是否需要提前。
+- 验证版 Vulkan 后端是否提前合入主线（ADR-0005；最低版本已确定为 Vulkan 1.2 + dynamic rendering + synchronization2）。
 - 是否评估 SDL3 自带的 GPU API（SDL_GPU，支持 Vulkan / Metal / D3D12）作为 RHI 的一个后端或替代方案。
 - CI 平台（例如 GitHub Actions 的 macOS + Windows 矩阵）。
 - 音频模块采用 SDL3 音频能力还是单独音频库。

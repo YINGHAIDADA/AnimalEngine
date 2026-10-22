@@ -10,14 +10,14 @@ engine/                                         │ 只能向下依赖
   app/           主循环、固定时间步、调试覆盖层  │
   renderer/      Renderer2D、SpriteBatch、画布   │
   resources/     图片 / 纹理 / 着色器包加载      │
-  rhi/           图形抽象 + 后端（opengl/）      │
+  rhi/           图形抽象 + 后端（opengl/ vulkan/）│
   platform/      SDL3：窗口、输入、事件、时间    │
   core/          日志、断言、句柄、数学、文件   ─┘
 tools/shaderc/   构建期着色器编译器（不进入游戏）
 shaders/         GLSL 450 着色器源码
 ```
 
-- `engine/src/rhi/opengl/` 是唯一可以包含 OpenGL 头文件、调用 `gl*` 的目录。
+- `engine/src/rhi/opengl/` 与 `engine/src/rhi/vulkan/` 是仅有的可以包含图形 API 头文件、调用 `gl*` / `vk*` 的目录。
 - RHI 公共头文件（`animal/rhi/*.h`）不暴露任何后端类型。
 - SDL 只出现在 `platform/`、`core/`（日志、文件）、RHI 后端（上下文 / Surface）和 `app/entry_point.h`。
 
@@ -45,7 +45,8 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | 命令 | `CommandList` 只记录、与后端无关；`Device::submit` 时由后端翻译。`beginRenderPass` 会把视口与裁剪重置为整个附件，pass 内的管线 / 缓冲 / 绑定必须重新设置。 |
 | 数据写入 | `writeBuffer` / `writeTexture` 按队列顺序生效：对之后提交的所有命令可见，与命令的录制时间无关。同一提交前重复写同一区域，只有最后一次可见。 |
 | 坐标 | 裁剪空间深度 [0, 1]；帧缓冲、视口、裁剪、纹理坐标的原点都在左上；纹理第 0 行是顶行。正面朝向按屏幕上看到的方向定义。 |
-| 帧 | `beginFrame → submit → endFrame`。`DeviceCaps::framesInFlight` 表示同时在途帧数（OpenGL 为 1）。销毁的资源可能仍被在途帧引用，由后端延迟释放。 |
+| 帧 | `beginFrame → submit → endFrame`。`DeviceCaps::framesInFlight` 表示同时在途帧数（OpenGL 为 1，Vulkan 为 2）。销毁的资源可能仍被在途帧引用，由后端延迟释放。每帧的数据写入必须发生在 `beginFrame` 与 `submit` 之间；帧外写入走同步慢路径，只适合加载阶段。 |
+| 交换链 | `swapchainTexture()` 是后端持有的 RGBA8 离屏图像，`endFrame` 时复制到窗口；所有后端的 `swapchainFormat()` 都是 RGBA8。 |
 | 读回 | `readTexture` 阻塞等待 GPU，只用于截图和渲染测试。 |
 
 ### 3.1 OpenGL 4.1 后端如何模拟这些约定
@@ -57,13 +58,16 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 - **顶点输入**：4.1 没有独立的顶点格式状态，切换管线或顶点缓冲后在下一次 draw 前重新指定属性。
 - **限制**：不支持 `firstInstance`、计算着色器、多颜色附件（M2 需要时补上 MRT）。
 
-### 3.2 Vulkan 后端（M2.5）需要补上的部分
+### 3.2 Vulkan 后端（验证版，见 ADR-0005）
 
-- 在 pass 之间按纹理用途自动插入布局转换与屏障（例如画布从“渲染目标”变为“被采样”）。
-- `writeBuffer` / `writeTexture` 通过 staging buffer 与传输命令实现，保持队列顺序语义。
-- 由着色器包中的绑定表创建 descriptor set layout 与 pipeline layout。
-- 资源销毁延迟到引用它的帧完成。
-- macOS 通过 MoltenVK 运行，只使用其支持的特性。
+- 基线：Vulkan 1.2 + `VK_KHR_dynamic_rendering` + `VK_KHR_synchronization2`（MoltenVK 上加 `VK_KHR_portability_subset`）；同时在途 2 帧。
+- **布局转换**：每个纹理记录当前布局。提交时预扫描每个渲染通道，把附件与被采样纹理需要的转换统一放在 `vkCmdBeginRenderingKHR` 之前。
+- **数据写入**：帧内写入复制到每帧的暂存缓冲，并录制进上传命令缓冲，提交时排在帧命令之前；帧外写入立即执行并等待完成。
+- **绑定**：由着色器包中的绑定表生成 descriptor set layout（按签名缓存，stage 统一为 VS | FS），`BindGroup` 对应一个 descriptor set。
+- **交换链**：渲染到 RGBA8 离屏图像，`endFrame()` 时 blit 到真实交换链图像再呈现。
+- **销毁**：放入当前帧槽位的删除队列，等该槽位的 fence 完成后释放。
+- **调试**：Debug 构建开启验证层与同步验证；退出时打印验证错误总数。
+- **加载器**：macOS 开发期由平台层在 `$VULKAN_SDK` 等位置查找；发行版需随包携带加载器与 MoltenVK。
 
 ## 4. 着色器工具链
 
