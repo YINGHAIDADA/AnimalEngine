@@ -88,6 +88,10 @@ class Room:
     def trigger(self, tx, ty, tw, th, message, once=True):
         self.area("trigger", tx, ty, tw, th, message=("string", message), once=("bool", once))
 
+    def light(self, tx, ty, rgb, radius, intensity=1.0, height=12.0):  # centred in a tile cell
+        self.obj("light", tx * TILE + 4, ty * TILE + 4, color=("color", color(*rgb)),
+                 radius=("float", radius), intensity=("float", intensity), height=("float", height))
+
     def gem(self, tx, ty):  # centred in a tile cell
         self.obj("gem", tx * TILE + 4, ty * TILE + 4)
 
@@ -186,6 +190,8 @@ def crystal_gallery():
     room.gem(8, 13)
     room.crawler(10, 20)
     room.trigger(26, 16, 9, 4, "A WARM DRAFT RISES FROM BELOW")
+    # Object ids are save keys (gems): only ever append objects to a room.
+    room.light(14, 11, (255, 226, 180), 104.0, 1.8)  # big pale light: platforms cast shadows around it
     return room
 
 

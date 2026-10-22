@@ -11,7 +11,7 @@
  "tilewidth": 8,
  "tileheight": 8,
  "nextlayerid": 3,
- "nextobjectid": 12,
+ "nextobjectid": 13,
  "properties": [
   {
    "name": "ambient",
@@ -1079,6 +1079,40 @@
        "name": "once",
        "type": "bool",
        "value": true
+      }
+     ]
+    },
+    {
+     "id": 12,
+     "name": "",
+     "type": "light",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 116,
+     "y": 92,
+     "width": 0,
+     "height": 0,
+     "properties": [
+      {
+       "name": "color",
+       "type": "color",
+       "value": "#ffffe2b4"
+      },
+      {
+       "name": "radius",
+       "type": "float",
+       "value": 104.0
+      },
+      {
+       "name": "intensity",
+       "type": "float",
+       "value": 1.8
+      },
+      {
+       "name": "height",
+       "type": "float",
+       "value": 12.0
       }
      ]
     }

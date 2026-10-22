@@ -431,4 +431,17 @@ std::vector<uint8_t> CaveRoom::fluidObstacles(animal::Vec2 canvasOrigin) const {
     return mask;
 }
 
+std::vector<uint8_t> CaveRoom::lightOccluders(animal::Vec2 canvasOrigin) const {
+    const animal::rhi::Extent2D canvas = animal::Renderer2D::kCanvasExtent;
+    std::vector<uint8_t> mask(size_t{canvas.width} * canvas.height);
+    for (uint32_t y = 0; y < canvas.height; ++y) {
+        for (uint32_t x = 0; x < canvas.width; ++x) {
+            const auto tx = static_cast<int>(std::floor((canvasOrigin.x + static_cast<float>(x)) / kTileSize));
+            const auto ty = static_cast<int>(std::floor((canvasOrigin.y + static_cast<float>(y)) / kTileSize));
+            mask[y * canvas.width + x] = tiles_.inBounds(tx, ty) && tiles_.isSolid(tx, ty) ? 1 : 0;
+        }
+    }
+    return mask;
+}
+
 } // namespace game

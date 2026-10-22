@@ -88,7 +88,9 @@ bool SandboxGame::enterRoom(const animal::WorldRoom& worldRoom, animal::Renderer
     checkpointPending_ = true;
     climb_.climbing = false; // vine indices belong to the previous room
     renderer.resetFluid();
-    renderer.setFluidObstacles(cave_.fluidObstacles(camera_.topLeft(animal::Renderer2D::kCanvasExtent)));
+    const animal::Vec2 canvasOrigin = camera_.topLeft(animal::Renderer2D::kCanvasExtent);
+    renderer.setFluidObstacles(cave_.fluidObstacles(canvasOrigin));
+    renderer.setLightOccluders(cave_.lightOccluders(canvasOrigin));
     renderer.lighting().ambient = cave_.ambient();
     animal::log::info("Entered room '{}'", roomName(worldRoom.path));
     return true;
@@ -237,6 +239,9 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
     }
     if (input.pressed(Key::F6)) {
         renderer.post().enabled = !renderer.post().enabled;
+    }
+    if (input.pressed(Key::F7)) {
+        renderer.lighting().shadows = !renderer.lighting().shadows;
     }
     if (input.pressed(Key::F8)) {
         resetProgress(renderer);
@@ -493,11 +498,12 @@ void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::s
     lines.push_back(std::format("GRASS {}  VINES {}  PARTICLES {}", cave_.bladeCount(), cave_.vineCount(),
                                 cave_.particleCount()));
     animal::Renderer2D& renderer = *context.renderer;
-    lines.push_back(std::format("F3 LIGHT {}  F4 BANDS {}  F5 SMOKE {}  F6 POST {}",
+    lines.push_back(std::format("F3 LIGHT {}  F4 BANDS {}  F5 SMOKE {}  F6 POST {}  F7 SHADOWS {}",
                                 renderer.lighting().enabled ? "ON" : "OFF",
                                 renderer.lighting().bands == 0 ? std::string("SMOOTH")
                                                                : std::to_string(renderer.lighting().bands),
-                                renderer.fluid().enabled ? "ON" : "OFF", renderer.post().enabled ? "ON" : "OFF"));
+                                renderer.fluid().enabled ? "ON" : "OFF", renderer.post().enabled ? "ON" : "OFF",
+                                renderer.lighting().shadows ? "ON" : "OFF"));
     lines.push_back(usingGamepad_ ? "GAMEPAD: STICK MOVE  UP GRAB VINE  A JUMP"
                                   : "ARROWS/WASD MOVE  UP GRAB VINE  SPACE/Z JUMP");
     lines.push_back(std::format("F2 COLLISION VIEW ({})  F8 RESET PROGRESS{}", showCollision_ ? "ON" : "OFF",

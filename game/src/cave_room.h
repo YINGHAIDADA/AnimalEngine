@@ -59,6 +59,7 @@ public:
     void addFluidSources(animal::Renderer2D& renderer, double time) const;
     // kFluidGrid mask: cells over solid tiles, plus canvas rows outside the room.
     std::vector<uint8_t> fluidObstacles(animal::Vec2 canvasOrigin) const;
+    std::vector<uint8_t> lightOccluders(animal::Vec2 canvasOrigin) const; // one byte per canvas pixel
 
     size_t bladeCount() const { return grass_.blades().size(); }
     size_t vineCount() const { return vines_.vines().size(); }
