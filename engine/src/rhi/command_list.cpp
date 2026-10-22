@@ -7,6 +7,19 @@ void CommandList::reset() {
     commands_.clear();
     insideRenderPass_ = false;
     pipelineBound_ = false;
+    openTimers_ = 0;
+}
+
+void CommandList::beginTimer(const char* name) {
+    ANIMAL_ASSERT(!insideRenderPass_ && name != nullptr);
+    commands_.emplace_back(cmd::BeginTimer{name});
+    ++openTimers_;
+}
+
+void CommandList::endTimer() {
+    ANIMAL_ASSERT(!insideRenderPass_ && openTimers_ > 0);
+    commands_.emplace_back(cmd::EndTimer{});
+    --openTimers_;
 }
 
 void CommandList::beginRenderPass(const RenderPassDesc& desc) {

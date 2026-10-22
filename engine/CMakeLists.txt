@@ -19,6 +19,7 @@ set(ANIMAL_ENGINE_HEADERS
     include/animal/renderer/sprite_batch.h
     include/animal/resources/loaders.h
     include/animal/rhi/command_list.h
+    include/animal/rhi/gpu_timers.h
     include/animal/rhi/rhi.h
     include/animal/rhi/shader_package.h)
 

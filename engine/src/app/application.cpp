@@ -10,8 +10,10 @@
 #include <SDL3/SDL_filesystem.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <format>
+#include <functional>
 #include <optional>
 #include <string_view>
 
@@ -26,11 +28,13 @@ struct CommandLine {
     bool resizeTest = false;
     bool deterministic = false;
     bool demo = false;
+    bool profile = false;
     uint64_t exitAfterFrames = 0;
     std::string screenshotPath;
 };
 
-std::optional<CommandLine> parseCommandLine(int argc, char** argv) {
+std::optional<CommandLine> parseCommandLine(int argc, char** argv,
+                                            const std::function<bool(std::string_view)>& other) {
     CommandLine cl;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
@@ -52,11 +56,13 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv) {
             cl.exitAfterFrames = std::strtoull(std::string(arg.substr(9)).c_str(), nullptr, 10);
         } else if (arg.starts_with("--screenshot=")) {
             cl.screenshotPath = std::string(arg.substr(13));
+        } else if (arg == "--profile") {
+            cl.profile = true;
         } else if (arg.starts_with("-psn_")) {
             // Added by macOS when launched from Finder.
-        } else {
+        } else if (!other(arg)) {
             log::error("Unknown argument '{}'. Options: --backend=opengl|vulkan --no-vsync --hide-overlay "
-                       "--resize-test --deterministic --demo --frames=N --screenshot=path.png",
+                       "--resize-test --deterministic --demo --profile --frames=N --screenshot=path.png",
                        arg);
             return std::nullopt;
         }
@@ -101,6 +107,82 @@ private:
     int frames_ = 0;
 };
 
+std::string upper(std::string text) {
+    std::transform(text.begin(), text.end(), text.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+    return text;
+}
+
+// "GPU 1.23 MS  MATERIAL 0.05  FLUID 0.30 ..." for the outermost scope and its direct children.
+std::string formatGpuTimings(const std::vector<rhi::GpuTiming>& timings) {
+    if (timings.empty()) {
+        return "GPU TIMING UNAVAILABLE";
+    }
+    std::string line;
+    for (const rhi::GpuTiming& t : timings) {
+        if (t.depth == 0) {
+            line += std::format("{}GPU {:.2f} MS", line.empty() ? "" : "  ", t.milliseconds);
+        } else if (t.depth == 1) {
+            line += std::format("  {} {:.2f}", upper(t.name), t.milliseconds);
+        }
+    }
+    return line;
+}
+
+// --profile: per-scope GPU averages and the CPU frame time over the run, logged at exit.
+class Profile {
+public:
+    static constexpr uint64_t kWarmupFrames = 60;
+
+    void sample(uint64_t frame, double frameMilliseconds, const std::vector<rhi::GpuTiming>& timings) {
+        if (frame < kWarmupFrames) {
+            return;
+        }
+        cpu_.add(frameMilliseconds);
+        for (const rhi::GpuTiming& t : timings) {
+            auto it = std::find_if(scopes_.begin(), scopes_.end(), [&t](const Scope& s) { return s.name == t.name; });
+            if (it == scopes_.end()) {
+                scopes_.push_back({t.name, t.depth, {}});
+                it = scopes_.end() - 1;
+            }
+            it->stat.add(t.milliseconds);
+        }
+    }
+
+    void report() const {
+        if (cpu_.count == 0) {
+            log::info("Profile: fewer than {} frames, nothing to report", kWarmupFrames + 1);
+            return;
+        }
+        log::info("Profile over {} frames (after {} warm-up): average / max in ms", cpu_.count, kWarmupFrames);
+        log::info("  {:<18} {:7.3f} {:7.3f}", "frame (wall)", cpu_.average(), cpu_.max);
+        for (const Scope& s : scopes_) {
+            log::info("  {:<18} {:7.3f} {:7.3f}", std::string(s.depth * 2, ' ') + "gpu " + s.name, s.stat.average(),
+                      s.stat.max);
+        }
+    }
+
+private:
+    struct Stat {
+        double sum = 0.0;
+        double max = 0.0;
+        uint64_t count = 0;
+        void add(double v) {
+            sum += v;
+            max = std::max(max, v);
+            ++count;
+        }
+        double average() const { return count ? sum / static_cast<double>(count) : 0.0; }
+    };
+    struct Scope {
+        std::string name;
+        uint32_t depth;
+        Stat stat;
+    };
+    Stat cpu_;
+    std::vector<Scope> scopes_;
+};
+
 void drawOverlay(EngineContext& context, Renderer2D& renderer, std::vector<std::string> lines) {
     const float scale = static_cast<float>(renderer.overlayScale());
     const float lineHeight = renderer.textLineHeight();
@@ -132,6 +214,10 @@ void Application::onDebugText(EngineContext&, std::vector<std::string>&) {}
 
 void Application::onShutdown(EngineContext&) {}
 
+bool Application::onArgument(std::string_view) {
+    return false;
+}
+
 int Application::run(int argc, char** argv) {
 #if defined(ANIMAL_DEBUG)
     constexpr bool kDebugBuild = true;
@@ -140,7 +226,7 @@ int Application::run(int argc, char** argv) {
 #endif
     log::setMinimumLevel(kDebugBuild ? log::Level::Debug : log::Level::Info);
 
-    const std::optional<CommandLine> commandLine = parseCommandLine(argc, argv);
+    const std::optional<CommandLine> commandLine = parseCommandLine(argc, argv, [this](std::string_view arg) { return onArgument(arg); });
     if (!commandLine) {
         return 2;
     }
@@ -195,6 +281,7 @@ int Application::run(int argc, char** argv) {
             window->show();
             rhi::CommandList commands;
             FrameTimer timer;
+            Profile profile;
             bool overlayVisible = kDebugBuild && !commandLine->hideOverlay;
             uint64_t lastTime = platform::nowNanoseconds();
             double accumulator = 0.0;
@@ -227,6 +314,9 @@ int Application::run(int argc, char** argv) {
                 const double realFrameTime = std::min(static_cast<double>(now - lastTime) * 1e-9, 0.25);
                 lastTime = now;
                 timer.tick(realFrameTime, context.stats);
+                if (commandLine->profile) {
+                    profile.sample(framesRendered, realFrameTime * 1000.0, device->gpuTimings());
+                }
                 // Deterministic runs advance exactly one fixed step per frame (reproducible captures).
                 const double frameTime = commandLine->deterministic ? kFixedTimestep : realFrameTime;
                 onFrame(context);
@@ -269,6 +359,7 @@ int Application::run(int argc, char** argv) {
                                         layout.scale),
                             std::format("SPRITES {}  DRAWS {}  LIGHTS {}", renderer.stats().quads,
                                         renderer.stats().drawCalls, renderer.lightCount()),
+                            formatGpuTimings(device->gpuTimings()),
                         };
                         onDebugText(context, lines);
                         lines.emplace_back("F1 OVERLAY  F12 SCREENSHOT  ESC QUIT");
@@ -287,6 +378,9 @@ int Application::run(int argc, char** argv) {
                 if (lastFrame) {
                     break;
                 }
+            }
+            if (commandLine->profile) {
+                profile.report();
             }
             onShutdown(context);
         }

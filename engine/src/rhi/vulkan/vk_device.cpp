@@ -17,6 +17,7 @@
 #include <animal/core/log.h>
 #include <animal/platform/window.h>
 #include <animal/rhi/command_list.h>
+#include <animal/rhi/gpu_timers.h>
 #include <animal/rhi/rhi.h>
 
 #include <SDL3/SDL_vulkan.h>
@@ -256,6 +257,9 @@ struct Frame {
     HostBuffer staging;
     VkDeviceSize stagingOffset = 0;
     std::vector<std::function<void()>> deletions;
+    VkQueryPool timerPool = VK_NULL_HANDLE; // timestamps; read back once the fence has signalled
+    TimerScopes timers;
+    bool timerPoolReset = false;
 };
 
 VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -363,6 +367,7 @@ public:
     void submit(const CommandList& commands) override;
     void endFrame() override;
     void waitIdle() override;
+    std::vector<GpuTiming> gpuTimings() const override { return gpuTimings_; }
 
 private:
     bool createInstance(bool debug);
@@ -408,6 +413,9 @@ private:
     VkDevice device_ = VK_NULL_HANDLE;
     VkQueue queue_ = VK_NULL_HANDLE;
     uint32_t queueFamily_ = 0;
+    uint32_t timestampBits_ = 0;
+    double timestampPeriod_ = 0.0; // nanoseconds per tick
+    std::vector<GpuTiming> gpuTimings_;
     VkDescriptorPool descriptorPool_ = VK_NULL_HANDLE;
     VkCommandPool immediatePool_ = VK_NULL_HANDLE;
     std::map<std::string, VkDescriptorSetLayout> setLayoutCache_;
@@ -646,6 +654,7 @@ bool VulkanDevice::pickPhysicalDevice() {
                     bestScore = score;
                     physical_ = candidate;
                     queueFamily_ = i;
+                    timestampBits_ = families[i].timestampValidBits;
                     portabilitySubset_ = has("VK_KHR_portability_subset");
                 }
                 break;
@@ -676,6 +685,8 @@ bool VulkanDevice::pickPhysicalDevice() {
     caps_.framesInFlight = kFramesInFlight;
     caps_.computeShaders = true;
     caps_.firstInstance = true;
+    timestampPeriod_ = props.limits.timestampPeriod;
+    caps_.gpuTimers = timestampBits_ > 0 && timestampPeriod_ > 0.0;
     return true;
 }
 
@@ -731,6 +742,15 @@ bool VulkanDevice::createFrames() {
             !check(vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &frame.imageAvailable), "vkCreateSemaphore") ||
             !createHostBuffer(kStagingBytesPerFrame, frame.staging)) {
             return false;
+        }
+        if (caps_.gpuTimers) {
+            VkQueryPoolCreateInfo queryInfo{};
+            queryInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+            queryInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+            queryInfo.queryCount = TimerScopes::kMaxTimestamps;
+            if (!check(vkCreateQueryPool(device_, &queryInfo, nullptr, &frame.timerPool), "vkCreateQueryPool")) {
+                return false;
+            }
         }
     }
     return true;
@@ -882,6 +902,7 @@ VulkanDevice::~VulkanDevice() {
         }
         for (Frame& frame : frames_) {
             destroyHostBuffer(frame.staging);
+            vkDestroyQueryPool(device_, frame.timerPool, nullptr);
             vkDestroySemaphore(device_, frame.imageAvailable, nullptr);
             vkDestroyFence(device_, frame.fence, nullptr);
             vkDestroyCommandPool(device_, frame.pool, nullptr);
@@ -1661,6 +1682,20 @@ bool VulkanDevice::beginFrame() {
         fn();
     }
     frame.deletions.clear();
+    if (caps_.gpuTimers && !frame.timers.empty()) {
+        const uint32_t count = frame.timers.used();
+        std::vector<uint64_t> ticks(count);
+        if (vkGetQueryPoolResults(device_, frame.timerPool, 0, count, count * sizeof(uint64_t), ticks.data(),
+                                  sizeof(uint64_t), VK_QUERY_RESULT_64_BIT) == VK_SUCCESS) {
+            const uint64_t mask = timestampBits_ >= 64 ? ~uint64_t{0} : (uint64_t{1} << timestampBits_) - 1;
+            for (uint64_t& t : ticks) {
+                t &= mask;
+            }
+            gpuTimings_ = frame.timers.timings(ticks, timestampPeriod_);
+        }
+    }
+    frame.timers.reset();
+    frame.timerPoolReset = false;
     vkResetCommandPool(device_, frame.pool, 0);
     frame.commandBuffersUsed = 0;
     frame.stagingOffset = 0;
@@ -1696,12 +1731,17 @@ bool VulkanDevice::beginFrame() {
 
 void VulkanDevice::submit(const CommandList& commands) {
     ANIMAL_ASSERT(frameActive_);
-    ANIMAL_ASSERT(!commands.insideRenderPass());
+    ANIMAL_ASSERT(!commands.insideRenderPass() && commands.openTimers() == 0);
     std::vector<VkCommandBuffer> buffers;
     if (VkCommandBuffer upload = finishPendingUpload()) {
         buffers.push_back(upload);
     }
     VkCommandBuffer cmd = acquireCommandBuffer();
+    Frame& frame = frames_[frameIndex_];
+    if (caps_.gpuTimers && !frame.timerPoolReset) {
+        vkCmdResetQueryPool(cmd, frame.timerPool, 0, TimerScopes::kMaxTimestamps);
+        frame.timerPoolReset = true;
+    }
     translate(commands, cmd);
     vkEndCommandBuffer(cmd);
     buffers.push_back(cmd);
@@ -1870,6 +1910,18 @@ void VulkanDevice::translate(const CommandList& commandList, VkCommandBuffer cmd
                 vkCmdEndRenderingKHR(cmd);
             }
             skipPass = false;
+            continue;
+        }
+        const bool beginTimer = std::holds_alternative<cmd::BeginTimer>(command);
+        if (beginTimer || std::holds_alternative<cmd::EndTimer>(command)) {
+            if (caps_.gpuTimers) {
+                Frame& frame = frames_[frameIndex_];
+                const uint32_t slot =
+                    beginTimer ? frame.timers.begin(std::get<cmd::BeginTimer>(command).name) : frame.timers.end();
+                if (slot != TimerScopes::kNone) {
+                    vkCmdWriteTimestamp2KHR(cmd, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, frame.timerPool, slot);
+                }
+            }
             continue;
         }
         if (skipPass) {

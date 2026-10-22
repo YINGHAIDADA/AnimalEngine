@@ -49,12 +49,16 @@ struct DrawIndexed {
     int32_t vertexOffset;
     uint32_t firstInstance;
 };
+struct BeginTimer {
+    const char* name;
+};
+struct EndTimer {};
 
 } // namespace cmd
 
 using Command = std::variant<cmd::BeginRenderPass, cmd::EndRenderPass, cmd::SetPipeline, cmd::SetViewport,
                              cmd::SetScissor, cmd::SetVertexBuffer, cmd::SetIndexBuffer, cmd::SetBindGroup,
-                             cmd::Draw, cmd::DrawIndexed>;
+                             cmd::Draw, cmd::DrawIndexed, cmd::BeginTimer, cmd::EndTimer>;
 
 // Backend-neutral command recording; translated by the backend at Device::submit().
 // beginRenderPass() resets viewport and scissor to the full attachment; all other state
@@ -77,6 +81,12 @@ public:
     void drawIndexed(uint32_t indexCount, uint32_t instanceCount = 1, uint32_t firstIndex = 0,
                      int32_t vertexOffset = 0, uint32_t firstInstance = 0);
 
+    // GPU time between the two calls (Device::gpuTimings). Outside render passes only; scopes may
+    // nest and must be closed before submit. `name` must outlive the results (use a literal).
+    void beginTimer(const char* name);
+    void endTimer();
+    uint32_t openTimers() const { return openTimers_; }
+
     const std::vector<Command>& commands() const { return commands_; }
     bool insideRenderPass() const { return insideRenderPass_; }
 
@@ -84,6 +94,7 @@ private:
     std::vector<Command> commands_;
     bool insideRenderPass_ = false;
     bool pipelineBound_ = false;
+    uint32_t openTimers_ = 0;
 };
 
 } // namespace animal::rhi

@@ -77,7 +77,15 @@
     X(PFNGLDRAWBUFFERSPROC, glDrawBuffers)                                          \
     X(PFNGLCLEARBUFFERFVPROC, glClearBufferfv)                                      \
     X(PFNGLDRAWARRAYSINSTANCEDPROC, glDrawArraysInstanced)                          \
-    X(PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXPROC, glDrawElementsInstancedBaseVertex)
+    X(PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXPROC, glDrawElementsInstancedBaseVertex)  \
+    X(PFNGLGENQUERIESPROC, glGenQueries)                                            \
+    X(PFNGLDELETEQUERIESPROC, glDeleteQueries)                                      \
+    X(PFNGLQUERYCOUNTERPROC, glQueryCounter)                                        \
+    X(PFNGLBEGINQUERYPROC, glBeginQuery)                                            \
+    X(PFNGLENDQUERYPROC, glEndQuery)                                                \
+    X(PFNGLGETQUERYIVPROC, glGetQueryiv)                                            \
+    X(PFNGLGETQUERYOBJECTIVPROC, glGetQueryObjectiv)                                \
+    X(PFNGLGETQUERYOBJECTUI64VPROC, glGetQueryObjectui64v)
 
 namespace animal::rhi::gl {
 

@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace animal {
@@ -54,6 +55,8 @@ public:
 
 protected:
     virtual AppConfig configure() { return {}; }
+    // Command-line arguments the engine does not know; return false to reject (the run stops).
+    virtual bool onArgument(std::string_view argument);
     virtual bool onInit(EngineContext& context) = 0;
     // Once per rendered frame, before the fixed steps (input sampling, debug toggles).
     virtual void onFrame(EngineContext& context);

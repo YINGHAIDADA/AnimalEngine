@@ -130,6 +130,7 @@ void Renderer2D::shutdown() {
 
 void Renderer2D::beginFrame(rhi::CommandList& commands) {
     commands_ = &commands;
+    commands_->beginTimer("frame");
     batch_.beginFrame();
     litBatch_.beginFrame();
     glowBatch_.beginFrame();
@@ -152,6 +153,7 @@ void Renderer2D::beginWorld(const Camera2D& camera, Color clearColor) {
     pass.colorAttachments[2] = {emissive_, rhi::LoadOp::Clear, rhi::StoreOp::Store, kNoEmissionClear};
     pass.colorAttachments[3] = {flags_, rhi::LoadOp::Clear, rhi::StoreOp::Store, {0.0f, 0.0f, 0.0f, 0.0f}};
     pass.colorAttachmentCount = 4;
+    commands_->beginTimer("material");
     commands_->beginRenderPass(pass);
     litBatch_.begin(*commands_, worldViewProjection_);
 }
@@ -219,6 +221,7 @@ void Renderer2D::endWorld() {
     ANIMAL_ASSERT(phase_ == Phase::World);
     litBatch_.end();
     commands_->endRenderPass();
+    commands_->endTimer();
 
     // World pixels -> grid: uv over the canvas, velocities in cells per second.
     const float dt = fluidSettings_.enabled ? fluidTimeStep_ : 0.0f;
@@ -245,13 +248,18 @@ void Renderer2D::endWorld() {
             smoke.push_back(g);
         }
     }
+    commands_->beginTimer("fluid");
     fluidPass_->simulate(*commands_, dt, forces, smoke, fluidSettings_);
+    commands_->endTimer();
 
     const LightingPass::SmokeLook smokeLook{fluidSettings_.smokeTint,
                                             fluidSettings_.enabled ? fluidSettings_.opacity : 0.0f};
+    commands_->beginTimer("lighting");
     lightingPass_->render(*commands_, worldViewProjection_, worldOrigin_, lights_, lightingSettings_, smokeLook, canvas_);
+    commands_->endTimer();
 
     if (!glow_.empty()) {
+        commands_->beginTimer("glow");
         commands_->beginRenderPass(rhi::RenderPassDesc::single({canvas_, rhi::LoadOp::Load, rhi::StoreOp::Store, {}}));
         glowBatch_.begin(*commands_, worldViewProjection_);
         for (const GlowQuad& quad : glow_) {
@@ -259,14 +267,18 @@ void Renderer2D::endWorld() {
         }
         glowBatch_.end();
         commands_->endRenderPass();
+        commands_->endTimer();
     }
+    commands_->beginTimer("post");
     postPass_->render(*commands_, postSettings_);
+    commands_->endTimer();
     phase_ = Phase::Idle;
 }
 
 void Renderer2D::beginWorldOverlay(const Camera2D& camera) {
     ANIMAL_ASSERT(commands_ != nullptr && phase_ == Phase::Idle);
     phase_ = Phase::WorldOverlay;
+    commands_->beginTimer("world overlay");
     commands_->beginRenderPass(rhi::RenderPassDesc::single({final_, rhi::LoadOp::Load, rhi::StoreOp::Store, {}}));
     batch_.begin(*commands_, camera.viewProjection(kCanvasExtent));
 }
@@ -275,6 +287,7 @@ void Renderer2D::endWorldOverlay() {
     ANIMAL_ASSERT(phase_ == Phase::WorldOverlay);
     batch_.end();
     commands_->endRenderPass();
+    commands_->endTimer();
     phase_ = Phase::Idle;
 }
 
@@ -284,6 +297,7 @@ void Renderer2D::beginScreen(Color letterboxColor) {
     const rhi::Extent2D window = device_->swapchainExtent();
     presentLayout_ = computePresentLayout(kCanvasExtent, window);
 
+    commands_->beginTimer("screen");
     commands_->beginRenderPass(rhi::RenderPassDesc::single(
         {device_->swapchainTexture(), rhi::LoadOp::Clear, rhi::StoreOp::Store, toClearColor(letterboxColor)}));
     batch_.begin(*commands_, Mat4::orthographic(0.0f, static_cast<float>(window.width), 0.0f,
@@ -330,6 +344,7 @@ void Renderer2D::endScreen() {
     ANIMAL_ASSERT(phase_ == Phase::Screen);
     batch_.end();
     commands_->endRenderPass();
+    commands_->endTimer();
     phase_ = Phase::Idle;
 }
 
@@ -351,6 +366,7 @@ void Renderer2D::strokeRect(const RectF& rect, Color color, float thickness) {
 
 void Renderer2D::endFrame() {
     ANIMAL_ASSERT(phase_ == Phase::Idle);
+    commands_->endTimer(); // "frame"
     batch_.endFrame();
     litBatch_.endFrame();
     glowBatch_.endFrame();

@@ -343,6 +343,14 @@ struct DeviceCaps {
     uint32_t framesInFlight = 1;
     bool computeShaders = false;
     bool firstInstance = false;
+    bool gpuTimers = false; // CommandList timer scopes produce Device::gpuTimings()
+};
+
+// One CommandList timer scope, measured on the GPU.
+struct GpuTiming {
+    const char* name; // as passed to CommandList::beginTimer
+    uint32_t depth;   // nesting level, 0 = outermost
+    double milliseconds;
 };
 
 struct DeviceDesc {
@@ -397,6 +405,10 @@ public:
     virtual void submit(const CommandList& commands) = 0;
     virtual void endFrame() = 0;
     virtual void waitIdle() = 0;
+
+    // Timer scopes of the most recent frame whose GPU results are available (a few frames old),
+    // in the order they began. Empty when unsupported or nothing has been measured yet.
+    virtual std::vector<GpuTiming> gpuTimings() const = 0;
 
 protected:
     Device() = default;

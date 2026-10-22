@@ -13,6 +13,7 @@
 #include <animal/core/log.h>
 #include <animal/platform/window.h>
 #include <animal/rhi/command_list.h>
+#include <animal/rhi/gpu_timers.h>
 #include <animal/rhi/rhi.h>
 
 #include <SDL3/SDL_video.h>
@@ -247,9 +248,28 @@ public:
     void submit(const CommandList& commands) override;
     void endFrame() override;
     void waitIdle() override { glFinish(); }
+    std::vector<GpuTiming> gpuTimings() const override { return gpuTimings_; }
 
 private:
     class Executor;
+
+    // Timer queries of one frame; read back kTimerFrames frames later, when the GPU is certainly
+    // done with them (a frame whose results are still not available is dropped).
+    //   Timestamp: one GL_TIMESTAMP query per slot.
+    //   Elapsed (drivers without timestamps, e.g. macOS): a chain of GL_TIME_ELAPSED queries, one
+    //   from each timer event to the next; summing them gives each event's time since the first.
+    enum class TimerMode : uint8_t { None, Timestamp, Elapsed };
+    struct TimerFrame {
+        std::array<GLuint, TimerScopes::kMaxTimestamps> queries{};
+        TimerScopes scopes;
+        std::array<uint32_t, TimerScopes::kMaxTimestamps> eventSlots{}; // Elapsed: slot of each event
+        uint32_t events = 0;
+        bool segmentOpen = false;
+        bool pending = false;
+    };
+    static constexpr size_t kTimerFrames = 4;
+    void recordTimerEvent(uint32_t slot);
+    void collectTimers(TimerFrame& frame);
     using AttachmentIds = std::array<GLuint, kMaxColorAttachments>;
 
     bool createFramebuffer(GlTexture& texture);
@@ -274,6 +294,11 @@ private:
     Extent2D swapchainExtent_;
     bool frameActive_ = false;
     std::map<AttachmentIds, GLuint> multiTargetFramebuffers_;
+
+    TimerMode timerMode_ = TimerMode::None;
+    std::array<TimerFrame, kTimerFrames> timerFrames_{};
+    size_t timerFrame_ = 0;
+    std::vector<GpuTiming> gpuTimings_;
 };
 
 // Translates one CommandList into GL calls. Lives only for the duration of submit().
@@ -315,6 +340,18 @@ public:
     }
 
     void operator()(const cmd::EndRenderPass&) { skipPass_ = false; }
+
+    void operator()(const cmd::BeginTimer& c) {
+        if (device_.caps_.gpuTimers) {
+            device_.recordTimerEvent(device_.timerFrames_[device_.timerFrame_].scopes.begin(c.name));
+        }
+    }
+
+    void operator()(const cmd::EndTimer&) {
+        if (device_.caps_.gpuTimers) {
+            device_.recordTimerEvent(device_.timerFrames_[device_.timerFrame_].scopes.end());
+        }
+    }
 
     void operator()(const cmd::SetPipeline& c) {
         if (skipPass_) {
@@ -507,6 +544,9 @@ GlDevice::~GlDevice() {
     if (!context_) {
         return;
     }
+    for (TimerFrame& frame : timerFrames_) {
+        glDeleteQueries(static_cast<GLsizei>(frame.queries.size()), frame.queries.data());
+    }
     for (auto& [ids, framebuffer] : multiTargetFramebuffers_) {
         glDeleteFramebuffers(1, &framebuffer);
     }
@@ -568,6 +608,15 @@ bool GlDevice::initialize(const DeviceDesc& desc) {
     caps_.framesInFlight = 1;
     caps_.computeShaders = false;
     caps_.firstInstance = false;
+    GLint timestampBits = 0;
+    GLint elapsedBits = 0;
+    glGetQueryiv(GL_TIMESTAMP, GL_QUERY_COUNTER_BITS, &timestampBits);
+    glGetQueryiv(GL_TIME_ELAPSED, GL_QUERY_COUNTER_BITS, &elapsedBits);
+    timerMode_ = timestampBits > 0 ? TimerMode::Timestamp : (elapsedBits > 0 ? TimerMode::Elapsed : TimerMode::None);
+    caps_.gpuTimers = timerMode_ != TimerMode::None;
+    for (TimerFrame& frame : timerFrames_) {
+        glGenQueries(static_cast<GLsizei>(frame.queries.size()), frame.queries.data());
+    }
 
     glGenVertexArrays(1, &vertexArray_);
     glBindVertexArray(vertexArray_);
@@ -1017,13 +1066,62 @@ bool GlDevice::beginFrame() {
     if (extent != swapchainExtent_) {
         resizeSwapchain(extent);
     }
+    timerFrame_ = (timerFrame_ + 1) % kTimerFrames;
+    collectTimers(timerFrames_[timerFrame_]);
     frameActive_ = true;
     return true;
 }
 
+void GlDevice::recordTimerEvent(uint32_t slot) {
+    if (slot == TimerScopes::kNone) {
+        return;
+    }
+    TimerFrame& frame = timerFrames_[timerFrame_];
+    if (timerMode_ == TimerMode::Timestamp) {
+        glQueryCounter(frame.queries[slot], GL_TIMESTAMP);
+        return;
+    }
+    if (frame.segmentOpen) {
+        glEndQuery(GL_TIME_ELAPSED);
+    }
+    glBeginQuery(GL_TIME_ELAPSED, frame.queries[frame.events]);
+    frame.eventSlots[frame.events++] = slot;
+    frame.segmentOpen = true;
+}
+
+void GlDevice::collectTimers(TimerFrame& frame) {
+    const uint32_t queries = timerMode_ == TimerMode::Timestamp ? frame.scopes.used() : frame.events;
+    if (frame.pending && queries > 0) {
+        GLint available = 0;
+        glGetQueryObjectiv(frame.queries[queries - 1], GL_QUERY_RESULT_AVAILABLE, &available);
+        if (available) {
+            std::vector<uint64_t> values(queries);
+            for (uint32_t i = 0; i < queries; ++i) {
+                GLuint64 value = 0;
+                glGetQueryObjectui64v(frame.queries[i], GL_QUERY_RESULT, &value);
+                values[i] = value;
+            }
+            std::vector<uint64_t> ticks(frame.scopes.used());
+            if (timerMode_ == TimerMode::Timestamp) {
+                ticks = values;
+            } else {
+                uint64_t elapsed = 0; // segment i runs from event i to event i + 1
+                for (uint32_t i = 0; i < frame.events; ++i) {
+                    ticks[frame.eventSlots[i]] = elapsed;
+                    elapsed += values[i];
+                }
+            }
+            gpuTimings_ = frame.scopes.timings(ticks, 1.0); // nanoseconds
+        }
+    }
+    frame.pending = false;
+    frame.events = 0;
+    frame.scopes.reset();
+}
+
 void GlDevice::submit(const CommandList& commands) {
     ANIMAL_ASSERT(frameActive_);
-    ANIMAL_ASSERT(!commands.insideRenderPass());
+    ANIMAL_ASSERT(!commands.insideRenderPass() && commands.openTimers() == 0);
     Executor executor(*this);
     for (const Command& command : commands.commands()) {
         std::visit(executor, command);
@@ -1035,6 +1133,12 @@ void GlDevice::submit(const CommandList& commands) {
 void GlDevice::endFrame() {
     ANIMAL_ASSERT(frameActive_);
     frameActive_ = false;
+    TimerFrame& timers = timerFrames_[timerFrame_];
+    if (timers.segmentOpen) {
+        glEndQuery(GL_TIME_ELAPSED);
+        timers.segmentOpen = false;
+    }
+    timers.pending = !timers.scopes.empty();
 
     const GlTexture* texture = textures_.get(swapchain_);
     const auto w = static_cast<GLint>(texture->width);

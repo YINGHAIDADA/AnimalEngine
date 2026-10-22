@@ -5,11 +5,15 @@
 #include <animal/renderer/camera2d.h>
 #include <animal/renderer/pixel_canvas.h>
 #include <animal/rhi/command_list.h>
+#include <animal/rhi/gpu_timers.h>
 #include <animal/rhi/shader_package.h>
 
 #include "test_harness.h"
 
+#include <cmath>
 #include <string>
+#include <variant>
+#include <vector>
 
 namespace {
 
@@ -162,6 +166,48 @@ TEST(command_list_records_in_order) {
 
     list.reset();
     CHECK(list.commands().empty());
+}
+
+TEST(timer_scopes_nest_and_convert_ticks) {
+    rhi::TimerScopes scopes;
+    const uint32_t frameBegin = scopes.begin("frame");
+    const uint32_t passBegin = scopes.begin("pass");
+    const uint32_t passEnd = scopes.end();
+    const uint32_t frameEnd = scopes.end();
+    CHECK(scopes.used() == 4);
+    CHECK(scopes.end() == rhi::TimerScopes::kNone); // unbalanced end is ignored
+
+    std::vector<uint64_t> ticks(4);
+    ticks[frameBegin] = 1000;
+    ticks[passBegin] = 1500;
+    ticks[passEnd] = 3500;
+    ticks[frameEnd] = 5000;
+    const auto timings = scopes.timings(ticks, 1000.0); // 1 tick = 1 µs
+    CHECK(timings.size() == 2);
+    CHECK(std::string(timings[0].name) == "frame" && timings[0].depth == 0);
+    CHECK(std::fabs(timings[0].milliseconds - 4.0) < 1e-9);
+    CHECK(std::string(timings[1].name) == "pass" && timings[1].depth == 1);
+    CHECK(std::fabs(timings[1].milliseconds - 2.0) < 1e-9);
+
+    scopes.reset();
+    for (uint32_t i = 0; i < rhi::TimerScopes::kMaxTimestamps / 2 + 3; ++i) {
+        scopes.begin("many");
+        scopes.end();
+    }
+    CHECK(scopes.used() == rhi::TimerScopes::kMaxTimestamps); // extra scopes get no slots
+}
+
+TEST(command_list_records_timer_scopes) {
+    rhi::CommandList list;
+    list.beginTimer("outer");
+    list.beginTimer("inner");
+    CHECK(list.openTimers() == 2);
+    list.endTimer();
+    list.endTimer();
+    CHECK(list.openTimers() == 0);
+    CHECK(list.commands().size() == 4);
+    CHECK(std::holds_alternative<rhi::cmd::BeginTimer>(list.commands()[0]));
+    CHECK(std::holds_alternative<rhi::cmd::EndTimer>(list.commands()[3]));
 }
 
 } // namespace
