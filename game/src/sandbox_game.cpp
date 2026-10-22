@@ -6,7 +6,9 @@
 #include <animal/renderer/renderer2d.h>
 #include <animal/rhi/rhi.h>
 
+#include <cmath>
 #include <format>
+#include <iterator>
 
 namespace game {
 
@@ -24,11 +26,31 @@ constexpr animal::IntRect kPlayerCollider{0, 0, 6, 7};
 constexpr animal::Vec2i kSpriteOffset{-1, -1};
 constexpr animal::Vec2i kPlayerSpawn{3 * kTileSize, 20 * kTileSize - 7};
 
+// F4 cycles through these light quantization settings (0 = smooth).
+constexpr int kBandPresets[] = {0, 3, 5, 8};
+
+constexpr animal::Color kBackdrop = animal::Color::rgba(12, 10, 20);
+constexpr animal::Vec3 kAmbient{0.07f, 0.07f, 0.11f};
+constexpr animal::Vec3 kCandleColor{1.0f, 0.62f, 0.28f};
+constexpr animal::Vec3 kCrystalColor{0.35f, 0.8f, 1.0f};
+constexpr animal::Vec3 kPlayerGlowColor{0.85f, 0.85f, 1.0f};
+
+// Candles stand on platform tops: x in tiles, y = top row of the platform.
+constexpr struct {
+    int tileX;
+    int surfaceRow;
+} kCandleSpots[] = {{8, 20}, {21, 20}, {13, 11}, {28, 5}, {36, 17}, {20, 8}};
+
+float flicker(double time, float phase) {
+    const auto t = static_cast<float>(time);
+    return 1.0f + 0.08f * std::sin(t * 13.0f + phase) + 0.05f * std::sin(t * 29.0f + phase * 2.3f);
+}
+
 } // namespace
 
 animal::AppConfig SandboxGame::configure() {
     animal::AppConfig config;
-    config.title = "Animal Engine · M1a Sandbox";
+    config.title = "Animal Engine · V1 Sandbox";
     return config;
 }
 
@@ -42,14 +64,24 @@ void SandboxGame::bindActions() {
 
 bool SandboxGame::onInit(animal::EngineContext& context) {
     auto room = buildTestRoom();
-    const auto tileset = animal::loadTexture(*context.device, context.dataDirectory + "textures/tileset.png");
-    const auto creature = animal::loadTexture(*context.device, context.dataDirectory + "textures/creature.png");
-    if (!room || !tileset || !creature) {
+    const std::string textures = context.dataDirectory + "textures/";
+    auto tileset = animal::loadMaterial(*context.device, textures + "tileset");
+    auto creature = animal::loadMaterial(*context.device, textures + "creature");
+    auto props = animal::loadMaterial(*context.device, textures + "props");
+    if (!room || !tileset || !creature || !props) {
         return false;
     }
     room_ = std::move(*room);
     tileset_ = *tileset;
     creature_ = *creature;
+    props_ = *props;
+
+    float phase = 0.0f;
+    for (const auto& spot : kCandleSpots) {
+        candles_.push_back({{static_cast<float>(spot.tileX * kTileSize), static_cast<float>((spot.surfaceRow - 1) * kTileSize)},
+                            phase});
+        phase += 1.7f;
+    }
 
     player_ = entities_.create(animal::EntityKind::Player);
     animal::Entity* player = entities_.get(player_);
@@ -58,14 +90,26 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
 
     camera_.center = kCameraCenter;
     bindActions();
+
+    animal::LightingSettings& lighting = context.renderer->lighting();
+    lighting.ambient = kAmbient;
+    lighting.bands = kBandPresets[bandsPreset_];
     return true;
 }
 
 void SandboxGame::onFrame(animal::EngineContext& context) {
     const animal::platform::Input& input = *context.input;
     actions_.update(input);
+    animal::LightingSettings& lighting = context.renderer->lighting();
     if (input.pressed(Key::F2)) {
         showCollision_ = !showCollision_;
+    }
+    if (input.pressed(Key::F3)) {
+        lighting.enabled = !lighting.enabled;
+    }
+    if (input.pressed(Key::F4)) {
+        bandsPreset_ = (bandsPreset_ + 1) % std::size(kBandPresets);
+        lighting.bands = kBandPresets[bandsPreset_];
     }
     if (input.gamepadConnected() && (input.down(GamepadButton::South) || input.axis(GamepadAxis::LeftX) != 0.0f)) {
         usingGamepad_ = true;
@@ -75,6 +119,7 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
 }
 
 void SandboxGame::onFixedUpdate(animal::EngineContext&, double dt) {
+    time_ += dt;
     animal::Entity* player = entities_.get(player_);
     if (player) {
         animal::PlatformerInput input;
@@ -98,8 +143,46 @@ void SandboxGame::onFixedUpdate(animal::EngineContext&, double dt) {
     entities_.flushDestroyed();
 }
 
+void SandboxGame::addLights(animal::Renderer2D& renderer) {
+    for (const Candle& candle : candles_) {
+        animal::PointLight light;
+        light.position = candle.position + animal::Vec2{3.5f, 1.5f}; // the flame
+        light.radius = 60.0f;
+        light.color = kCandleColor;
+        light.intensity = 1.5f * flicker(time_, candle.phase);
+        light.height = 10.0f;
+        renderer.addLight(light);
+    }
+
+    const float size = static_cast<float>(kTileSize);
+    for (int ty = 0; ty < room_.height(); ++ty) {
+        for (int tx = 0; tx < room_.width(); ++tx) {
+            if (room_.tile(tx, ty) == TileCrystal) {
+                animal::PointLight light;
+                light.position = {tx * size + 4.0f, ty * size + 4.0f};
+                light.radius = 44.0f;
+                light.color = kCrystalColor;
+                light.intensity = 1.1f + 0.15f * static_cast<float>(std::sin(time_ * 1.3 + tx));
+                light.height = 12.0f;
+                renderer.addLight(light);
+            }
+        }
+    }
+
+    if (const animal::Entity* player = entities_.get(player_)) {
+        const animal::Vec2 center = player->body.exactPosition() + animal::Vec2{3.0f, 3.0f};
+        animal::PointLight glow;
+        glow.position = center;
+        glow.radius = 30.0f;
+        glow.color = kPlayerGlowColor;
+        glow.intensity = 0.55f;
+        glow.height = 14.0f;
+        renderer.addLight(glow);
+    }
+}
+
 void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer) {
-    renderer.beginWorld(camera_, animal::Color::rgba(12, 10, 20));
+    renderer.beginWorld(camera_, kBackdrop);
 
     const float size = static_cast<float>(kTileSize);
     for (int ty = 0; ty < room_.height(); ++ty) {
@@ -111,16 +194,24 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
             renderer.drawSprite(tileset_, {tx * size, ty * size}, {tile * size, 0.0f, size, size});
         }
     }
+    for (const Candle& candle : candles_) {
+        renderer.drawSprite(props_, candle.position, {0.0f, 0.0f, size, size});
+    }
 
-    if (const animal::Entity* player = entities_.get(player_)) {
+    const animal::Entity* player = entities_.get(player_);
+    if (player) {
         const animal::Vec2i p = player->body.position + kSpriteOffset;
         renderer.drawSprite(creature_, {static_cast<float>(p.x), static_cast<float>(p.y)}, {0.0f, 0.0f, size, size},
                             animal::Color::white(), facingLeft_);
-        if (showCollision_) {
-            drawCollisionDebug(renderer, *player);
-        }
     }
+    addLights(renderer);
     renderer.endWorld();
+
+    if (showCollision_ && player) {
+        renderer.beginWorldOverlay(camera_);
+        drawCollisionDebug(renderer, *player);
+        renderer.endWorldOverlay();
+    }
 }
 
 void SandboxGame::drawCollisionDebug(animal::Renderer2D& renderer, const animal::Entity& player) {
@@ -140,7 +231,7 @@ void SandboxGame::drawCollisionDebug(animal::Renderer2D& renderer, const animal:
                         color);
 }
 
-void SandboxGame::onDebugText(animal::EngineContext&, std::vector<std::string>& lines) {
+void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::string>& lines) {
     if (const animal::Entity* player = entities_.get(player_)) {
         const animal::PlatformerState& s = playerState_;
         lines.push_back(std::format("PLAYER {},{}  VEL {:.0f},{:.0f}", player->body.position.x,
@@ -148,13 +239,17 @@ void SandboxGame::onDebugText(animal::EngineContext&, std::vector<std::string>& 
         lines.push_back(std::format("GROUNDED {}  COYOTE {}  BUFFER {}", s.grounded ? "YES" : "NO", s.coyoteTimer,
                                     s.jumpBufferTimer));
     }
+    const animal::LightingSettings& lighting = context.renderer->lighting();
+    lines.push_back(std::format("F3 LIGHTING {}  F4 BANDS {}", lighting.enabled ? "ON" : "OFF",
+                                lighting.bands == 0 ? std::string("SMOOTH") : std::to_string(lighting.bands)));
     lines.push_back(usingGamepad_ ? "GAMEPAD: STICK/DPAD MOVE  A JUMP" : "ARROWS/WASD MOVE  SPACE/Z JUMP");
     lines.push_back(std::format("F2 COLLISION VIEW ({})", showCollision_ ? "ON" : "OFF"));
 }
 
 void SandboxGame::onShutdown(animal::EngineContext& context) {
-    context.device->destroy(tileset_.handle);
-    context.device->destroy(creature_.handle);
+    animal::destroyMaterial(*context.device, tileset_);
+    animal::destroyMaterial(*context.device, creature_);
+    animal::destroyMaterial(*context.device, props_);
 }
 
 } // namespace game

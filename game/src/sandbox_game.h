@@ -8,6 +8,12 @@
 #include <animal/renderer/camera2d.h>
 #include <animal/resources/loaders.h>
 
+#include <vector>
+
+namespace animal {
+class Renderer2D;
+}
+
 namespace game {
 
 enum Action : animal::ActionId {
@@ -18,7 +24,7 @@ enum Action : animal::ActionId {
     Jump,
 };
 
-// M1a sandbox: one single-screen room and a platformer-controlled creature.
+// M1a / V1 sandbox: one single-screen room, a platformer-controlled creature, pixel lighting.
 class SandboxGame final : public animal::Application {
 protected:
     animal::AppConfig configure() override;
@@ -30,23 +36,33 @@ protected:
     void onShutdown(animal::EngineContext& context) override;
 
 private:
+    struct Candle {
+        animal::Vec2 position; // top-left of the 8×8 prop
+        float phase = 0.0f;    // desynchronizes the flicker
+    };
+
     void bindActions();
+    void addLights(animal::Renderer2D& renderer);
     void drawCollisionDebug(animal::Renderer2D& renderer, const animal::Entity& player);
 
     animal::TileMap room_;
+    std::vector<Candle> candles_;
     animal::EntityWorld entities_;
     animal::EntityId player_;
     animal::PlatformerParams playerParams_;
     animal::PlatformerState playerState_;
     bool facingLeft_ = false;
+    double time_ = 0.0; // simulation time, drives light animation
 
     animal::ActionMap actions_;
     bool showCollision_ = false;
     bool usingGamepad_ = false;
+    size_t bandsPreset_ = 2;
 
     animal::Camera2D camera_;
-    animal::LoadedTexture tileset_;
-    animal::LoadedTexture creature_;
+    animal::SpriteMaterial tileset_;
+    animal::SpriteMaterial creature_;
+    animal::SpriteMaterial props_;
 };
 
 } // namespace game

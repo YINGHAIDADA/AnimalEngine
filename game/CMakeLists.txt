@@ -22,6 +22,12 @@ animal_add_data_files(animal_game_textures
     DESTINATION textures
     FILES
         tileset.png
-        creature.png)
+        tileset_n.png
+        tileset_e.png
+        creature.png
+        creature_n.png
+        props.png
+        props_n.png
+        props_e.png)
 
 add_dependencies(animal_game animal_shaders animal_game_textures)

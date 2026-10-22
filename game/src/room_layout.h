@@ -12,6 +12,7 @@ enum Tile : animal::TileId {
     TileWall = 1,
     TileGround = 2,
     TileBackground = 3,
+    TileCrystal = 4,
 };
 
 constexpr int kTileSize = 8;
