@@ -28,7 +28,8 @@ struct Particle {
     Color startColor = Color::white();
     Color endColor = Color::white();
     uint32_t seed = 0;          // per-particle variation (wander path, flicker phase)
-    uint8_t kind = 0;           // game-defined render style
+    uint8_t kind = 0;           // game-defined render style (EffectSystem: preset id)
+    uint16_t source = 0;        // EffectSystem: emitter index + 1 (0 = burst)
     bool dieOnSolid = false;
 };
 
