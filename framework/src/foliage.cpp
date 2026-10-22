@@ -26,7 +26,8 @@ float centerX(const IntRect& r) {
 float windAt(const WindParams& wind, float x, double time) {
     const auto t = static_cast<float>(time) * wind.speed;
     const float gust = 0.6f + 0.4f * std::sin(t * 0.37f);
-    return gust * (0.65f * std::sin(t + x * 0.031f) + 0.35f * std::sin(t * 2.3f + x * 0.11f));
+    // Mostly a slow, broad wave; a small faster ripple keeps neighbouring blades from moving in lockstep.
+    return gust * (0.8f * std::sin(t + x * 0.02f) + 0.2f * std::sin(t * 1.7f + x * 0.07f));
 }
 
 // --- Grass ---------------------------------------------------------------------------------
@@ -105,61 +106,67 @@ void VineSystem::addVine(Vec2 anchor, int segments) {
     vines_.push_back(std::move(vine));
 }
 
+void VineSystem::satisfyConstraint(Vine& vine, size_t i) const {
+    Vec2& a = vine.points[i - 1];
+    Vec2& b = vine.points[i];
+    const Vec2 delta = b - a;
+    const float distance = std::max(length(delta), 1e-4f);
+    const float error = (distance - params_.segmentLength) / distance;
+    if (i == 1) {
+        b = b - delta * error; // a is the pinned anchor
+    } else {
+        a = a + delta * (error * 0.5f);
+        b = b - delta * (error * 0.5f);
+    }
+}
+
 void VineSystem::step(float dt, double time, std::span<const FoliageInfluence> influences, const WindParams& wind) {
+    // Substeps keep each correction small, so constraints converge without stretching and a
+    // push anywhere propagates both up and down the chain (the whole vine swings together).
+    const int substeps = std::max(1, params_.substeps);
+    const float h = dt / static_cast<float>(substeps);
+    const float damping = std::pow(params_.damping, 1.0f / static_cast<float>(substeps));
+
     for (Vine& vine : vines_) {
         const size_t count = vine.points.size();
+        // One wind value per vine: a uniform force leans the chain as a whole.
+        const float windX = params_.windForce * wind.strength * windAt(wind, vine.points[0].x, time);
 
-        // Integrate (point 0 stays pinned).
-        for (size_t i = 1; i < count; ++i) {
-            Vec2& p = vine.points[i];
-            Vec2& prev = vine.previous[i];
-            const Vec2 velocity = (p - prev) * params_.damping;
-            const float sway = params_.windForce * wind.strength * windAt(wind, p.x, time) *
-                               (static_cast<float>(i) / static_cast<float>(count));
-            const Vec2 acceleration{sway, params_.gravity};
-            prev = p;
-            p = p + velocity + acceleration * (dt * dt);
-        }
-
-        // Influences push points out sideways and drag them along.
-        for (const FoliageInfluence& influence : influences) {
-            const IntRect& r = influence.bounds;
-            const float left = static_cast<float>(r.x) - 1.0f;
-            const float right = static_cast<float>(r.right()) + 1.0f;
-            const float top = static_cast<float>(r.y) - 1.0f;
-            const float bottom = static_cast<float>(r.bottom()) + 1.0f;
+        for (int s = 0; s < substeps; ++s) {
             for (size_t i = 1; i < count; ++i) {
                 Vec2& p = vine.points[i];
-                if (p.x > left && p.x < right && p.y > top && p.y < bottom) {
-                    const bool exitLeft = (p.x - left) < (right - p.x);
-                    p.x = exitLeft ? left : right;
-                    vine.previous[i].x -= influence.velocity.x * dt * params_.momentumTransfer;
-                }
+                Vec2& prev = vine.previous[i];
+                const Vec2 velocity = (p - prev) * damping;
+                prev = p;
+                p = p + velocity + Vec2{windX, params_.gravity} * (h * h);
             }
-        }
 
-        // Distance constraints, anchor first so the chain hangs from it.
-        for (int iteration = 0; iteration < params_.iterations; ++iteration) {
-            for (size_t i = 1; i < count; ++i) {
-                Vec2& a = vine.points[i - 1];
-                Vec2& b = vine.points[i];
-                const Vec2 delta = b - a;
-                const float distance = std::max(length(delta), 1e-4f);
-                const float error = (distance - params_.segmentLength) / distance;
-                if (i == 1) {
-                    b = b - delta * error; // a is the pinned anchor
-                } else {
-                    a = a + delta * (error * 0.5f);
-                    b = b - delta * (error * 0.5f);
+            // Influences push points out sideways and drag them along.
+            for (const FoliageInfluence& influence : influences) {
+                const IntRect& r = influence.bounds;
+                const float left = static_cast<float>(r.x) - 1.0f;
+                const float right = static_cast<float>(r.right()) + 1.0f;
+                const float top = static_cast<float>(r.y) - 1.0f;
+                const float bottom = static_cast<float>(r.bottom()) + 1.0f;
+                for (size_t i = 1; i < count; ++i) {
+                    Vec2& p = vine.points[i];
+                    if (p.x > left && p.x < right && p.y > top && p.y < bottom) {
+                        const bool exitLeft = (p.x - left) < (right - p.x);
+                        p.x = exitLeft ? left : right;
+                        vine.previous[i].x -= influence.velocity.x * h * params_.momentumTransfer;
+                    }
                 }
             }
-        }
-        // Relaxation alone lets gravity stretch long chains; restore exact lengths from the
-        // anchor outwards (follow-the-leader), which also adds a little natural damping.
-        for (size_t i = 1; i < count; ++i) {
-            const Vec2 delta = vine.points[i] - vine.points[i - 1];
-            const float distance = std::max(length(delta), 1e-4f);
-            vine.points[i] = vine.points[i - 1] + delta * (params_.segmentLength / distance);
+
+            // Alternate sweep directions so corrections travel both ways along the chain.
+            for (int iteration = 0; iteration < params_.iterations; ++iteration) {
+                for (size_t i = 1; i < count; ++i) {
+                    satisfyConstraint(vine, i);
+                }
+                for (size_t i = count - 1; i >= 1; --i) {
+                    satisfyConstraint(vine, i);
+                }
+            }
         }
     }
 }

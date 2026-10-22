@@ -357,6 +357,43 @@ TEST(vine_is_pushed_by_the_player) {
     CHECK(points.back().x > 52.0f); // tip swung away in the walking direction
 }
 
+// A chain under a steady sideways force should lean as a whole (ideally a straight slanted
+// line, midpoint offset ≈ half the tip offset), not just whip at the bottom.
+TEST(vine_leans_as_a_whole_in_steady_wind) {
+    VineSystem vines;
+    vines.params().windForce = 80.0f;
+    vines.addVine({50.0f, 8.0f}, 20);
+    const WindParams steady{1.0f, 0.0f}; // speed 0 freezes the wind field in time
+    const float wind = windAt(steady, 50.0f, 0.0);
+    CHECK(std::fabs(wind) > 0.05f);
+    for (int i = 0; i < 600; ++i) {
+        vines.step(kDt, 0.0, {}, steady);
+    }
+    const auto& points = vines.vines()[0].points;
+    const float tip = points.back().x - 50.0f;
+    const float mid = points[points.size() / 2].x - 50.0f;
+    CHECK(std::fabs(tip) > 2.0f);
+    CHECK((tip > 0.0f) == (wind > 0.0f));
+    CHECK(mid / tip > 0.4f);
+}
+
+TEST(vine_push_at_the_tip_moves_the_upper_chain) {
+    VineSystem vines;
+    vines.addVine({50.0f, 8.0f}, 20); // tip around y = 68
+    FoliageInfluence player{{44, 58, 6, 7}, {90.0f, 0.0f}, false};
+    float maxUpper = 0.0f;
+    float maxTip = 0.0f;
+    for (int i = 0; i < 40; ++i) {
+        player.bounds.x = 44 + i;
+        vines.step(kDt, i * kDt, std::span(&player, 1), WindParams{0.0f, 0.8f});
+        const auto& points = vines.vines()[0].points;
+        maxUpper = std::max(maxUpper, points[points.size() / 3].x - 50.0f);
+        maxTip = std::max(maxTip, points.back().x - 50.0f);
+    }
+    CHECK(maxTip > 4.0f);
+    CHECK(maxUpper > maxTip * 0.2f); // the push travels up the chain
+}
+
 TEST(foliage_simulation_is_deterministic) {
     auto run = [] {
         GrassField grass = makeGrass();

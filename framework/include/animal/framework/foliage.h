@@ -21,8 +21,8 @@ struct FoliageInfluence {
 };
 
 struct WindParams {
-    float strength = 1.0f; // 0 = calm, 1 = normal breeze
-    float speed = 0.8f;
+    float strength = 1.0f; // 0 = calm, 1 = gentle breeze
+    float speed = 0.5f;    // how fast gusts evolve
 };
 
 // Horizontal wind in [-1, 1] at world x and simulation time; smooth in both.
@@ -34,7 +34,7 @@ class GrassField {
 public:
     struct Params {
         float stiffness = 120.0f;   // spring constant (1/s²)
-        float windLean = 0.22f;     // radians at full wind
+        float windLean = 0.12f;     // radians at full wind
         float damping = 7.0f;       // (1/s)
         float maxBend = 1.15f;      // radians
         float pushReach = 3.0f;     // px beyond the influence bounds that still bend blades
@@ -89,9 +89,10 @@ public:
     struct Params {
         float segmentLength = 3.0f;
         float gravity = 420.0f;   // px/s²
-        float damping = 0.985f;   // velocity kept per step
-        float windForce = 90.0f;  // px/s² at full gust
-        int iterations = 8;
+        float damping = 0.985f;   // velocity kept per fixed step
+        float windForce = 35.0f;  // px/s², applied uniformly along the vine (≈ 5° lean at full wind)
+        int substeps = 4;
+        int iterations = 4;       // forward + backward constraint sweeps per substep
         float momentumTransfer = 0.5f; // share of the influence velocity given to touched points
     };
 
@@ -122,6 +123,8 @@ public:
     Params& params() { return params_; }
 
 private:
+    void satisfyConstraint(Vine& vine, size_t i) const;
+
     template <typename F>
     static void rasterizeLine(Vec2 a, Vec2 b, F&& plot) {
         int x0 = static_cast<int>(std::lround(a.x));
