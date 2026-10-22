@@ -83,11 +83,17 @@ public:
     struct Params {
         float segmentLength = 3.0f;
         float gravity = 420.0f;   // px/s²
-        float damping = 0.985f;   // velocity kept per fixed step
+        float damping = 0.96f;    // velocity kept per fixed step (heavier vines settle in ~2 s)
         float windForce = 35.0f;  // px/s², applied uniformly along the vine (≈ 5° lean at full wind)
         int substeps = 4;
         int iterations = 4;       // forward + backward constraint sweeps per substep
-        float momentumTransfer = 0.5f; // share of the influence velocity given to touched points
+        // Contact with influences is a force, not a position fix, so vines have weight: a pushed
+        // vine leans until gravity and chain tension balance the push, and slips behind the
+        // player once its center passes. Touched points are also dragged toward the influence
+        // velocity (blended, never beyond it, capped by maxPushSpeed).
+        float pushAcceleration = 1500.0f; // px/s² at full penetration, toward the nearer edge
+        float dragCoupling = 6.0f;        // 1/s: how fast touched points pick up the influence velocity
+        float maxPushSpeed = 30.0f;       // px/s cap on the dragged velocity
     };
 
     struct Vine {

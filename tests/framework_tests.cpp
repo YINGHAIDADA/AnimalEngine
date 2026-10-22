@@ -396,6 +396,22 @@ TEST(vine_push_at_the_tip_moves_the_upper_chain) {
     CHECK(maxUpper > maxTip * 0.2f); // the push travels up the chain
 }
 
+// The player walking through a vine should swing it noticeably but not drag it along
+// (vines have weight: partial push-out, limited momentum transfer).
+TEST(vine_resists_being_dragged_by_the_player) {
+    VineSystem vines;
+    vines.addVine({50.0f, 8.0f}, 20); // tip around y = 68
+    Influence player{{30, 58, 6, 7}, {90.0f, 0.0f}, false};
+    float maxTip = 0.0f;
+    for (int i = 0; i < 60; ++i) { // walks from x = 30 to 90, straight through the vine
+        player.bounds.x = 30 + i;
+        vines.step(kDt, i * kDt, std::span(&player, 1), WindParams{0.0f, 0.5f});
+        maxTip = std::max(maxTip, vines.vines()[0].points.back().x - 50.0f);
+    }
+    CHECK(maxTip > 3.0f);
+    CHECK(maxTip < 15.0f);
+}
+
 TEST(foliage_simulation_is_deterministic) {
     auto run = [] {
         GrassField grass = makeGrass();

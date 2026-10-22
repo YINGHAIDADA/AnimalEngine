@@ -151,9 +151,18 @@ void VineSystem::step(float dt, double time, std::span<const Influence> influenc
                 for (size_t i = 1; i < count; ++i) {
                     Vec2& p = vine.points[i];
                     if (p.x > left && p.x < right && p.y > top && p.y < bottom) {
-                        const bool exitLeft = (p.x - left) < (right - p.x);
-                        p.x = exitLeft ? left : right;
-                        vine.previous[i].x -= influence.velocity.x * h * params_.momentumTransfer;
+                        const float halfWidth = 0.5f * (right - left);
+                        const float center = left + halfWidth;
+                        const float penetration = 1.0f - std::fabs(p.x - center) / halfWidth; // 0 at edge, 1 at center
+                        const float direction = p.x >= center ? 1.0f : -1.0f;
+                        p.x += direction * params_.pushAcceleration * penetration * h * h;
+                        // Blend the point's velocity toward the (capped) influence velocity.
+                        const float target = std::clamp(influence.velocity.x, -params_.maxPushSpeed,
+                                                        params_.maxPushSpeed);
+                        const float velocity = (p.x - vine.previous[i].x) / h;
+                        const float blended =
+                            velocity + (target - velocity) * std::min(1.0f, params_.dragCoupling * h);
+                        vine.previous[i].x = p.x - blended * h;
                     }
                 }
             }
