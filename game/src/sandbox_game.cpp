@@ -29,8 +29,9 @@ constexpr animal::IntRect kPlayerCollider{0, 0, 6, 7};
 constexpr animal::Vec2i kSpriteOffset{-1, -1};
 constexpr int kFallMargin = 32; // px below a room with no neighbour before respawning
 
-// F4 cycles through these light quantization settings (0 = smooth).
-constexpr int kBandPresets[] = {0, 3, 5, 8};
+// F4 cycles through these light quantization settings: -1 = the room's look, 0 = smooth.
+constexpr int kBandOverrides[] = {-1, 0, 3, 5, 8};
+constexpr float kLookFadeSeconds = 0.6f; // grading crossfade when entering a room
 constexpr animal::Color kBackdrop = animal::Color::rgba(12, 10, 20);
 constexpr animal::Vec3 kPlayerGlowColor{0.85f, 0.85f, 1.0f};
 constexpr uint32_t kRoomSeed = 0xA11CE;
@@ -84,6 +85,7 @@ bool SandboxGame::enterRoom(const animal::WorldRoom& worldRoom, animal::Renderer
     if (!room || !cave_.build(*room, roomName(worldRoom.path), save_.flags, kRoomSeed + roomVisits_++)) {
         return false;
     }
+    const bool firstRoom = currentRoom_ == nullptr;
     currentRoom_ = &worldRoom;
     checkpointPending_ = true;
     climb_.climbing = false; // vine indices belong to the previous room
@@ -91,7 +93,9 @@ bool SandboxGame::enterRoom(const animal::WorldRoom& worldRoom, animal::Renderer
     const animal::Vec2 canvasOrigin = camera_.topLeft(animal::Renderer2D::kCanvasExtent);
     renderer.setFluidObstacles(cave_.fluidObstacles(canvasOrigin));
     renderer.setLightOccluders(cave_.lightOccluders(canvasOrigin));
-    renderer.lighting().ambient = cave_.ambient();
+    lookTo_ = roomLook(worldRoom);
+    lookFrom_ = firstRoom ? lookTo_ : currentLook(); // fade from whatever is on screen
+    lookBlend_ = firstRoom ? 1.0f : 0.0f;
     animal::log::info("Entered room '{}'", roomName(worldRoom.path));
     return true;
 }
@@ -158,24 +162,49 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     bindActions();
     setupAnimations();
 
-    animal::Renderer2D& renderer = *context.renderer;
-    renderer.lighting().bands = kBandPresets[bandsPreset_];
-    animal::FluidSettings& fluid = renderer.fluid();
+    animal::FluidSettings& fluid = context.renderer->fluid();
     fluid.smokeKeepPerSecond = 0.8f;
     fluid.velocityKeepPerSecond = 0.7f;
     fluid.buoyancy = 45.0f;
-
-    // Cave grade: cool shadows, warm highlights, soft vignette; bloom around the light sources.
-    animal::PostSettings& post = renderer.post();
-    post.bloomThreshold = 0.55f;
-    post.bloomIntensity = 1.0f;
-    post.exposure = 1.2f; // the scene is dark; contrast below would otherwise crush it
-    post.contrast = 1.04f;
-    post.saturation = 1.12f;
-    post.shadowTint = {0.9f, 0.95f, 1.12f};
-    post.highlightTint = {1.08f, 1.0f, 0.9f};
-    post.vignette = 0.25f;
     return true;
+}
+
+// The room's look: the preset named by its "look" property (a file relative to the room) over
+// the engine defaults, then its "look.*" property overrides.
+animal::Look SandboxGame::roomLook(const animal::WorldRoom& worldRoom) {
+    const animal::Room* room = roomData(worldRoom);
+    animal::Look look = animal::Look::engineDefaults();
+    if (!room) {
+        return look;
+    }
+    if (const std::string file = room->properties.getString("look"); !file.empty()) {
+        const std::string path = animal::resolvePath(room->path, file);
+        auto it = looks_.find(path);
+        if (it == looks_.end()) {
+            it = looks_.emplace(path, animal::loadLook(path, look).value_or(look)).first;
+        }
+        look = it->second;
+        lookName_ = roomName(path);
+    } else {
+        lookName_ = "DEFAULT";
+    }
+    for (const std::string& problem : animal::applyLookOverrides(look, room->properties)) {
+        animal::log::warn("{}: {}", room->path, problem);
+    }
+    return look;
+}
+
+animal::Look SandboxGame::currentLook() const {
+    const float t = lookBlend_ * lookBlend_ * (3.0f - 2.0f * lookBlend_);
+    return animal::mixLooks(lookFrom_, lookTo_, t);
+}
+
+void SandboxGame::applyCurrentLook(animal::Renderer2D& renderer) const {
+    animal::applyLook(currentLook(), renderer.lighting(), renderer.post(), renderer.fluid());
+    if (const int bands = kBandOverrides[bandsOverride_]; bands >= 0) {
+        renderer.lighting().bands = bands;
+    }
+    renderer.lighting().shadows = renderer.lighting().shadows && shadowsEnabled_;
 }
 
 // --demo: a short tour driven by simulation time (reproducible with --deterministic): run right,
@@ -233,8 +262,7 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
         renderer.lighting().enabled = !renderer.lighting().enabled;
     }
     if (input.pressed(Key::F4)) {
-        bandsPreset_ = (bandsPreset_ + 1) % std::size(kBandPresets);
-        renderer.lighting().bands = kBandPresets[bandsPreset_];
+        bandsOverride_ = (bandsOverride_ + 1) % std::size(kBandOverrides);
     }
     if (input.pressed(Key::F5)) {
         renderer.fluid().enabled = !renderer.fluid().enabled;
@@ -243,7 +271,13 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
         renderer.post().enabled = !renderer.post().enabled;
     }
     if (input.pressed(Key::F7)) {
-        renderer.lighting().shadows = !renderer.lighting().shadows;
+        shadowsEnabled_ = !shadowsEnabled_;
+    }
+    if (input.pressed(Key::F9) && currentRoom_) {
+        looks_.clear(); // re-read the presets: edit data/world/looks/*.json and press F9
+        lookFrom_ = lookTo_ = roomLook(*currentRoom_);
+        lookBlend_ = 1.0f;
+        animal::log::info("Reloaded look '{}'", lookName_);
     }
     if (input.pressed(Key::F8)) {
         resetProgress(renderer);
@@ -377,6 +411,7 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
     time_ += dt;
     fluidTime_ += static_cast<float>(dt);
     const float step = static_cast<float>(dt);
+    lookBlend_ = std::min(1.0f, lookBlend_ + step / kLookFadeSeconds);
     invulnerable_ = std::max(0.0f, invulnerable_ - step);
     stunned_ = std::max(0.0f, stunned_ - step);
     messageTime_ = std::max(0.0f, messageTime_ - step);
@@ -425,6 +460,7 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
 }
 
 void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer) {
+    applyCurrentLook(renderer);
     renderer.beginWorld(camera_, kBackdrop);
     cave_.drawBehindPlayer(renderer, assets_);
     cave_.drawGems(renderer, assets_, time_);
@@ -500,12 +536,14 @@ void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::s
     lines.push_back(std::format("GRASS {}  VINES {}  PARTICLES {}", cave_.bladeCount(), cave_.vineCount(),
                                 cave_.particleCount()));
     animal::Renderer2D& renderer = *context.renderer;
-    lines.push_back(std::format("F3 LIGHT {}  F4 BANDS {}  F5 SMOKE {}  F6 POST {}  F7 SHADOWS {}",
+    const int bands = renderer.lighting().bands;
+    lines.push_back(std::format("F3 LIGHT {}  F4 BANDS {}{}  F5 SMOKE {}  F6 POST {}  F7 SHADOWS {}",
                                 renderer.lighting().enabled ? "ON" : "OFF",
-                                renderer.lighting().bands == 0 ? std::string("SMOOTH")
-                                                               : std::to_string(renderer.lighting().bands),
+                                bands == 0 ? std::string("SMOOTH") : std::to_string(bands),
+                                kBandOverrides[bandsOverride_] < 0 ? " (LOOK)" : "",
                                 renderer.fluid().enabled ? "ON" : "OFF", renderer.post().enabled ? "ON" : "OFF",
-                                renderer.lighting().shadows ? "ON" : "OFF"));
+                                shadowsEnabled_ ? "ON" : "OFF"));
+    lines.push_back(std::format("LOOK {}  F9 RELOAD LOOKS", lookName_));
     lines.push_back(usingGamepad_ ? "GAMEPAD: STICK MOVE  UP GRAB VINE  A JUMP"
                                   : "ARROWS/WASD MOVE  UP GRAB VINE  SPACE/Z JUMP");
     lines.push_back(std::format("F2 COLLISION VIEW ({})  F8 RESET PROGRESS{}", showCollision_ ? "ON" : "OFF",

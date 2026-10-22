@@ -8,6 +8,7 @@
 #include <animal/framework/climbing.h>
 #include <animal/framework/entity.h>
 #include <animal/framework/level.h>
+#include <animal/framework/look.h>
 #include <animal/framework/platformer.h>
 #include <animal/framework/save.h>
 #include <animal/renderer/camera2d.h>
@@ -58,6 +59,9 @@ private:
     void saveProgress();
     void updateGameplay(animal::Entity& player);
     void showMessage(std::string text);
+    animal::Look roomLook(const animal::WorldRoom& worldRoom);
+    animal::Look currentLook() const;
+    void applyCurrentLook(animal::Renderer2D& renderer) const;
     void setupAnimations();
     void updateAnimation(float dt);
 
@@ -98,7 +102,15 @@ private:
     animal::ActionMap actions_;
     bool showCollision_ = false;
     bool usingGamepad_ = false;
-    size_t bandsPreset_ = 2;
+    size_t bandsOverride_ = 0; // F4: index into kBandOverrides (0 = the room's look)
+    bool shadowsEnabled_ = true; // F7
+
+    // Looks (ADR-0015): presets by path, and the blend from the previous room's look.
+    std::map<std::string, animal::Look> looks_;
+    animal::Look lookFrom_;
+    animal::Look lookTo_;
+    float lookBlend_ = 1.0f;
+    std::string lookName_;
 
     animal::Camera2D camera_;
     CaveAssets assets_;

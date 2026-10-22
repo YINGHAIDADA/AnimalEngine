@@ -43,7 +43,6 @@ public:
     animal::VineSystem& vines() { return vines_; }
     // Feet position (bottom-centre) of the room's "spawn" object, if it has one.
     std::optional<animal::Vec2> spawnPoint() const { return spawn_; }
-    animal::Vec3 ambient() const { return ambient_; }
 
     void step(float dt, double time, std::span<const animal::Influence> influences);
 
@@ -121,7 +120,6 @@ private:
 
     animal::TileMap tiles_;
     std::optional<animal::Vec2> spawn_;
-    animal::Vec3 ambient_{0.07f, 0.07f, 0.11f};
     std::vector<Candle> candles_;
     std::vector<Vent> vents_;
     std::vector<LightSource> lights_;

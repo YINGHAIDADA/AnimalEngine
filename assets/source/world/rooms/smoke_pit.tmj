@@ -14,9 +14,14 @@
  "nextobjectid": 13,
  "properties": [
   {
-   "name": "ambient",
-   "type": "color",
-   "value": "#ff1a100e"
+   "name": "look",
+   "type": "file",
+   "value": "../looks/ember.look.json"
+  },
+  {
+   "name": "look.vignette",
+   "type": "float",
+   "value": 0.35
   },
   {
    "name": "fireflies",

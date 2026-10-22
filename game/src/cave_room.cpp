@@ -107,7 +107,6 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
     particles_.clear();
     vines_ = animal::VineSystem();
 
-    ambient_ = toVec3(room.properties.getColor("ambient", animal::Color::rgba(18, 18, 28)));
     dustCount_ = static_cast<size_t>(std::max(0, room.properties.getInt("dust", 70)));
     fireflyCount_ = static_cast<size_t>(std::max(0, room.properties.getInt("fireflies", 14)));
 

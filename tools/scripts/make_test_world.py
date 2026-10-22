@@ -5,6 +5,8 @@
   tilesets/cave.tsj    tileset with custom tile properties (solid, grass, light)
   rooms/*.tmj          rooms: tile layer "tiles" + object layer "objects"
 
+Rooms reference the hand-written look presets in looks/ (ADR-0015), which this script leaves alone.
+
 The output is ordinary Tiled data: open test.world in Tiled to edit rooms visually. This script
 only exists because the first rooms were authored as text; once rooms are edited in Tiled, stop
 regenerating them.
@@ -163,7 +165,7 @@ def cave_entrance():
         "#======================================#",
         "########################################",
     ])
-    room.properties = [prop("ambient", "color", color(18, 18, 28)),
+    room.properties = [prop("look", "file", "../looks/cave.look.json"),
                        prop("fireflies", "int", 14), prop("dust", "int", 70)]
     room.obj("spawn", 3 * TILE + 3, 20 * TILE)
     for tx, row in [(11, 20), (21, 20), (13, 11), (28, 5), (36, 17), (20, 8)]:
@@ -192,7 +194,7 @@ def crystal_gallery():
         room.platform(row, x0, x1)
     for x, y in [(4, 2), (35, 3), (19, 8), (12, 15), (31, 19), (25, 11), (14, 19)]:
         room.set(x, y, "c")
-    room.properties = [prop("ambient", "color", color(14, 18, 34)),
+    room.properties = [prop("look", "file", "../looks/crystal.look.json"),
                        prop("fireflies", "int", 8), prop("dust", "int", 50)]
     room.candle(20, 17)
     room.candle(9, 8)
@@ -217,7 +219,8 @@ def smoke_pit():
         room.platform(row, x0, x1, thick=False)
     for x, y in [(3, 18), (12, 4), (36, 12)]:
         room.set(x, y, "c")
-    room.properties = [prop("ambient", "color", color(26, 16, 14)),
+    room.properties = [prop("look", "file", "../looks/ember.look.json"),
+                       prop("look.vignette", "float", 0.35),  # per-room override of the preset
                        prop("fireflies", "int", 5), prop("dust", "int", 110)]
     room.vent(8, 20, rate=9.0, force=480.0)
     room.vent(14, 20, rate=5.0, force=380.0)

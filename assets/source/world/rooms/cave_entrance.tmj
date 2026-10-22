@@ -14,9 +14,9 @@
  "nextobjectid": 21,
  "properties": [
   {
-   "name": "ambient",
-   "type": "color",
-   "value": "#ff12121c"
+   "name": "look",
+   "type": "file",
+   "value": "../looks/cave.look.json"
   },
   {
    "name": "fireflies",

@@ -41,6 +41,9 @@ animal_add_data_files(animal_game_world
         tilesets/cave.tsj
         rooms/cave_entrance.tmj
         rooms/crystal_gallery.tmj
-        rooms/smoke_pit.tmj)
+        rooms/smoke_pit.tmj
+        looks/cave.look.json
+        looks/crystal.look.json
+        looks/ember.look.json)
 
 add_dependencies(animal_game animal_shaders animal_game_textures animal_game_world)
