@@ -1,7 +1,7 @@
 set(ANIMAL_GAME_SOURCES
+    src/cave_room.cpp
+    src/cave_room.h
     src/main.cpp
-    src/room_layout.cpp
-    src/room_layout.h
     src/sandbox_game.cpp
     src/sandbox_game.h)
 
@@ -30,4 +30,14 @@ animal_add_data_files(animal_game_textures
         props_n.png
         props_e.png)
 
-add_dependencies(animal_game animal_shaders animal_game_textures)
+animal_add_data_files(animal_game_world
+    SOURCE_DIR "${PROJECT_SOURCE_DIR}/assets/source/world"
+    DESTINATION world
+    FILES
+        test.world
+        tilesets/cave.tsj
+        rooms/cave_entrance.tmj
+        rooms/crystal_gallery.tmj
+        rooms/smoke_pit.tmj)
+
+add_dependencies(animal_game animal_shaders animal_game_textures animal_game_world)

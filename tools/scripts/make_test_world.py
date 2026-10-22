@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+"""Generates the test world as Tiled files in assets/source/world/ (ADR-0010).
+
+  test.world           room layout (Tiled world file)
+  tilesets/cave.tsj    tileset with custom tile properties (solid, grass, light)
+  rooms/*.tmj          rooms: tile layer "tiles" + object layer "objects"
+
+The output is ordinary Tiled data: open test.world in Tiled to edit rooms visually. This script
+only exists because the first rooms were authored as text; once rooms are edited in Tiled, stop
+regenerating them.
+"""
+
+import json
+import pathlib
+
+OUT = pathlib.Path(__file__).resolve().parents[2] / "assets" / "source" / "world"
+W, H, TILE = 40, 22, 8
+CHARS = {".": 3, "#": 1, "=": 2, "c": 4, " ": 0}  # tile ids (tileset index)
+
+
+def prop(name, kind, value):
+    return {"name": name, "type": kind, "value": value}
+
+
+def color(r, g, b, a=255):
+    return f"#{a:02x}{r:02x}{g:02x}{b:02x}"
+
+
+# --- Tileset ------------------------------------------------------------------------------
+
+TILESET = {
+    "type": "tileset", "version": "1.10", "tiledversion": "1.11.0", "name": "cave",
+    "tilewidth": TILE, "tileheight": TILE, "tilecount": 5, "columns": 5, "margin": 0, "spacing": 0,
+    "image": "../../textures/tileset.png", "imagewidth": 5 * TILE, "imageheight": TILE,
+    "tiles": [
+        {"id": 1, "properties": [prop("solid", "bool", True)]},
+        {"id": 2, "properties": [prop("solid", "bool", True), prop("grass", "bool", True)]},
+        {"id": 4, "properties": [prop("light", "bool", True),
+                                 prop("lightColor", "color", color(89, 204, 255)),
+                                 prop("lightRadius", "float", 44.0),
+                                 prop("lightIntensity", "float", 1.1),
+                                 prop("lightHeight", "float", 12.0)]},
+    ],
+}
+
+
+# --- Room building helpers ------------------------------------------------------------------------
+
+class Room:
+    def __init__(self, name, rows=None):
+        self.name = name
+        if rows:
+            self.grid = [list(r) for r in rows]
+        else:  # walls around, grass floor on row 20 (same height as the entrance room)
+            self.grid = [list("#" * W)] + [list("#" + "." * (W - 2) + "#") for _ in range(H - 3)]
+            self.grid += [list("#" + "=" * (W - 2) + "#"), list("#" * W)]
+        self.objects = []
+        self.properties = []
+        assert len(self.grid) == H and all(len(r) == W for r in self.grid), name
+
+    def set(self, x, y, ch):
+        self.grid[y][x] = ch
+
+    def platform(self, row, x0, x1, thick=True):
+        for x in range(x0, x1 + 1):
+            self.grid[row][x] = "="
+            if thick:
+                self.grid[row + 1][x] = "#"
+
+    def open(self, row, x0, x1):
+        for x in range(x0, x1 + 1):
+            self.grid[row][x] = "."
+
+    def obj(self, kind, x, y, **props):
+        entry = {"id": len(self.objects) + 1, "name": "", "type": kind, "point": True, "rotation": 0,
+                 "visible": True, "x": x, "y": y, "width": 0, "height": 0}
+        if props:
+            entry["properties"] = [prop(k, *v) for k, v in props.items()]
+        self.objects.append(entry)
+
+    # Point objects stand on a surface: (tile column, surface row) -> bottom-centre of the prop.
+    def candle(self, tx, surface_row):
+        self.obj("candle", tx * TILE + 4, surface_row * TILE)
+
+    def vent(self, tx, surface_row, rate=6.0, force=420.0):
+        self.obj("vent", tx * TILE + 4, surface_row * TILE, rate=("float", rate), force=("float", force))
+
+    def vine(self, tx, ty):
+        self.obj("vine", tx * TILE + 4, ty * TILE)
+
+    def tmj(self):
+        data = [CHARS[ch] + 1 if CHARS[ch] else 0 for row in self.grid for ch in row]  # gid = id + firstgid
+        return {
+            "type": "map", "version": "1.10", "tiledversion": "1.11.0", "orientation": "orthogonal",
+            "renderorder": "right-down", "infinite": False, "compressionlevel": -1,
+            "width": W, "height": H, "tilewidth": TILE, "tileheight": TILE,
+            "nextlayerid": 3, "nextobjectid": len(self.objects) + 1,
+            "properties": self.properties,
+            "tilesets": [{"firstgid": 1, "source": "../tilesets/cave.tsj"}],
+            "layers": [
+                {"type": "tilelayer", "id": 1, "name": "tiles", "width": W, "height": H, "x": 0, "y": 0,
+                 "opacity": 1, "visible": True, "data": data},
+                {"type": "objectgroup", "id": 2, "name": "objects", "draworder": "topdown", "x": 0, "y": 0,
+                 "opacity": 1, "visible": True, "objects": self.objects},
+            ],
+        }
+
+
+# --- Rooms -------------------------------------------------------------------------------------
+
+def cave_entrance():
+    room = Room("cave_entrance", [
+        "########################################",
+        "#......................................#",
+        "#....c.................................#",
+        "#......................................#",
+        "#......................................#",
+        "#.........................======.......#",
+        "#.........................######.......#",
+        "#......................................#",
+        "#.................======...............#",
+        "#.................######..........c....#",
+        "#......................................#",
+        "#..........=====.......................#",
+        "#..........#####.......................#",
+        "#......................................#",
+        "#.................=====........=====...#",
+        "#.................#####........#####...#",
+        "#.....c................................#",
+        "#.........................=============#",
+        "#.........................##############",
+        "#..............................c........",   # tunnel exit east
+        "#======================================#",
+        "########################################",
+    ])
+    room.properties = [prop("ambient", "color", color(18, 18, 28)),
+                       prop("fireflies", "int", 14), prop("dust", "int", 70)]
+    room.obj("spawn", 3 * TILE + 3, 20 * TILE)
+    for tx, row in [(11, 20), (21, 20), (13, 11), (28, 5), (36, 17), (20, 8)]:
+        room.candle(tx, row)
+    room.vent(13, 20)
+    for tx, ty in [(9, 1), (15, 1), (33, 1), (13, 13), (19, 10), (27, 7)]:
+        room.vine(tx, ty)
+    return room
+
+
+def crystal_gallery():
+    room = Room("crystal_gallery")
+    room.open(19, 0, 0)            # tunnel entrance from the west
+    room.open(20, 27, 35)          # pit, edges one tile lower: a full jump out of the smoke pit
+                                   # peaks ~2 px short of the normal floor height
+    room.open(21, 30, 32)          # hole down to the smoke pit
+    for row, x0, x1 in [(17, 18, 23), (14, 6, 10), (14, 31, 36), (11, 17, 21), (8, 8, 12), (8, 28, 32), (5, 18, 22)]:
+        room.platform(row, x0, x1)
+    for x, y in [(4, 2), (35, 3), (19, 8), (12, 15), (31, 19), (25, 11), (14, 19)]:
+        room.set(x, y, "c")
+    room.properties = [prop("ambient", "color", color(14, 18, 34)),
+                       prop("fireflies", "int", 8), prop("dust", "int", 50)]
+    room.candle(20, 17)
+    room.candle(9, 8)
+    for tx, ty in [(12, 1), (24, 1), (20, 7), (34, 16)]:
+        room.vine(tx, ty)
+    return room
+
+
+def smoke_pit():
+    room = Room("smoke_pit")
+    room.open(0, 30, 32)           # hole up to the crystal gallery
+    # Staircase up to a landing ledge right under the hole: falling in lands on it, and a
+    # straight jump from it rises through the hole into the gallery.
+    for row, x0, x1 in [(17, 20, 24), (14, 26, 30), (11, 20, 24), (8, 26, 30), (5, 33, 37), (2, 30, 32)]:
+        room.platform(row, x0, x1, thick=False)
+    for x, y in [(3, 18), (12, 4), (36, 12)]:
+        room.set(x, y, "c")
+    room.properties = [prop("ambient", "color", color(26, 16, 14)),
+                       prop("fireflies", "int", 5), prop("dust", "int", 110)]
+    room.vent(8, 20, rate=9.0, force=480.0)
+    room.vent(14, 20, rate=5.0, force=380.0)
+    for tx, row in [(5, 20), (11, 20), (17, 20), (22, 17)]:
+        room.candle(tx, row)
+    for tx, ty in [(4, 1), (16, 1)]:
+        room.vine(tx, ty)
+    return room
+
+
+def main():
+    rooms = [(cave_entrance(), 0, 0), (crystal_gallery(), W * TILE, 0), (smoke_pit(), W * TILE, H * TILE)]
+    (OUT / "tilesets").mkdir(parents=True, exist_ok=True)
+    (OUT / "rooms").mkdir(parents=True, exist_ok=True)
+    (OUT / "tilesets" / "cave.tsj").write_text(json.dumps(TILESET, indent=1) + "\n")
+    world = {"type": "world", "onlyShowAdjacentMaps": False, "maps": []}
+    for room, x, y in rooms:
+        (OUT / "rooms" / f"{room.name}.tmj").write_text(json.dumps(room.tmj(), indent=1) + "\n")
+        world["maps"].append({"fileName": f"rooms/{room.name}.tmj", "x": x, "y": y,
+                              "width": W * TILE, "height": H * TILE})
+    (OUT / "test.world").write_text(json.dumps(world, indent=1) + "\n")
+    print(f"wrote {len(rooms)} rooms to {OUT}")
+
+
+if __name__ == "__main__":
+    main()

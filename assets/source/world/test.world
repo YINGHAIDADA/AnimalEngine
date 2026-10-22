@@ -1,0 +1,27 @@
+{
+ "type": "world",
+ "onlyShowAdjacentMaps": false,
+ "maps": [
+  {
+   "fileName": "rooms/cave_entrance.tmj",
+   "x": 0,
+   "y": 0,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/crystal_gallery.tmj",
+   "x": 320,
+   "y": 0,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/smoke_pit.tmj",
+   "x": 320,
+   "y": 176,
+   "width": 320,
+   "height": 176
+  }
+ ]
+}

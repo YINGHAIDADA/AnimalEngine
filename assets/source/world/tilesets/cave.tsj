@@ -1,0 +1,72 @@
+{
+ "type": "tileset",
+ "version": "1.10",
+ "tiledversion": "1.11.0",
+ "name": "cave",
+ "tilewidth": 8,
+ "tileheight": 8,
+ "tilecount": 5,
+ "columns": 5,
+ "margin": 0,
+ "spacing": 0,
+ "image": "../../textures/tileset.png",
+ "imagewidth": 40,
+ "imageheight": 8,
+ "tiles": [
+  {
+   "id": 1,
+   "properties": [
+    {
+     "name": "solid",
+     "type": "bool",
+     "value": true
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "properties": [
+    {
+     "name": "solid",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "grass",
+     "type": "bool",
+     "value": true
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "properties": [
+    {
+     "name": "light",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "lightColor",
+     "type": "color",
+     "value": "#ff59ccff"
+    },
+    {
+     "name": "lightRadius",
+     "type": "float",
+     "value": 44.0
+    },
+    {
+     "name": "lightIntensity",
+     "type": "float",
+     "value": 1.1
+    },
+    {
+     "name": "lightHeight",
+     "type": "float",
+     "value": 12.0
+    }
+   ]
+  }
+ ]
+}
