@@ -44,6 +44,10 @@ animal_add_data_files(animal_game_world
         rooms/smoke_pit.tmj
         looks/cave.look.json
         looks/crystal.look.json
-        looks/ember.look.json)
+        looks/ember.look.json
+        effects/dust.effect.json
+        effects/firefly.effect.json
+        effects/ember.effect.json
+        effects/spark.effect.json)
 
 add_dependencies(animal_game animal_shaders animal_game_textures animal_game_world)

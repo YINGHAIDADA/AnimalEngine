@@ -13,18 +13,15 @@ namespace game {
 
 namespace {
 
-constexpr float kEmbersPerSecond = 2.2f; // per candle
 constexpr int kVineSegment = 3;          // px, matches VineSystem::Params::segmentLength
 constexpr int kVineClearance = 3;        // px left between a vine tip and the ground
 constexpr int kMaxVineSegments = 50;
 
 constexpr animal::Vec3 kCandleColor{1.0f, 0.62f, 0.28f};
-constexpr animal::Vec3 kFireflyLight{0.75f, 1.0f, 0.45f};
 constexpr animal::Vec3 kSmokeColor{0.85f, 0.85f, 0.9f};
-constexpr animal::Color kDustColor = animal::Color::rgba(205, 195, 175, 170);
-constexpr animal::Color kFireflyColor = animal::Color::rgba(210, 255, 130, 255);
-constexpr animal::Color kSparkStart = animal::Color::rgba(200, 255, 235, 255);
-constexpr animal::Color kSparkEnd = animal::Color::rgba(40, 200, 160, 0);
+// Effect presets used by props unless a "effect" property names another (relative to the room).
+constexpr const char* kCandleEffect = "../effects/ember.effect.json";
+constexpr const char* kGemPickupEffect = "../effects/spark.effect.json";
 constexpr animal::Vec3 kGemLight{0.3f, 0.95f, 0.8f};
 constexpr animal::IntRect kCrawlerCollider{0, 0, 7, 5}; // inside the 8×8 sprite, feet on row 7
 constexpr animal::IntRect kGemArea{-3, -3, 6, 6};       // around the gem centre
@@ -93,22 +90,19 @@ animal::Vec2 propTopLeft(const animal::LevelObject& object) {
 } // namespace
 
 bool CaveRoom::build(const animal::Room& room, const std::string& name, const std::set<std::string>& collected,
-                     uint32_t seed) {
+                     animal::EffectLibrary& effects, uint32_t seed) {
     tiles_ = room.tiles;
     gems_.clear();
     crawlers_.clear();
     triggers_.clear();
-    rng_ = animal::Random(seed);
+    effects_.reset(seed);
     spawn_.reset();
     candles_.clear();
     vents_.clear();
     lights_.clear();
     lanterns_.clear();
-    particles_.clear();
     vines_ = animal::VineSystem();
-
-    dustCount_ = static_cast<size_t>(std::max(0, room.properties.getInt("dust", 70)));
-    fireflyCount_ = static_cast<size_t>(std::max(0, room.properties.getInt("fireflies", 14)));
+    sparkPreset_ = effectPreset(effects, room, kGemPickupEffect);
 
     grass_.generate(tiles_, [&room](animal::TileId id) { return room.propertiesOf(id).getBool("grass"); }, seed);
 
@@ -132,8 +126,29 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
         if (object.type == "spawn") {
             spawn_ = object.position;
         } else if (object.type == "candle") {
-            candles_.push_back({propTopLeft(object), phase, 0.0f});
+            candles_.push_back({propTopLeft(object), phase});
             phase += 1.7f;
+            if (const auto preset = effectPreset(effects, room, object.properties.getString("effect", kCandleEffect))) {
+                effects_.addEmitter(*preset, candles_.back().position);
+            }
+        } else if (object.type == "emitter") {
+            // A point emitter, or an area emitter for rectangles; "effect" names the preset file.
+            const std::string file = object.properties.getString("effect");
+            const auto preset = file.empty() ? std::nullopt : effectPreset(effects, room, file);
+            if (!preset) {
+                animal::log::warn("{}: emitter {} has no usable \"effect\" file", room.path, object.id);
+                continue;
+            }
+            std::optional<animal::IntRect> area;
+            if (!object.point && object.size.x > 0.0f && object.size.y > 0.0f) {
+                area = animal::IntRect{static_cast<int>(object.position.x), static_cast<int>(object.position.y),
+                                       static_cast<int>(object.size.x), static_cast<int>(object.size.y)};
+            }
+            const auto count = object.properties.has("count") ? std::optional<int>(object.properties.getInt("count"))
+                                                              : std::nullopt;
+            const auto rate = object.properties.has("rate") ? std::optional<float>(object.properties.getFloat("rate"))
+                                                            : std::nullopt;
+            effects_.addEmitter(*preset, object.position, area, count, rate);
         } else if (object.type == "vent") {
             vents_.push_back({propTopLeft(object), object.properties.getFloat("rate", 6.0f),
                               object.properties.getFloat("force", 420.0f)});
@@ -199,95 +214,14 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
         }
     }
 
-    for (size_t i = 0; i < dustCount_; ++i) {
-        spawnDust(true);
-    }
-    for (size_t i = 0; i < fireflyCount_; ++i) {
-        spawnFirefly();
-    }
+    effects_.start(tiles_);
     return true;
 }
 
-animal::Vec2 CaveRoom::randomOpenPosition() {
-    const animal::IntRect bounds = tiles_.pixelBounds();
-    animal::Vec2 p;
-    for (int attempt = 0; attempt < 20; ++attempt) {
-        p = {rng_.range(0.0f, static_cast<float>(bounds.width)), rng_.range(0.0f, static_cast<float>(bounds.height))};
-        if (!tiles_.isSolid(static_cast<int>(p.x) / kTileSize, static_cast<int>(p.y) / kTileSize)) {
-            break;
-        }
-    }
-    return p;
-}
-
-// Dust only shows where light falls (drawn in the lit pass): motes floating in candle light.
-void CaveRoom::spawnDust(bool midLife) {
-    animal::Particle p;
-    p.kind = Dust;
-    p.position = randomOpenPosition();
-    p.velocity = {rng_.range(-3.0f, 3.0f), rng_.range(-2.0f, 2.0f)};
-    p.acceleration = {0.0f, rng_.range(-1.5f, 1.5f)};
-    p.drag = 0.6f;
-    p.windResponse = 6.0f;
-    p.wander = 4.0f;
-    p.lifetime = rng_.range(8.0f, 16.0f);
-    p.age = midLife ? rng_.range(0.0f, p.lifetime * 0.8f) : 0.0f;
-    p.fade = 2.0f;
-    p.startColor = p.endColor = kDustColor;
-    p.seed = rng_.next();
-    particles_.emit(p);
-}
-
-void CaveRoom::spawnFirefly() {
-    animal::Particle p;
-    p.kind = Firefly;
-    p.position = randomOpenPosition();
-    p.drag = 1.6f;
-    p.wander = 45.0f;
-    p.pushResponse = 1.5f; // scatter when the player comes close
-    p.flicker = rng_.range(0.4f, 0.9f);
-    p.lifetime = 1.0e6f;   // until it drifts out of the room
-    p.fade = 1.0f;
-    p.startColor = p.endColor = kFireflyColor;
-    p.seed = rng_.next();
-    particles_.emit(p);
-}
-
-void CaveRoom::spawnEmber(const Candle& candle) {
-    animal::Particle p;
-    p.kind = Ember;
-    p.position = candle.position + animal::Vec2{3.5f + rng_.range(-0.5f, 0.5f), 1.0f};
-    p.velocity = {rng_.range(-8.0f, 8.0f), rng_.range(-28.0f, -16.0f)};
-    p.acceleration = {0.0f, -14.0f}; // buoyancy
-    p.drag = 0.9f;
-    p.windResponse = 18.0f;
-    p.wander = 10.0f;
-    p.pushResponse = 0.6f;
-    p.lifetime = rng_.range(0.7f, 1.5f);
-    p.fade = 0.1f;
-    p.startColor = animal::Color::rgba(255, 225, 140, 255);
-    p.endColor = animal::Color::rgba(210, 60, 20, 0); // cools and fades
-    p.dieOnSolid = true;
-    p.seed = rng_.next();
-    particles_.emit(p);
-}
-
-void CaveRoom::burst(animal::Vec2 center) {
-    for (int i = 0; i < 14; ++i) {
-        const float angle = rng_.range(0.0f, 6.2831853f);
-        const float speed = rng_.range(25.0f, 60.0f);
-        animal::Particle p;
-        p.kind = Spark;
-        p.position = center;
-        p.velocity = {std::cos(angle) * speed, std::sin(angle) * speed - 15.0f};
-        p.acceleration = {0.0f, 40.0f};
-        p.drag = 2.5f;
-        p.lifetime = rng_.range(0.5f, 0.9f);
-        p.startColor = kSparkStart;
-        p.endColor = kSparkEnd;
-        p.seed = rng_.next();
-        particles_.emit(p);
-    }
+std::optional<animal::EffectSystem::PresetId> CaveRoom::effectPreset(animal::EffectLibrary& library,
+                                                                     const animal::Room& room, const std::string& file) {
+    const animal::EffectPreset* preset = library.load(animal::resolvePath(room.path, file));
+    return preset ? effects_.addPreset(*preset) : std::nullopt;
 }
 
 std::vector<std::string> CaveRoom::collectGems(const animal::IntRect& player) {
@@ -295,7 +229,9 @@ std::vector<std::string> CaveRoom::collectGems(const animal::IntRect& player) {
     for (Gem& gem : gems_) {
         if (!gem.collected && kGemArea.offset({static_cast<int>(gem.center.x), static_cast<int>(gem.center.y)}).overlaps(player)) {
             gem.collected = true;
-            burst(gem.center);
+            if (sparkPreset_) {
+                effects_.burst(*sparkPreset_, gem.center);
+            }
             picked.push_back(gem.flag);
         }
     }
@@ -329,20 +265,7 @@ void CaveRoom::step(float dt, double time, std::span<const animal::Influence> in
     }
     grass_.step(dt, time, influences, wind_);
     vines_.step(dt, time, influences, wind_);
-    for (Candle& candle : candles_) {
-        candle.emberBudget += kEmbersPerSecond * dt;
-        while (candle.emberBudget >= 1.0f) {
-            spawnEmber(candle);
-            candle.emberBudget -= 1.0f;
-        }
-    }
-    particles_.step(dt, time, &tiles_, influences, wind_);
-    for (size_t n = particles_.countOf(Dust); n < dustCount_; ++n) {
-        spawnDust(false);
-    }
-    for (size_t n = particles_.countOf(Firefly); n < fireflyCount_; ++n) {
-        spawnFirefly();
-    }
+    effects_.step(dt, time, tiles_, influences, wind_);
 }
 
 void CaveRoom::drawBehindPlayer(animal::Renderer2D& renderer, const CaveAssets& assets) const {
@@ -395,20 +318,7 @@ void CaveRoom::drawInFrontOfPlayer(animal::Renderer2D& renderer) const {
     grass_.forEachPixel([&](int x, int y, int level, uint8_t shade) {
         renderer.fillRect({static_cast<float>(x), static_cast<float>(y), 1.0f, 1.0f}, kGrassColors[shade][level]);
     });
-    for (const animal::Particle& p : particles_.particles()) {
-        const animal::Color c = particles_.colorOf(p);
-        if (p.kind == Dust) {
-            renderer.fillRect({std::round(p.position.x), std::round(p.position.y), 1.0f, 1.0f}, c);
-        } else if (p.kind == Firefly) {
-            renderer.drawGlow(p.position, c);
-            const animal::Color halo{c.r, c.g, c.b, static_cast<uint8_t>(c.a * 0.3f)};
-            for (const animal::Vec2 d : {animal::Vec2{1, 0}, animal::Vec2{-1, 0}, animal::Vec2{0, 1}, animal::Vec2{0, -1}}) {
-                renderer.drawGlow(p.position + d, halo);
-            }
-        } else if (p.kind == Ember || p.kind == Spark) {
-            renderer.drawGlow(p.position, c);
-        }
-    }
+    effects_.draw(renderer);
 }
 
 void CaveRoom::drawCollision(animal::Renderer2D& renderer) const {
@@ -442,17 +352,7 @@ void CaveRoom::addLights(animal::Renderer2D& renderer, double time) const {
             renderer.addLight({gem.center, 22.0f, kGemLight, 0.8f, 8.0f});
         }
     }
-    for (const animal::Particle& p : particles_.particles()) {
-        if (p.kind == Firefly) {
-            animal::PointLight light;
-            light.position = p.position;
-            light.radius = 18.0f;
-            light.color = kFireflyLight;
-            light.intensity = 0.7f * static_cast<float>(particles_.colorOf(p).a) / 255.0f;
-            light.height = 6.0f;
-            renderer.addLight(light);
-        }
-    }
+    effects_.addLights(renderer);
 }
 
 void CaveRoom::addFluidSources(animal::Renderer2D& renderer, double time) const {

@@ -1,0 +1,14 @@
+{
+  "format": "animal-effect",
+  "version": 1,
+  "burst": 14,
+  "speed": [25, 60],
+  "angle": [0, 360],
+  "velocityY": -15,
+  "accelerationY": 40,
+  "drag": 2.5,
+  "lifetime": [0.5, 0.9],
+  "startColor": [200, 255, 235, 255],
+  "endColor": [40, 200, 160, 0],
+  "style": "glow"
+}

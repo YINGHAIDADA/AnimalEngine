@@ -77,6 +77,7 @@ private:
     animal::Vec2 checkpointFeet_;
     bool checkpointPending_ = false;
     CaveRoom cave_;
+    animal::EffectLibrary effects_; // effect presets by path, shared by all rooms
     uint32_t roomVisits_ = 0;
 
     animal::EntityWorld entities_;
@@ -109,6 +110,7 @@ private:
     std::string startRoomName_; // --start-room=NAME: begin there (testing; progress is not saved)
     size_t bandsOverride_ = 0; // F4: index into kBandOverrides (0 = the room's look)
     bool shadowsEnabled_ = true; // F7
+    bool effectsEnabled_ = true; // F10
 
     // Looks (ADR-0015): presets by path, and the blend from the previous room's look.
     std::map<std::string, animal::Look> looks_;

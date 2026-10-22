@@ -1,6 +1,7 @@
 #pragma once
 
 #include <animal/core/random.h>
+#include <animal/framework/effects.h>
 #include <animal/framework/foliage.h>
 #include <animal/framework/influence.h>
 #include <animal/framework/level.h>
@@ -37,7 +38,7 @@ class CaveRoom {
 public:
     // `name` identifies the room in save flags; gems listed in `collected` ("name:id") are skipped.
     bool build(const animal::Room& room, const std::string& name, const std::set<std::string>& collected,
-               uint32_t seed);
+               animal::EffectLibrary& effects, uint32_t seed);
 
     const animal::TileMap& tiles() const { return tiles_; }
     animal::VineSystem& vines() { return vines_; }
@@ -64,14 +65,15 @@ public:
 
     size_t bladeCount() const { return grass_.blades().size(); }
     size_t vineCount() const { return vines_.vines().size(); }
-    size_t particleCount() const { return particles_.size(); }
+    size_t particleCount() const { return effects_.particleCount(); }
+    animal::EffectSystem& effects() { return effects_; }
+    const animal::EffectSystem& effects() const { return effects_; }
     size_t crawlerCount() const { return crawlers_.size(); }
 
 private:
     struct Candle {
         animal::Vec2 position; // top-left of the 8×8 prop
         float phase = 0.0f;
-        float emberBudget = 0.0f;
     };
 
     struct Vent {
@@ -105,18 +107,8 @@ private:
         float walkTime = 0.0f;
     };
 
-    enum ParticleKind : uint8_t {
-        Dust,
-        Firefly,
-        Ember,
-        Spark,
-    };
-
-    animal::Vec2 randomOpenPosition();
-    void spawnDust(bool midLife);
-    void spawnFirefly();
-    void spawnEmber(const Candle& candle);
-    void burst(animal::Vec2 center);
+    std::optional<animal::EffectSystem::PresetId> effectPreset(animal::EffectLibrary& library, const animal::Room& room,
+                                                               const std::string& file);
 
     animal::TileMap tiles_;
     std::optional<animal::Vec2> spawn_;
@@ -131,10 +123,8 @@ private:
     animal::GrassField grass_;
     animal::VineSystem vines_;
     animal::WindParams wind_;
-    animal::ParticleSystem particles_;
-    animal::Random rng_;
-    size_t dustCount_ = 70;
-    size_t fireflyCount_ = 14;
+    animal::EffectSystem effects_;
+    std::optional<animal::EffectSystem::PresetId> sparkPreset_; // gem pickup burst
 };
 
 } // namespace game

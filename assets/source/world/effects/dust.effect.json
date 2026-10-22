@@ -1,0 +1,17 @@
+{
+  "format": "animal-effect",
+  "version": 1,
+  "count": 70,
+  "prewarm": true,
+  "velocityX": [-3, 3],
+  "velocityY": [-2, 2],
+  "accelerationY": [-1.5, 1.5],
+  "drag": 0.6,
+  "windResponse": 6,
+  "wander": 4,
+  "lifetime": [8, 16],
+  "fade": 2,
+  "startColor": [205, 195, 175, 170],
+  "endColor": [205, 195, 175, 170],
+  "style": "lit"
+}

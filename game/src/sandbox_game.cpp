@@ -9,6 +9,7 @@
 #include <animal/rhi/rhi.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -44,6 +45,11 @@ constexpr float kStunSeconds = 0.25f;
 constexpr float kMessageSeconds = 4.0f;
 constexpr animal::Color kHudColor = animal::Color::rgba(150, 240, 215);
 constexpr animal::Color kMessageColor = animal::Color::rgba(235, 228, 210);
+
+std::string upperCase(std::string text) {
+    std::ranges::transform(text, text.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+    return text;
+}
 
 std::string roomName(const std::string& path) {
     const std::u8string stem = std::filesystem::path(std::u8string(path.begin(), path.end())).stem().u8string();
@@ -115,7 +121,7 @@ const animal::Room* SandboxGame::roomData(const animal::WorldRoom& worldRoom) {
 
 bool SandboxGame::enterRoom(const animal::WorldRoom& worldRoom, animal::Renderer2D& renderer) {
     const animal::Room* room = roomData(worldRoom);
-    if (!room || !cave_.build(*room, roomName(worldRoom.path), save_.flags, kRoomSeed + roomVisits_++)) {
+    if (!room || !cave_.build(*room, roomName(worldRoom.path), save_.flags, effects_, kRoomSeed + roomVisits_++)) {
         return false;
     }
     const bool firstRoom = currentRoom_ == nullptr;
@@ -325,6 +331,10 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
         lookFrom_ = lookTo_ = roomLook(*currentRoom_);
         lookBlend_ = 1.0f;
         animal::log::info("Reloaded look '{}'", lookName_);
+    }
+    if (input.pressed(Key::F10)) {
+        effectsEnabled_ = !effectsEnabled_;
+        cave_.effects().setEnabled(effectsEnabled_);
     }
     if (input.pressed(Key::F8)) {
         resetProgress(renderer);
@@ -581,8 +591,17 @@ void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::s
                                     player->body.position.y, s.velocity.x, s.velocity.y,
                                     climb_.climbing ? "CLIMBING" : (s.grounded ? "GROUNDED" : "AIRBORNE")));
     }
-    lines.push_back(std::format("GRASS {}  VINES {}  PARTICLES {}", cave_.bladeCount(), cave_.vineCount(),
-                                cave_.particleCount()));
+    lines.push_back(std::format("GRASS {}  VINES {}", cave_.bladeCount(), cave_.vineCount()));
+    const animal::EffectSystem& effects = cave_.effects();
+    std::string effectLine = std::format("F10 EFFECTS {}", effects.enabled() ? "ON" : "OFF");
+    if (effects.enabled()) {
+        effectLine += std::format(" {:.2f} MS", effects.lastStepMilliseconds());
+        for (size_t i = 0; i < effects.presets().size(); ++i) {
+            effectLine += std::format("  {} {}", upperCase(effects.presets()[i].name),
+                                      effects.countOf(static_cast<animal::EffectSystem::PresetId>(i)));
+        }
+    }
+    lines.push_back(effectLine);
     animal::Renderer2D& renderer = *context.renderer;
     const int bands = renderer.lighting().bands;
     lines.push_back(std::format("F3 LIGHT {}  F4 BANDS {}{}  F5 SMOKE {}  F6 POST {}  F7 SHADOWS {}",

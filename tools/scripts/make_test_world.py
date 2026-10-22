@@ -5,7 +5,8 @@
   tilesets/cave.tsj    tileset with custom tile properties (solid, grass, light)
   rooms/*.tmj          rooms: tile layer "tiles" + object layer "objects"
 
-Rooms reference the hand-written look presets in looks/ (ADR-0015), which this script leaves alone.
+Rooms reference the hand-written look presets in looks/ (ADR-0015) and effect presets in effects/
+(ADR-0017), which this script leaves alone.
 
 The output is ordinary Tiled data: open test.world in Tiled to edit rooms visually. This script
 only exists because the first rooms were authored as text; once rooms are edited in Tiled, stop
@@ -104,6 +105,10 @@ class Room:
     def lantern(self, tx, ty):  # centred in a tile cell; hangs from the ceiling above
         self.obj("lantern", tx * TILE + 4, ty * TILE + 4)
 
+    def emitter(self, effect, tx=0, ty=0, tw=W, th=H, **props):  # an area emitter (whole room by default)
+        extra = {k: (("int" if isinstance(v, int) else "float"), v) for k, v in props.items()}
+        self.area("emitter", tx, ty, tw, th, effect=("file", f"../effects/{effect}.effect.json"), **extra)
+
     def gem(self, tx, ty):  # centred in a tile cell
         self.obj("gem", tx * TILE + 4, ty * TILE + 4)
 
@@ -165,8 +170,7 @@ def cave_entrance():
         "#======================================#",
         "########################################",
     ])
-    room.properties = [prop("look", "file", "../looks/cave.look.json"),
-                       prop("fireflies", "int", 14), prop("dust", "int", 70)]
+    room.properties = [prop("look", "file", "../looks/cave.look.json")]
     room.obj("spawn", 3 * TILE + 3, 20 * TILE)
     for tx, row in [(11, 20), (21, 20), (13, 11), (28, 5), (36, 17), (20, 8)]:
         room.candle(tx, row)
@@ -181,6 +185,8 @@ def cave_entrance():
     # A crack in the ceiling lets daylight in: a narrow cold spot light shining down through it.
     room.open(0, 21, 22)
     room.light(22 * TILE, 2, (170, 200, 255), 176.0, 1.5, height=24.0, cone=44.0, direction=90.0)
+    room.emitter("dust", count=70)
+    room.emitter("firefly", count=14)
     return room
 
 
@@ -194,8 +200,7 @@ def crystal_gallery():
         room.platform(row, x0, x1)
     for x, y in [(4, 2), (35, 3), (19, 8), (12, 15), (31, 19), (25, 11), (14, 19)]:
         room.set(x, y, "c")
-    room.properties = [prop("look", "file", "../looks/crystal.look.json"),
-                       prop("fireflies", "int", 8), prop("dust", "int", 50)]
+    room.properties = [prop("look", "file", "../looks/crystal.look.json")]
     room.candle(20, 17)
     room.candle(9, 8)
     for tx, ty in [(12, 1), (24, 1), (20, 7), (34, 16)]:
@@ -207,6 +212,8 @@ def crystal_gallery():
     room.trigger(26, 16, 9, 4, "A WARM DRAFT RISES FROM BELOW")
     # Object ids are save keys (gems): only ever append objects to a room.
     room.lantern(14, 11)  # platforms cast shadows around it
+    room.emitter("dust", count=50)
+    room.emitter("firefly", count=8)
     return room
 
 
@@ -220,8 +227,7 @@ def smoke_pit():
     for x, y in [(3, 18), (12, 4), (36, 12)]:
         room.set(x, y, "c")
     room.properties = [prop("look", "file", "../looks/ember.look.json"),
-                       prop("look.vignette", "float", 0.35),  # per-room override of the preset
-                       prop("fireflies", "int", 5), prop("dust", "int", 110)]
+                       prop("look.vignette", "float", 0.35)]  # per-room override of the preset
     room.vent(8, 20, rate=9.0, force=480.0)
     room.vent(14, 20, rate=5.0, force=380.0)
     for tx, row in [(5, 20), (11, 20), (17, 20), (22, 17)]:
@@ -232,6 +238,8 @@ def smoke_pit():
     room.gem(22, 10)
     room.crawler(25, 20)
     room.trigger(18, 18, 3, 2, "CLIMB THE LEDGES TO GET BACK UP")
+    room.emitter("dust", count=110)
+    room.emitter("firefly", count=5)
     return room
 
 

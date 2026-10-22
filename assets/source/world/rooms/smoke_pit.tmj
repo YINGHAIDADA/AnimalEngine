@@ -11,7 +11,7 @@
  "tilewidth": 8,
  "tileheight": 8,
  "nextlayerid": 3,
- "nextobjectid": 13,
+ "nextobjectid": 15,
  "properties": [
   {
    "name": "look",
@@ -22,16 +22,6 @@
    "name": "look.vignette",
    "type": "float",
    "value": 0.35
-  },
-  {
-   "name": "fireflies",
-   "type": "int",
-   "value": 5
-  },
-  {
-   "name": "dust",
-   "type": "int",
-   "value": 110
   }
  ],
  "tilesets": [
@@ -1120,6 +1110,52 @@
        "name": "once",
        "type": "bool",
        "value": true
+      }
+     ]
+    },
+    {
+     "id": 13,
+     "name": "",
+     "type": "emitter",
+     "rotation": 0,
+     "visible": true,
+     "x": 0,
+     "y": 0,
+     "width": 320,
+     "height": 176,
+     "properties": [
+      {
+       "name": "effect",
+       "type": "file",
+       "value": "../effects/dust.effect.json"
+      },
+      {
+       "name": "count",
+       "type": "int",
+       "value": 110
+      }
+     ]
+    },
+    {
+     "id": 14,
+     "name": "",
+     "type": "emitter",
+     "rotation": 0,
+     "visible": true,
+     "x": 0,
+     "y": 0,
+     "width": 320,
+     "height": 176,
+     "properties": [
+      {
+       "name": "effect",
+       "type": "file",
+       "value": "../effects/firefly.effect.json"
+      },
+      {
+       "name": "count",
+       "type": "int",
+       "value": 5
       }
      ]
     }

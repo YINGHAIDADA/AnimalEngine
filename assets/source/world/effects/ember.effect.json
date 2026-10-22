@@ -1,0 +1,20 @@
+{
+  "format": "animal-effect",
+  "version": 1,
+  "rate": 2.2,
+  "offset": [3.5, 1],
+  "spreadX": [-0.5, 0.5],
+  "velocityX": [-8, 8],
+  "velocityY": [-28, -16],
+  "accelerationY": -14,
+  "drag": 0.9,
+  "windResponse": 18,
+  "wander": 10,
+  "pushResponse": 0.6,
+  "dieOnSolid": true,
+  "lifetime": [0.7, 1.5],
+  "fade": 0.1,
+  "startColor": [255, 225, 140, 255],
+  "endColor": [210, 60, 20, 0],
+  "style": "glow"
+}

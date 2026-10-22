@@ -1,0 +1,19 @@
+{
+  "format": "animal-effect",
+  "version": 1,
+  "count": 14,
+  "drag": 1.6,
+  "wander": 45,
+  "pushResponse": 1.5,
+  "flicker": [0.4, 0.9],
+  "lifetime": "forever",
+  "fade": 1,
+  "startColor": [210, 255, 130, 255],
+  "endColor": [210, 255, 130, 255],
+  "style": "glow",
+  "halo": 0.3,
+  "lightRadius": 18,
+  "lightColor": "#bfff73",
+  "lightIntensity": 0.7,
+  "lightHeight": 6
+}
