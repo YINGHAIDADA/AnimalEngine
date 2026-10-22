@@ -31,5 +31,12 @@ include(AnimalData)
 
 add_subdirectory(tools/shaderc)
 add_subdirectory(shaders)
+add_subdirectory(engine)
+add_subdirectory(game)
 
+if(ANIMAL_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
 
+set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT animal_game)
