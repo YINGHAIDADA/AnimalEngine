@@ -10,12 +10,6 @@
 
 namespace animal {
 
-namespace {
-
-using Json = nlohmann::json;
-
-constexpr uint32_t kFlipFlags = 0xF0000000u; // Tiled's flip / rotation bits on gids
-
 std::string resolvePath(const std::string& base, const std::string& relative) {
     namespace fs = std::filesystem;
     const fs::path basePath(std::u8string(base.begin(), base.end()));
@@ -23,6 +17,28 @@ std::string resolvePath(const std::string& base, const std::string& relative) {
     const std::u8string out = (basePath.parent_path() / relativePath).lexically_normal().generic_u8string();
     return {out.begin(), out.end()};
 }
+
+std::optional<Color> parseColor(const std::string& text) {
+    // Tiled writes "#AARRGGBB", or "#RRGGBB" when fully opaque.
+    unsigned a = 255;
+    unsigned r = 0;
+    unsigned g = 0;
+    unsigned b = 0;
+    if (text.size() == 9 && text[0] == '#' && std::sscanf(text.c_str() + 1, "%2x%2x%2x%2x", &a, &r, &g, &b) == 4) {
+        return Color::rgba(static_cast<uint8_t>(r), static_cast<uint8_t>(g), static_cast<uint8_t>(b),
+                           static_cast<uint8_t>(a));
+    }
+    if (text.size() == 7 && text[0] == '#' && std::sscanf(text.c_str() + 1, "%2x%2x%2x", &r, &g, &b) == 3) {
+        return Color::rgba(static_cast<uint8_t>(r), static_cast<uint8_t>(g), static_cast<uint8_t>(b));
+    }
+    return std::nullopt;
+}
+
+namespace {
+
+using Json = nlohmann::json;
+
+constexpr uint32_t kFlipFlags = 0xF0000000u; // Tiled's flip / rotation bits on gids
 
 // Collects the first error with its context; every accessor returns a fallback after a failure.
 class Reader {
@@ -89,21 +105,6 @@ private:
     std::string error_;
 };
 
-std::optional<Color> parseColor(const std::string& text) {
-    // Tiled writes "#AARRGGBB", or "#RRGGBB" when fully opaque.
-    unsigned a = 255;
-    unsigned r = 0;
-    unsigned g = 0;
-    unsigned b = 0;
-    if (text.size() == 9 && text[0] == '#' && std::sscanf(text.c_str() + 1, "%2x%2x%2x%2x", &a, &r, &g, &b) == 4) {
-        return Color::rgba(static_cast<uint8_t>(r), static_cast<uint8_t>(g), static_cast<uint8_t>(b),
-                           static_cast<uint8_t>(a));
-    }
-    if (text.size() == 7 && text[0] == '#' && std::sscanf(text.c_str() + 1, "%2x%2x%2x", &r, &g, &b) == 3) {
-        return Color::rgba(static_cast<uint8_t>(r), static_cast<uint8_t>(g), static_cast<uint8_t>(b));
-    }
-    return std::nullopt;
-}
 
 Properties parseProperties(const Json& owner, Reader& reader) {
     Properties properties;
@@ -466,8 +467,6 @@ std::optional<World> parseWorld(std::string_view text, const std::string& path, 
 
 // --- Files -----------------------------------------------------------------------------------
 
-namespace {
-
 std::optional<std::string> readText(const std::string& path) {
     const auto bytes = readFile(path);
     if (!bytes) {
@@ -475,8 +474,6 @@ std::optional<std::string> readText(const std::string& path) {
     }
     return std::string(reinterpret_cast<const char*>(bytes->data()), bytes->size());
 }
-
-} // namespace
 
 std::optional<Room> loadRoom(const std::string& path) {
     const auto text = readText(path);

@@ -56,7 +56,7 @@ constexpr SDL_Scancode kScancodes[] = {
     SDL_SCANCODE_A,     SDL_SCANCODE_S,     SDL_SCANCODE_D,      SDL_SCANCODE_Z,      SDL_SCANCODE_X,
     SDL_SCANCODE_C,     SDL_SCANCODE_SPACE, SDL_SCANCODE_RETURN, SDL_SCANCODE_ESCAPE, SDL_SCANCODE_F1,
     SDL_SCANCODE_F2,    SDL_SCANCODE_F3,     SDL_SCANCODE_F4,     SDL_SCANCODE_F5,     SDL_SCANCODE_F6,
-    SDL_SCANCODE_F7,     SDL_SCANCODE_F8,     SDL_SCANCODE_F12,
+    SDL_SCANCODE_F7,     SDL_SCANCODE_F8,     SDL_SCANCODE_F9,     SDL_SCANCODE_F12,
 };
 static_assert(std::size(kScancodes) == static_cast<size_t>(Key::Count), "Key table out of sync");
 

@@ -8,6 +8,7 @@ set(ANIMAL_FRAMEWORK_HEADERS
     include/animal/framework/influence.h
     include/animal/framework/level.h
     include/animal/framework/light_animation.h
+    include/animal/framework/look.h
     include/animal/framework/particles.h
     include/animal/framework/patrol.h
     include/animal/framework/physics.h
@@ -24,6 +25,7 @@ set(ANIMAL_FRAMEWORK_SOURCES
     src/foliage.cpp
     src/level.cpp
     src/light_animation.cpp
+    src/look.cpp
     src/particles.cpp
     src/patrol.cpp
     src/physics.cpp

@@ -30,6 +30,18 @@ public:
     std::string getString(const std::string& name, const std::string& fallback = {}) const;
     Color getColor(const std::string& name, Color fallback = Color::white()) const;
 
+    const Value* find(const std::string& name) const {
+        const auto it = values_.find(name);
+        return it != values_.end() ? &it->second : nullptr;
+    }
+    std::vector<std::string> names() const {
+        std::vector<std::string> result;
+        for (const auto& [name, value] : values_) {
+            result.push_back(name);
+        }
+        return result;
+    }
+
 private:
     std::map<std::string, Value> values_;
 };
@@ -73,6 +85,11 @@ using TextReader = std::function<std::optional<std::string>(const std::string& p
 std::optional<Room> parseRoom(std::string_view json, const std::string& path, const TextReader& read,
                               std::string* error);
 std::optional<World> parseWorld(std::string_view json, const std::string& path, std::string* error);
+
+// Shared by the loaders of Tiled and related data files.
+std::string resolvePath(const std::string& base, const std::string& relative); // relative to base's directory
+std::optional<Color> parseColor(const std::string& text);                      // "#RRGGBB" or "#AARRGGBB"
+std::optional<std::string> readText(const std::string& path);                  // nullopt if unreadable
 
 // Load from files; errors are logged.
 std::optional<Room> loadRoom(const std::string& path);
