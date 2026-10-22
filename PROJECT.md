@@ -305,7 +305,7 @@ ctest --test-dir build/<preset> --output-on-failure
 
 ## 13. 当前待确认项（不阻塞 M0）
 
-- macOS 最低系统版本、是否需要 Universal Binary（arm64 + x86_64）；Windows 最低版本。
+- macOS 最低系统版本（预设中暂定 13.3，libc++ 的 `std::format` 需要）、是否需要 Universal Binary（arm64 + x86_64）；Windows 最低版本。
 - Vulkan 后端的最低版本与必需扩展（必须在 MoltenVK 支持范围内），以及 M2.5 是否需要提前。
 - 是否评估 SDL3 自带的 GPU API（SDL_GPU，支持 Vulkan / Metal / D3D12）作为 RHI 的一个后端或替代方案。
 - CI 平台（例如 GitHub Actions 的 macOS + Windows 矩阵）。
