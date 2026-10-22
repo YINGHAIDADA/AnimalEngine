@@ -1,4 +1,5 @@
 #include "debug_font.h"
+#include "fluid_pass.h"
 #include "lighting_pass.h"
 
 #include <animal/core/assert.h>
@@ -22,7 +23,10 @@ constexpr rhi::ClearColor kNoEmissionClear{0.0f, 0.0f, 0.0f, 0.0f};
 
 } // namespace
 
-Renderer2D::Renderer2D() : font_(std::make_unique<DebugFont>()), lightingPass_(std::make_unique<LightingPass>()) {}
+Renderer2D::Renderer2D()
+    : font_(std::make_unique<DebugFont>()),
+      lightingPass_(std::make_unique<LightingPass>()),
+      fluidPass_(std::make_unique<FluidPass>()) {}
 
 Renderer2D::~Renderer2D() = default;
 
@@ -92,7 +96,10 @@ bool Renderer2D::init(rhi::Device& device, const std::string& dataDirectory) {
         return false;
     }
 
-    LightingPass::Targets targets{albedo_, normal_, emissive_, light_, kCanvasExtent};
+    if (!fluidPass_->init(device, shaders)) {
+        return false;
+    }
+    LightingPass::Targets targets{albedo_, normal_, emissive_, light_, fluidPass_->smokeTexture(), kCanvasExtent};
     return lightingPass_->init(device, shaders, targets, rhi::Format::RGBA8_UNorm);
 }
 
@@ -101,6 +108,7 @@ void Renderer2D::shutdown() {
         return;
     }
     lightingPass_->shutdown();
+    fluidPass_->shutdown();
     glowBatch_.shutdown();
     litBatch_.shutdown();
     batch_.shutdown();
@@ -117,14 +125,17 @@ void Renderer2D::beginFrame(rhi::CommandList& commands) {
     litBatch_.beginFrame();
     glowBatch_.beginFrame();
     lightingPass_->beginFrame();
+    fluidPass_->beginFrame();
 }
 
 void Renderer2D::beginWorld(const Camera2D& camera, Color clearColor) {
     ANIMAL_ASSERT(commands_ != nullptr && phase_ == Phase::Idle);
     phase_ = Phase::World;
     worldViewProjection_ = camera.viewProjection(kCanvasExtent);
+    worldOrigin_ = camera.topLeft(kCanvasExtent);
     lights_.clear();
     glow_.clear();
+    fluidSplats_.clear();
 
     rhi::RenderPassDesc pass;
     pass.colorAttachments[0] = {albedo_, rhi::LoadOp::Clear, rhi::StoreOp::Store, toClearColor(clearColor)};
@@ -177,11 +188,50 @@ void Renderer2D::addLight(const PointLight& light) {
     lights_.push_back(light);
 }
 
+void Renderer2D::addFluidSplat(const FluidSplat& splat) {
+    ANIMAL_ASSERT(phase_ == Phase::World);
+    fluidSplats_.push_back(splat);
+}
+
+void Renderer2D::setFluidObstacles(std::span<const uint8_t> mask) {
+    fluidPass_->setObstacles(mask);
+}
+
 void Renderer2D::endWorld() {
     ANIMAL_ASSERT(phase_ == Phase::World);
     litBatch_.end();
     commands_->endRenderPass();
-    lightingPass_->render(*commands_, worldViewProjection_, lights_, lightingSettings_, canvas_);
+
+    // World pixels -> grid: uv over the canvas, velocities in cells per second.
+    const float dt = fluidSettings_.enabled ? fluidTimeStep_ : 0.0f;
+    const float cellsPerPixel = static_cast<float>(kFluidGrid.width) / static_cast<float>(kCanvasExtent.width);
+    std::vector<FluidPass::GridSplat> forces;
+    std::vector<FluidPass::GridSplat> smoke;
+    for (const FluidSplat& s : fluidSplats_) {
+        FluidPass::GridSplat g;
+        g.uv = {(s.position.x - worldOrigin_.x) / static_cast<float>(kCanvasExtent.width),
+                (s.position.y - worldOrigin_.y) / static_cast<float>(kCanvasExtent.height)};
+        g.radius = s.radius / static_cast<float>(kCanvasExtent.height);
+        if (s.force.x != 0.0f || s.force.y != 0.0f) {
+            FluidPass::GridSplat f = g;
+            f.value[0] = s.force.x * cellsPerPixel * dt;
+            f.value[1] = s.force.y * cellsPerPixel * dt;
+            forces.push_back(f);
+        }
+        if (s.smoke > 0.0f) {
+            const float amount = s.smoke * dt;
+            g.value[0] = s.color.x * amount;
+            g.value[1] = s.color.y * amount;
+            g.value[2] = s.color.z * amount;
+            g.value[3] = amount;
+            smoke.push_back(g);
+        }
+    }
+    fluidPass_->simulate(*commands_, dt, forces, smoke, fluidSettings_);
+
+    const LightingPass::SmokeLook smokeLook{fluidSettings_.smokeTint,
+                                            fluidSettings_.enabled ? fluidSettings_.opacity : 0.0f};
+    lightingPass_->render(*commands_, worldViewProjection_, lights_, lightingSettings_, smokeLook, canvas_);
 
     if (!glow_.empty()) {
         commands_->beginRenderPass(rhi::RenderPassDesc::single({canvas_, rhi::LoadOp::Load, rhi::StoreOp::Store, {}}));

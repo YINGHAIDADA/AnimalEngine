@@ -27,7 +27,8 @@ bool LightingPass::init(rhi::Device& device, const std::string& shaderDirectory,
     device_ = &device;
     targets_ = targets;
     sampler_ = device.createSampler({});
-    return sampler_ && initLightPipeline(shaderDirectory) && initCompositePipeline(shaderDirectory, outputFormat);
+    linearSampler_ = device.createSampler({rhi::Filter::Linear, rhi::Filter::Linear});
+    return sampler_ && linearSampler_ && initLightPipeline(shaderDirectory) && initCompositePipeline(shaderDirectory, outputFormat);
 }
 
 bool LightingPass::initLightPipeline(const std::string& shaderDirectory) {
@@ -123,6 +124,7 @@ bool LightingPass::initCompositePipeline(const std::string& shaderDirectory, rhi
         rhi::BindGroupEntry::textureSampler(0, targets_.albedo, sampler_),
         rhi::BindGroupEntry::textureSampler(1, targets_.light, sampler_),
         rhi::BindGroupEntry::textureSampler(2, targets_.emissive, sampler_),
+        rhi::BindGroupEntry::textureSampler(3, targets_.smoke, linearSampler_),
     };
     inputGroup.debugName = "composite inputs";
     compositeInputGroup_ = device_->createBindGroup(inputGroup);
@@ -146,6 +148,7 @@ void LightingPass::shutdown() {
         device_->destroy(shader);
     }
     device_->destroy(sampler_);
+    device_->destroy(linearSampler_);
     device_ = nullptr;
 }
 
@@ -155,7 +158,7 @@ void LightingPass::beginFrame() {
 }
 
 void LightingPass::render(rhi::CommandList& commands, const Mat4& viewProjection, std::span<const PointLight> lights,
-                          const LightingSettings& settings, rhi::TextureHandle output) {
+                          const LightingSettings& settings, const SmokeLook& smoke, rhi::TextureHandle output) {
     ANIMAL_ASSERT(!renderedThisFrame_);
     renderedThisFrame_ = true;
 
@@ -183,6 +186,7 @@ void LightingPass::render(rhi::CommandList& commands, const Mat4& viewProjection
         {settings.enabled ? 1.0f : 0.0f, static_cast<float>(std::max(0, settings.bands)), settings.dither ? 1.0f : 0.0f,
          0.0f},
         {static_cast<float>(targets_.extent.width), static_cast<float>(targets_.extent.height), 0.0f, 0.0f},
+        {smoke.tint.x, smoke.tint.y, smoke.tint.z, smoke.opacity},
     };
     device_->writeBuffer(compositeUniforms_, 0, &uniforms, sizeof(uniforms));
 

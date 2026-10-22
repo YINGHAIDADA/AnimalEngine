@@ -6,4 +6,11 @@ animal_add_shaders(animal_shaders
         light.vert
         light.frag
         composite.vert
-        composite.frag)
+        composite.frag
+        fluid_advect.frag
+        fluid_splat.frag
+        fluid_curl.frag
+        fluid_vorticity.frag
+        fluid_divergence.frag
+        fluid_pressure.frag
+        fluid_gradient.frag)

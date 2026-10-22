@@ -2,6 +2,7 @@
 
 #include <animal/core/math.h>
 #include <animal/renderer/camera2d.h>
+#include <animal/renderer/fluid.h>
 #include <animal/renderer/lighting.h>
 #include <animal/renderer/pixel_canvas.h>
 #include <animal/renderer/sprite_batch.h>
@@ -9,6 +10,7 @@
 #include <animal/rhi/rhi.h>
 
 #include <memory>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -16,12 +18,13 @@
 namespace animal {
 
 class DebugFont;
+class FluidPass;
 class LightingPass;
 
 // Frame structure (ADR-0007):
 //   beginFrame
-//   beginWorld .. drawSprite / drawGlow / addLight .. endWorld
-//                                                       material pass -> lights -> composite -> glow
+//   beginWorld .. drawSprite / drawGlow / addLight / addFluidSplat .. endWorld
+//                                     material pass -> fluid step -> lights -> composite (+ smoke) -> glow
 //   [beginWorldOverlay .. fillRect / strokeRect .. endWorldOverlay]   unlit, over the lit canvas
 //   beginScreen .. drawText / fillRect .. endScreen     canvas scaled into the window + overlays
 //   endFrame                                            uploads batched data; call before Device::submit
@@ -49,7 +52,14 @@ public:
     // Unlit additive pixel (fireflies, embers) in world pixels; drawn over the lit result.
     void drawGlow(Vec2 position, Color color, float size = 1.0f);
     void addLight(const PointLight& light);
+    void addFluidSplat(const FluidSplat& splat);
     void endWorld();
+
+    // Smoke simulation (ADR-0008). Obstacles: kFluidGrid bytes, row 0 at the top, non-zero =
+    // solid. The time step is the simulation time to advance this frame (0 = paused).
+    void setFluidObstacles(std::span<const uint8_t> mask);
+    void setFluidTimeStep(float seconds) { fluidTimeStep_ = seconds; }
+    FluidSettings& fluid() { return fluidSettings_; }
 
     void beginWorldOverlay(const Camera2D& camera);
     void endWorldOverlay();
@@ -100,6 +110,11 @@ private:
     std::vector<GlowQuad> glow_;
     std::unique_ptr<DebugFont> font_;
     std::unique_ptr<LightingPass> lightingPass_;
+    std::unique_ptr<FluidPass> fluidPass_;
+    FluidSettings fluidSettings_;
+    std::vector<FluidSplat> fluidSplats_;
+    float fluidTimeStep_ = 0.0f;
+    Vec2 worldOrigin_; // world position of the canvas top-left in the current world pass
     LightingSettings lightingSettings_;
     std::vector<PointLight> lights_;
     Mat4 worldViewProjection_;

@@ -25,7 +25,13 @@ public:
         rhi::TextureHandle normal;
         rhi::TextureHandle emissive;
         rhi::TextureHandle light;
+        rhi::TextureHandle smoke; // fluid smoke field (any size; sampled with linear filtering)
         rhi::Extent2D extent;
+    };
+
+    struct SmokeLook {
+        Vec3 tint{1.0f, 1.0f, 1.0f};
+        float opacity = 0.0f;
     };
 
     bool init(rhi::Device& device, const std::string& shaderDirectory, const Targets& targets,
@@ -35,7 +41,7 @@ public:
     void beginFrame();
     // Records the light pass into targets.light, then composites into `output`. Once per frame.
     void render(rhi::CommandList& commands, const Mat4& viewProjection, std::span<const PointLight> lights,
-                const LightingSettings& settings, rhi::TextureHandle output);
+                const LightingSettings& settings, const SmokeLook& smoke, rhi::TextureHandle output);
     void endFrame();
 
     uint32_t lightCount() const { return lastFrameLights_; }
@@ -52,6 +58,7 @@ private:
         float ambient[4];
         float params[4];
         float canvasSize[4];
+        float smoke[4];
     };
 
     bool initLightPipeline(const std::string& shaderDirectory);
@@ -60,6 +67,7 @@ private:
     rhi::Device* device_ = nullptr;
     Targets targets_;
     rhi::SamplerHandle sampler_;
+    rhi::SamplerHandle linearSampler_;
 
     rhi::ShaderHandle lightVertex_;
     rhi::ShaderHandle lightFragment_;
