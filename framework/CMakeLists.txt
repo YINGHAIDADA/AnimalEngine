@@ -8,9 +8,12 @@ set(ANIMAL_FRAMEWORK_HEADERS
     include/animal/framework/influence.h
     include/animal/framework/level.h
     include/animal/framework/particles.h
+    include/animal/framework/patrol.h
     include/animal/framework/physics.h
     include/animal/framework/platformer.h
-    include/animal/framework/tilemap.h)
+    include/animal/framework/save.h
+    include/animal/framework/tilemap.h
+    include/animal/framework/triggers.h)
 
 set(ANIMAL_FRAMEWORK_SOURCES
     src/action_map.cpp
@@ -20,9 +23,12 @@ set(ANIMAL_FRAMEWORK_SOURCES
     src/foliage.cpp
     src/level.cpp
     src/particles.cpp
+    src/patrol.cpp
     src/physics.cpp
     src/platformer.cpp
-    src/tilemap.cpp)
+    src/save.cpp
+    src/tilemap.cpp
+    src/triggers.cpp)
 
 add_library(animal_framework STATIC ${ANIMAL_FRAMEWORK_HEADERS} ${ANIMAL_FRAMEWORK_SOURCES})
 add_library(animal::framework ALIAS animal_framework)
