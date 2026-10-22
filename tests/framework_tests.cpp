@@ -2,6 +2,8 @@
 
 #include <animal/core/random.h>
 #include <animal/framework/action_map.h>
+#include <animal/framework/animation.h>
+#include <animal/framework/climbing.h>
 #include <animal/framework/entity.h>
 #include <animal/framework/foliage.h>
 #include <animal/framework/particles.h>
@@ -533,6 +535,112 @@ TEST(particle_color_fades_and_interpolates) {
     p.age = 0.25f; // half-way through the fade-in
     const Color early = system.colorOf(p);
     CHECK(early.a > 120 && early.a < 135);
+}
+
+// --- Climbing & animation -------------------------------------------------------------------
+
+struct ClimbRig {
+    TileMap map = emptyMap(20, 20);
+    VineSystem vines;
+    Body body = playerBody(47, 30); // overlaps the vine at x = 50
+    PlatformerState platformer;
+    ClimbState climb;
+    ClimbParams params;
+
+    ClimbRig() {
+        vines.addVine({50.0f, 8.0f}, 20); // 60 px long, tip around y = 68
+        for (int i = 0; i < 120; ++i) {
+            vines.step(kDt, i * kDt, {}, WindParams{0.0f, 0.5f});
+        }
+    }
+
+    bool step(ClimbInput input) {
+        const bool climbing = stepClimb(body, platformer, climb, input, params, vines, map, kDt);
+        vines.step(kDt, 0.0, {}, WindParams{0.0f, 0.5f});
+        return climbing;
+    }
+};
+
+TEST(climb_grabs_a_vine_when_holding_up) {
+    ClimbRig rig;
+    CHECK(!rig.step({0.0f, 0.0f, false})); // no up held: no grab
+    CHECK(rig.step({0.0f, -1.0f, false}));
+    CHECK(rig.climb.climbing);
+
+    ClimbRig far;
+    far.body = playerBody(80, 30);
+    CHECK(!far.step({0.0f, -1.0f, false}));
+}
+
+TEST(climb_moves_along_the_vine_and_stops_at_the_anchor) {
+    ClimbRig rig;
+    rig.step({0.0f, -1.0f, false});
+    const float start = rig.climb.grip.distance;
+    const int startY = rig.body.position.y;
+    for (int i = 0; i < 15; ++i) {
+        rig.step({0.0f, -1.0f, false});
+    }
+    CHECK(rig.climb.grip.distance < start - 8.0f);
+    CHECK(rig.body.position.y < startY - 6);
+    for (int i = 0; i < 200; ++i) {
+        rig.step({0.0f, -1.0f, false});
+    }
+    CHECK(rig.climb.climbing);
+    CHECK(test::near(rig.climb.grip.distance, 3.0f)); // one segment below the anchor
+}
+
+TEST(climb_jump_off_launches_and_blocks_an_immediate_regrab) {
+    ClimbRig rig;
+    rig.step({0.0f, -1.0f, false});
+    CHECK(!rig.step({1.0f, -1.0f, true}));
+    CHECK(!rig.climb.climbing);
+    CHECK(rig.platformer.velocity.y < -150.0f);
+    CHECK(rig.platformer.velocity.x > 50.0f);
+    CHECK(rig.platformer.rising);
+    CHECK(!rig.step({0.0f, -1.0f, false})); // still overlapping, but within the regrab delay
+}
+
+TEST(climb_lets_go_at_the_bottom_when_holding_down) {
+    ClimbRig rig;
+    rig.step({0.0f, -1.0f, false});
+    bool released = false;
+    for (int i = 0; i < 200 && !released; ++i) {
+        released = !rig.step({0.0f, 1.0f, false});
+    }
+    CHECK(released);
+    CHECK(!rig.climb.climbing);
+}
+
+TEST(climber_weight_bends_the_vine) {
+    ClimbRig rig;
+    rig.step({0.0f, -1.0f, false});
+    for (int i = 0; i < 60; ++i) {
+        rig.step({1.0f, 0.0f, false}); // swing right
+    }
+    const auto& points = rig.vines.vines()[0].points;
+    CHECK(points.back().x > 52.0f);
+}
+
+TEST(animator_advances_loops_and_holds) {
+    Animator animator;
+    const auto run = animator.add({{2, 3, 4, 5}, 10.0f, true});
+    const auto land = animator.add({{10}, 10.0f, false});
+    animator.play(run);
+    CHECK(animator.frame() == 2);
+    animator.update(0.25f); // 2.5 frames in
+    CHECK(animator.frame() == 4);
+    animator.update(0.2f); // 4.5 frames: wrapped
+    CHECK(animator.frame() == 2);
+    animator.play(run); // same clip keeps its time
+    CHECK(animator.frame() == 2);
+    animator.update(0.1f, 0.0f); // paused
+    CHECK(animator.frame() == 2);
+
+    animator.play(land);
+    CHECK(!animator.finished());
+    animator.update(0.2f);
+    CHECK(animator.finished());
+    CHECK(animator.frame() == 10);
 }
 
 // --- Entities & input ---------------------------------------------------------------------

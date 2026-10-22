@@ -103,14 +103,75 @@ void VineSystem::addVine(Vec2 anchor, int segments) {
         vine.points.push_back(p);
         vine.previous.push_back(p);
     }
+    vine.forces.assign(vine.points.size(), Vec2{});
     vines_.push_back(std::move(vine));
+}
+
+float VineSystem::length(size_t vine) const {
+    return static_cast<float>(vines_[vine].points.size() - 1) * params_.segmentLength;
+}
+
+namespace {
+
+// Segment index and fraction for an arc length along a chain of `count` points.
+std::pair<size_t, float> locate(float distance, float segmentLength, size_t count) {
+    const float max = static_cast<float>(count - 1);
+    const float t = std::clamp(distance / segmentLength, 0.0f, max);
+    const size_t i = std::min(static_cast<size_t>(t), count - 2);
+    return {i, t - static_cast<float>(i)};
+}
+
+} // namespace
+
+Vec2 VineSystem::pointAt(const Grip& grip) const {
+    const Vine& vine = vines_[grip.vine];
+    const auto [i, f] = locate(grip.distance, params_.segmentLength, vine.points.size());
+    return vine.points[i] + (vine.points[i + 1] - vine.points[i]) * f;
+}
+
+Vec2 VineSystem::velocityAt(const Grip& grip, float dt) const {
+    const Vine& vine = vines_[grip.vine];
+    const auto [i, f] = locate(grip.distance, params_.segmentLength, vine.points.size());
+    const float h = dt / static_cast<float>(std::max(1, params_.substeps));
+    const Vec2 a = vine.points[i] - vine.previous[i];
+    const Vec2 b = vine.points[i + 1] - vine.previous[i + 1];
+    return (a + (b - a) * f) * (1.0f / h);
+}
+
+void VineSystem::applyForce(const Grip& grip, Vec2 acceleration) {
+    Vine& vine = vines_[grip.vine];
+    const auto [i, f] = locate(grip.distance, params_.segmentLength, vine.points.size());
+    vine.forces[i] += acceleration * (1.0f - f);
+    vine.forces[i + 1] += acceleration * f;
+}
+
+std::optional<VineSystem::Grip> VineSystem::findGrip(const IntRect& rect) const {
+    const Vec2 center{static_cast<float>(rect.x) + static_cast<float>(rect.width) * 0.5f,
+                      static_cast<float>(rect.y) + static_cast<float>(rect.height) * 0.5f};
+    std::optional<Grip> best;
+    float bestDistance = 1e9f;
+    for (size_t v = 0; v < vines_.size(); ++v) {
+        const float total = length(v);
+        for (float s = params_.segmentLength; s <= total; s += 1.0f) { // skip the anchor itself
+            const Vec2 p = pointAt({v, s});
+            if (p.x >= static_cast<float>(rect.x) && p.x <= static_cast<float>(rect.right()) &&
+                p.y >= static_cast<float>(rect.y) && p.y <= static_cast<float>(rect.bottom())) {
+                const float d = animal::length(p - center);
+                if (d < bestDistance) {
+                    bestDistance = d;
+                    best = Grip{v, s};
+                }
+            }
+        }
+    }
+    return best;
 }
 
 void VineSystem::satisfyConstraint(Vine& vine, size_t i) const {
     Vec2& a = vine.points[i - 1];
     Vec2& b = vine.points[i];
     const Vec2 delta = b - a;
-    const float distance = std::max(length(delta), 1e-4f);
+    const float distance = std::max(animal::length(delta), 1e-4f);
     const float error = (distance - params_.segmentLength) / distance;
     if (i == 1) {
         b = b - delta * error; // a is the pinned anchor
@@ -138,7 +199,7 @@ void VineSystem::step(float dt, double time, std::span<const Influence> influenc
                 Vec2& prev = vine.previous[i];
                 const Vec2 velocity = (p - prev) * damping;
                 prev = p;
-                p = p + velocity + Vec2{windX, params_.gravity} * (h * h);
+                p = p + velocity + (Vec2{windX, params_.gravity} + vine.forces[i]) * (h * h);
             }
 
             // Influences push points out sideways and drag them along.
@@ -177,6 +238,7 @@ void VineSystem::step(float dt, double time, std::span<const Influence> influenc
                 }
             }
         }
+        std::fill(vine.forces.begin(), vine.forces.end(), Vec2{});
     }
 }
 

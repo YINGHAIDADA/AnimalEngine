@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -99,10 +100,27 @@ public:
     struct Vine {
         std::vector<Vec2> points;
         std::vector<Vec2> previous;
+        std::vector<Vec2> forces; // external accelerations for the next step (cleared after it)
+    };
+
+    // A position along a vine: index into vines() and arc length from the anchor (px).
+    struct Grip {
+        size_t vine = 0;
+        float distance = 0.0f;
     };
 
     void addVine(Vec2 anchor, int segments);
     void step(float dt, double time, std::span<const Influence> influences, const WindParams& wind);
+
+    float length(size_t vine) const;
+    Vec2 pointAt(const Grip& grip) const;
+    // Velocity of the chain at the grip during the last step (px/s); `dt` is the fixed step.
+    Vec2 velocityAt(const Grip& grip, float dt) const;
+    // Adds an acceleration (px/s²) at the grip for the next step, split between the two
+    // neighbouring points (a climber's weight, a swing).
+    void applyForce(const Grip& grip, Vec2 acceleration);
+    // Closest point on any vine inside `rect`, if one passes through it.
+    std::optional<Grip> findGrip(const IntRect& rect) const;
 
     // Calls fn(x, y, isLeaf) for every pixel along each chain (leaves sprout every few points).
     template <typename F>
