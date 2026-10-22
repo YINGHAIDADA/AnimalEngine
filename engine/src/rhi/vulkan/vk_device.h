@@ -18,7 +18,9 @@
 #include <vk_mem_alloc.h>
 
 #include <animal/core/assert.h>
+#include <animal/core/file.h>
 #include <animal/core/log.h>
+#include <animal/platform/platform.h>
 #include <animal/platform/window.h>
 #include <animal/rhi/command_list.h>
 #include <animal/rhi/gpu_timers.h>
@@ -288,6 +290,8 @@ private:
     void destroyImageResources(Texture& texture);
 
     bool createAllocator();
+    void createPipelineCache(); // from disk when it matches this device; an empty one otherwise
+    void savePipelineCache();
     bool createDescriptorPool();
     // Device-local, or (host) persistently mapped host-coherent memory, from the allocator.
     bool allocateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, bool host, VkBuffer& buffer,
@@ -326,6 +330,14 @@ private:
     double timestampPeriod_ = 0.0; // nanoseconds per tick
     std::vector<GpuTiming> gpuTimings_;
     VmaAllocator allocator_ = VK_NULL_HANDLE;
+    VkPipelineCache pipelineCache_ = VK_NULL_HANDLE;
+    std::string pipelineCachePath_;
+    size_t pipelineCacheLoaded_ = 0; // bytes read at startup (0: started empty)
+    uint32_t pipelinesCreated_ = 0;
+    double pipelineMilliseconds_ = 0.0; // time spent in vkCreateGraphicsPipelines
+    uint32_t vendorId_ = 0;
+    uint32_t deviceId_ = 0;
+    std::array<uint8_t, VK_UUID_SIZE> pipelineCacheUuid_{};
     std::vector<VkDescriptorPool> descriptorPools_; // bind groups come from the last; a new one when it is full
     VkCommandPool immediatePool_ = VK_NULL_HANDLE;
     std::map<std::string, VkDescriptorSetLayout> setLayoutCache_;

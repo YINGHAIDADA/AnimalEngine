@@ -41,6 +41,7 @@ bool VulkanDevice::initialize(const DeviceDesc& desc) {
     if (!pickPhysicalDevice() || !createLogicalDevice() || !createAllocator() || !createFrames()) {
         return false;
     }
+    createPipelineCache();
 
     if (!createDescriptorPool()) {
         return false;
@@ -242,6 +243,9 @@ bool VulkanDevice::pickPhysicalDevice() {
 
     const VkPhysicalDeviceProperties& props = props2.properties;
     caps_.deviceName = props.deviceName;
+    vendorId_ = props.vendorID;
+    deviceId_ = props.deviceID;
+    std::copy(std::begin(props.pipelineCacheUUID), std::end(props.pipelineCacheUUID), pipelineCacheUuid_.begin());
     caps_.apiVersion = std::format("Vulkan {}.{}.{} ({} {})", VK_API_VERSION_MAJOR(props.apiVersion),
                                    VK_API_VERSION_MINOR(props.apiVersion), VK_API_VERSION_PATCH(props.apiVersion),
                                    driver.driverName, driver.driverInfo);
@@ -397,6 +401,13 @@ VulkanDevice::~VulkanDevice() {
         vkDestroyCommandPool(device_, immediatePool_, nullptr);
         for (VkDescriptorPool pool : descriptorPools_) {
             vkDestroyDescriptorPool(device_, pool, nullptr);
+        }
+        if (pipelineCache_) {
+            log::info("Vulkan: {} pipeline(s) created in {:.1f} ms ({})", pipelinesCreated_, pipelineMilliseconds_,
+                      pipelineCacheLoaded_ ? std::format("cache loaded, {} KiB", pipelineCacheLoaded_ / 1024)
+                                           : std::string("cache started empty"));
+            savePipelineCache();
+            vkDestroyPipelineCache(device_, pipelineCache_, nullptr);
         }
         if (allocator_) {
             vmaDestroyAllocator(allocator_);

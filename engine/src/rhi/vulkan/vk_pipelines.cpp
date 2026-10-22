@@ -200,11 +200,14 @@ PipelineHandle VulkanDevice::createGraphicsPipeline(const GraphicsPipelineDesc& 
     info.pColorBlendState = &colorBlend;
     info.pDynamicState = &dynamic;
     info.layout = pipeline.layout;
-    if (!check(vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &info, nullptr, &pipeline.pipeline),
-               "vkCreateGraphicsPipelines")) {
+    const uint64_t begin = platform::nowNanoseconds();
+    const VkResult created = vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &info, nullptr, &pipeline.pipeline);
+    pipelineMilliseconds_ += static_cast<double>(platform::nowNanoseconds() - begin) * 1e-6;
+    if (!check(created, "vkCreateGraphicsPipelines")) {
         vkDestroyPipelineLayout(device_, pipeline.layout, nullptr);
         return {};
     }
+    ++pipelinesCreated_;
     return pipelines_.insert(std::move(pipeline));
 }
 
@@ -294,5 +297,66 @@ BindGroupHandle VulkanDevice::createBindGroup(const BindGroupDesc& desc) {
     return bindGroups_.insert(std::move(group));
 }
 
+
+// --- Pipeline cache (ADR-0024) -------------------------------------------------------------
+
+namespace {
+
+// VkPipelineCacheHeaderVersionOne, written by the driver at the start of the cache data.
+struct CacheHeader {
+    uint32_t size;
+    uint32_t version;
+    uint32_t vendorId;
+    uint32_t deviceId;
+    uint8_t uuid[VK_UUID_SIZE];
+};
+
+} // namespace
+
+void VulkanDevice::createPipelineCache() {
+    if (const std::string dir = platform::userDataDirectory("AnimalEngine", "Engine"); !dir.empty()) {
+        pipelineCachePath_ = dir + "vulkan_pipelines.bin";
+    }
+    std::vector<std::byte> data;
+    if (!pipelineCachePath_.empty() && fileExists(pipelineCachePath_)) {
+        if (auto bytes = readFile(pipelineCachePath_)) {
+            CacheHeader header{};
+            if (bytes->size() >= sizeof(header)) {
+                std::memcpy(&header, bytes->data(), sizeof(header));
+            }
+            // A cache from another GPU or driver version is ignored rather than handed to the driver.
+            if (header.version == VK_PIPELINE_CACHE_HEADER_VERSION_ONE && header.vendorId == vendorId_ &&
+                header.deviceId == deviceId_ && std::memcmp(header.uuid, pipelineCacheUuid_.data(), VK_UUID_SIZE) == 0) {
+                data = std::move(*bytes);
+            } else {
+                log::info("Vulkan: pipeline cache belongs to another device or driver; starting empty");
+            }
+        }
+    }
+    VkPipelineCacheCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+    info.initialDataSize = data.size();
+    info.pInitialData = data.empty() ? nullptr : data.data();
+    if (vkCreatePipelineCache(device_, &info, nullptr, &pipelineCache_) != VK_SUCCESS && !data.empty()) {
+        data.clear();
+        info.initialDataSize = 0;
+        info.pInitialData = nullptr;
+        check(vkCreatePipelineCache(device_, &info, nullptr, &pipelineCache_), "vkCreatePipelineCache");
+    }
+    pipelineCacheLoaded_ = data.size();
+}
+
+void VulkanDevice::savePipelineCache() {
+    size_t size = 0;
+    if (pipelineCachePath_.empty() || vkGetPipelineCacheData(device_, pipelineCache_, &size, nullptr) != VK_SUCCESS ||
+        size == 0) {
+        return;
+    }
+    std::vector<std::byte> data(size);
+    if (vkGetPipelineCacheData(device_, pipelineCache_, &size, data.data()) == VK_SUCCESS &&
+        !writeFileAtomic(pipelineCachePath_, data.data(), size)) {
+        log::warn("Vulkan: could not write the pipeline cache {}", pipelineCachePath_);
+    }
+}
 
 } // namespace animal::rhi::vulkan
