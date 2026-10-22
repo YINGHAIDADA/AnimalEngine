@@ -398,26 +398,26 @@ uint32_t ValidatingDevice::validate(const CommandList& list) {
                 report(std::format("{}: pipeline{} color targets do not match the render pass attachments", at,
                                    pipeline->name));
             }
-        } else if (const auto* c = std::get_if<cmd::SetBindGroup>(&command)) {
-            const auto it = bindGroups_.find(c->group.key());
-            if (it == bindGroups_.end() || c->set >= kMaxBindGroups || it->second.set != c->set) {
+        } else if (const auto* bind = std::get_if<cmd::SetBindGroup>(&command)) {
+            const auto it = bindGroups_.find(bind->group.key());
+            if (it == bindGroups_.end() || bind->set >= kMaxBindGroups || it->second.set != bind->set) {
                 report(std::format("{}: setBindGroup({}) with an invalid, destroyed or mismatched bind group", at,
-                                   c->set));
+                                   bind->set));
                 continue;
             }
-            groups[c->set] = &it->second;
-        } else if (const auto* c = std::get_if<cmd::SetVertexBuffer>(&command)) {
-            const auto it = buffers_.find(c->buffer.key());
+            groups[bind->set] = &it->second;
+        } else if (const auto* vb = std::get_if<cmd::SetVertexBuffer>(&command)) {
+            const auto it = buffers_.find(vb->buffer.key());
             if (it == buffers_.end() || !hasFlag(it->second.usage, BufferUsage::Vertex)) {
-                report(std::format("{}: setVertexBuffer({}) needs a valid vertex buffer", at, c->slot));
+                report(std::format("{}: setVertexBuffer({}) needs a valid vertex buffer", at, vb->slot));
                 continue;
             }
-            if (vertexBuffers.size() <= c->slot) {
-                vertexBuffers.resize(c->slot + 1, false);
+            if (vertexBuffers.size() <= vb->slot) {
+                vertexBuffers.resize(vb->slot + 1, false);
             }
-            vertexBuffers[c->slot] = true;
-        } else if (const auto* c = std::get_if<cmd::SetIndexBuffer>(&command)) {
-            const auto it = buffers_.find(c->buffer.key());
+            vertexBuffers[vb->slot] = true;
+        } else if (const auto* ib = std::get_if<cmd::SetIndexBuffer>(&command)) {
+            const auto it = buffers_.find(ib->buffer.key());
             if (it == buffers_.end() || !hasFlag(it->second.usage, BufferUsage::Index)) {
                 report(std::format("{}: setIndexBuffer needs a valid index buffer", at));
                 continue;

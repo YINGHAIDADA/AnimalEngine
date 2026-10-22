@@ -70,7 +70,14 @@ target_link_libraries(animal_engine
     PRIVATE animal_stb animal_gl_headers)
 
 if(ANIMAL_ENABLE_VULKAN)
-    set(ANIMAL_VULKAN_SOURCES src/rhi/vulkan/vk_device.cpp)
+    set(ANIMAL_VULKAN_SOURCES
+        src/rhi/vulkan/vk_commands.cpp
+        src/rhi/vulkan/vk_device.cpp
+        src/rhi/vulkan/vk_device.h
+        src/rhi/vulkan/vk_pipelines.cpp
+        src/rhi/vulkan/vk_resources.cpp
+        src/rhi/vulkan/vk_swapchain.cpp
+        src/rhi/vulkan/vk_util.cpp)
     target_sources(animal_engine PRIVATE ${ANIMAL_VULKAN_SOURCES})
     target_link_libraries(animal_engine PRIVATE volk)
     target_compile_definitions(animal_engine PRIVATE ANIMAL_RHI_VULKAN=1)

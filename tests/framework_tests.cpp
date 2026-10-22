@@ -21,6 +21,13 @@ namespace {
 using namespace animal;
 
 constexpr TileId kSolid = 1;
+WindParams windOf(float strength, float speed) {
+    WindParams wind;
+    wind.strength = strength;
+    wind.speed = speed;
+    return wind;
+}
+
 constexpr float kDt = 1.0f / 60.0f;
 
 TileMap emptyMap(int32_t w = 20, int32_t h = 12) {
@@ -287,7 +294,7 @@ TEST(grass_settles_back_upright_without_wind) {
     for (auto& blade : grass.blades()) {
         blade.angle = 0.9f;
     }
-    const WindParams calm{0.0f, 0.8f};
+    const WindParams calm = windOf(0.0f, 0.8f);
     for (int i = 0; i < 240; ++i) {
         grass.step(kDt, i * kDt, {}, calm);
     }
@@ -298,7 +305,7 @@ TEST(grass_settles_back_upright_without_wind) {
 
 TEST(grass_bends_away_from_the_player) {
     GrassField grass = makeGrass();
-    const WindParams calm{0.0f, 0.8f};
+    const WindParams calm = windOf(0.0f, 0.8f);
     const Influence player = playerAt(60); // center x = 63
     for (int i = 0; i < 30; ++i) {
         grass.step(kDt, i * kDt, std::span(&player, 1), calm);
@@ -323,7 +330,7 @@ TEST(grass_is_flattened_by_landing) {
     landing.velocity.y = 200.0f;
     landing.landed = true;
     landing.bounds.x = 40; // center 43; push overlap ends at 49
-    grass.step(kDt, 0.0, std::span(&landing, 1), WindParams{0.0f, 0.8f});
+    grass.step(kDt, 0.0, std::span(&landing, 1), windOf(0.0f, 0.8f));
     bool pushed = false;
     for (const auto& blade : grass.blades()) {
         if (blade.x > 50.0f && blade.x < 56.0f) { // inside the impact radius, outside the overlap
@@ -337,7 +344,7 @@ TEST(vine_hangs_from_its_anchor) {
     VineSystem vines;
     vines.addVine({50.0f, 8.0f}, 10);
     for (int i = 0; i < 300; ++i) {
-        vines.step(kDt, i * kDt, {}, WindParams{0.0f, 0.8f});
+        vines.step(kDt, i * kDt, {}, windOf(0.0f, 0.8f));
     }
     const auto& points = vines.vines()[0].points;
     CHECK(points[0] == (Vec2{50.0f, 8.0f}));
@@ -354,7 +361,7 @@ TEST(vine_is_pushed_by_the_player) {
     Influence player{{44, 26, 6, 7}, {80.0f, 0.0f}, false}; // walking right through it
     for (int i = 0; i < 20; ++i) {
         player.bounds.x = 44 + i;
-        vines.step(kDt, i * kDt, std::span(&player, 1), WindParams{0.0f, 0.8f});
+        vines.step(kDt, i * kDt, std::span(&player, 1), windOf(0.0f, 0.8f));
     }
     const auto& points = vines.vines()[0].points;
     CHECK(points[0] == (Vec2{50.0f, 8.0f}));
@@ -367,7 +374,7 @@ TEST(vine_leans_as_a_whole_in_steady_wind) {
     VineSystem vines;
     vines.params().windForce = 80.0f;
     vines.addVine({50.0f, 8.0f}, 20);
-    const WindParams steady{1.0f, 0.0f}; // speed 0 freezes the wind field in time
+    const WindParams steady = windOf(1.0f, 0.0f); // speed 0 freezes the wind field in time
     const float wind = windAt(steady, 50.0f, 0.0);
     CHECK(std::fabs(wind) > 0.05f);
     for (int i = 0; i < 600; ++i) {
@@ -389,7 +396,7 @@ TEST(vine_push_at_the_tip_moves_the_upper_chain) {
     float maxTip = 0.0f;
     for (int i = 0; i < 40; ++i) {
         player.bounds.x = 44 + i;
-        vines.step(kDt, i * kDt, std::span(&player, 1), WindParams{0.0f, 0.8f});
+        vines.step(kDt, i * kDt, std::span(&player, 1), windOf(0.0f, 0.8f));
         const auto& points = vines.vines()[0].points;
         maxUpper = std::max(maxUpper, points[points.size() / 3].x - 50.0f);
         maxTip = std::max(maxTip, points.back().x - 50.0f);
@@ -407,7 +414,7 @@ TEST(vine_resists_being_dragged_by_the_player) {
     float maxTip = 0.0f;
     for (int i = 0; i < 60; ++i) { // walks from x = 30 to 90, straight through the vine
         player.bounds.x = 30 + i;
-        vines.step(kDt, i * kDt, std::span(&player, 1), WindParams{0.0f, 0.5f});
+        vines.step(kDt, i * kDt, std::span(&player, 1), windOf(0.0f, 0.5f));
         maxTip = std::max(maxTip, vines.vines()[0].points.back().x - 50.0f);
     }
     CHECK(maxTip > 3.0f);
@@ -464,12 +471,12 @@ TEST(particles_integrate_and_expire) {
     p.lifetime = 0.5f;
     system.emit(p);
     for (int i = 0; i < 15; ++i) {
-        system.step(kDt, i * kDt, nullptr, {}, WindParams{0.0f, 0.5f});
+        system.step(kDt, i * kDt, nullptr, {}, windOf(0.0f, 0.5f));
     }
     CHECK(system.size() == 1);
     CHECK(test::near(system.particles()[0].position.x, 115.0f, 0.01f)); // 60 px/s × 0.25 s
     for (int i = 0; i < 30; ++i) {
-        system.step(kDt, i * kDt, nullptr, {}, WindParams{0.0f, 0.5f});
+        system.step(kDt, i * kDt, nullptr, {}, windOf(0.0f, 0.5f));
     }
     CHECK(system.size() == 0);
 }
@@ -491,7 +498,7 @@ TEST(particles_respect_capacity_and_solid_tiles) {
     ghost.dieOnSolid = false;
     embers.emit(ghost);
     for (int i = 0; i < 30; ++i) {
-        embers.step(kDt, i * kDt, &map, {}, WindParams{0.0f, 0.5f});
+        embers.step(kDt, i * kDt, &map, {}, windOf(0.0f, 0.5f));
     }
     CHECK(embers.size() == 1);
     CHECK(!embers.particles()[0].dieOnSolid);
@@ -504,7 +511,7 @@ TEST(particles_are_pushed_away_by_influences) {
     system.emit(basicParticle({200.0f, 40.0f})); // far away
     const Influence player{{58, 37, 6, 7}, {0.0f, 0.0f}, false}; // center (61, 40.5)
     for (int i = 0; i < 20; ++i) {
-        system.step(kDt, i * kDt, nullptr, std::span(&player, 1), WindParams{0.0f, 0.5f});
+        system.step(kDt, i * kDt, nullptr, std::span(&player, 1), windOf(0.0f, 0.5f));
     }
     float right = 0.0f;
     float left = 0.0f;
@@ -550,13 +557,13 @@ struct ClimbRig {
     ClimbRig() {
         vines.addVine({50.0f, 8.0f}, 20); // 60 px long, tip around y = 68
         for (int i = 0; i < 120; ++i) {
-            vines.step(kDt, i * kDt, {}, WindParams{0.0f, 0.5f});
+            vines.step(kDt, i * kDt, {}, windOf(0.0f, 0.5f));
         }
     }
 
     bool step(ClimbInput input) {
         const bool climbing = stepClimb(body, platformer, climb, input, params, vines, map, kDt);
-        vines.step(kDt, 0.0, {}, WindParams{0.0f, 0.5f});
+        vines.step(kDt, 0.0, {}, windOf(0.0f, 0.5f));
         return climbing;
     }
 };
@@ -655,7 +662,7 @@ TEST(climber_can_pump_a_swing_up) {
             // Push in the direction the upper part of the vine is moving (pumping in rhythm).
             const float v = vines.velocityAt({climb.grip.vine, climb.grip.distance * 0.5f}, kDt).x;
             stepClimb(body, platformer, climb, {v >= 0.0f ? 1.0f : -1.0f, 0.0f, false}, params, vines, map, kDt);
-            vines.step(kDt, i * kDt, {}, WindParams{0.0f, 0.5f});
+            vines.step(kDt, i * kDt, {}, windOf(0.0f, 0.5f));
             lo = std::min(lo, body.position.x);
             hi = std::max(hi, body.position.x);
         }
