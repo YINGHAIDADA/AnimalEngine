@@ -2,7 +2,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**M1b 游戏结构已完成**——Tiled 关卡、多房间切换、藤蔓攀爬、动画状态机、触发器提示、巡逻甲虫、可收集宝石与自动存档（V1 视觉样板已完成），接下来是 M2 / M3 产品化（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
+当前阶段：**M2 光照生产化**——硬边像素阴影已完成，接下来是更多光源类型、边缘光、按房间配置光照、GPU 计时（M1b 游戏结构与 V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 
@@ -62,6 +62,7 @@ cmake --build --preset windows-ninja-debug
 | F4 | | 切换光照量化：平滑 / 3 / 5 / 8 级 |
 | F5 | | 开关流体烟雾 |
 | F6 | | 开关泛光与调色 |
+| F7 | | 开关阴影 |
 | F8 | | 删除存档，从起点重新开始 |
 | F12 | | 截图到 `screenshots/` |
 | Esc | | 退出 |

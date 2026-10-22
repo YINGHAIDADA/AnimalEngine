@@ -314,6 +314,7 @@ ctest --test-dir build/<preset> --output-on-failure
   - ADR-0009 泛光与调色：阈值提取 + 半分辨率模糊 + 量化抖动的像素泛光，集中调色（Accepted）。
   - ADR-0010 Tiled 关卡约定与房间切换：Tile / 对象 / 地图属性语义，世界文件拼接单屏房间（Accepted）。
   - ADR-0011 玩法要素与存档：触发器、巡逻敌人、宝石的分层与 Tiled 表达，检查点与 JSON 存档（Accepted）。
+  - ADR-0012 硬边像素阴影：画布尺寸遮挡图、整数光线、穿出即挡与墙内衰减（Accepted）。
 
 ## 13. 当前待确认项（不阻塞 M0）
 
