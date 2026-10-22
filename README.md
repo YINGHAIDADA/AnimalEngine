@@ -2,7 +2,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**M3 模拟效果生产化**——流体休眠与提速、粒子效果预设与发射器、水、风场与植物种类、GPU 粒子（瀑布）已完成，接下来是 M3 文档与验收（M2 光照生产化已在 macOS 上完成）（M1b 游戏结构与 V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
+当前阶段：**M3 模拟效果生产化已完成**（macOS）——流体休眠与提速、粒子效果预设与发射器、水、风场与植物种类、GPU 粒子（瀑布）；按计划接下来是 M2.5 Vulkan 后端完善（M2 光照生产化已在 macOS 上完成）（M1b 游戏结构与 V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 
@@ -91,6 +91,17 @@ cmake --build --preset windows-ninja-debug
 
 关卡位于 `assets/source/world/`：用 [Tiled](https://www.mapeditor.org/) 打开 `test.world` 即可看到并编辑所有房间。约定（Tile 属性、对象类型、地图属性）见 [ADR-0010](docs/ADR/ADR-0010-tiled-levels.md)，玩法对象（触发器、宝石、甲虫）见 [ADR-0011](docs/ADR/ADR-0011-gameplay-elements-and-save.md)，房间观感（`look` 预设与 `look.*` 覆盖，预设位于 `looks/`）见 [ADR-0015](docs/ADR/ADR-0015-looks.md)，粒子效果（`emitter` 对象，预设位于 `effects/`）见 [ADR-0017](docs/ADR/ADR-0017-effect-presets.md)，水域（`water` 对象）见 [ADR-0018](docs/ADR/ADR-0018-water.md)，植物（`plants` 对象，种类位于 `plants/`）与风（`wind.*` 地图属性、`wind` 对象）见 [ADR-0019](docs/ADR/ADR-0019-wind-and-plants.md)。保存后重新构建即可部署到 `data/world/`。目前这些文件由 `tools/scripts/make_test_world.py` 生成；开始在 Tiled 中手工编辑后请不要再运行该脚本。
 
+### 关卡数据速查
+
+| 放在哪里 | 名称 | 作用 | 详见 |
+|---|---|---|---|
+| Tileset Tile 属性 | `solid`、`grass`、`light*` | 碰撞、长草（`plants/grass.plant.json`）、发光 Tile | ADR-0010、0013 |
+| 地图属性 | `look`、`look.*` | 观感预设与单项覆盖 | ADR-0015 |
+| 地图属性 | `wind.strength`、`wind.gusts`、`wind.gustInterval`、`wind.gustSpeed` | 微风与阵风 | ADR-0019 |
+| 点对象 | `spawn`、`candle`、`vent`、`vine`、`light`、`lantern`、`gem`、`crawler`、`wind` | 起点、道具、光源、宝石、甲虫、气流 | ADR-0010、0011、0013、0019 |
+| 矩形对象 | `trigger`、`water`、`plants`、`emitter`（也可为点） | 提示区域、水域、植物、粒子发射器 | ADR-0011、0017、0018、0019、0020 |
+| 预设文件 | `looks/*.look.json`、`effects/*.effect.json`（`"gpu": true` 走 GPU）、`plants/*.plant.json` | 可复用的观感、粒子效果、植物种类；格式错误会给出文件名与字段 | ADR-0015、0017、0019、0020 |
+
 ## 测试
 
 ```bash
@@ -174,3 +185,15 @@ $R --backend=vulkan --demo --deterministic --no-vsync --hide-overlay --profile -
 | 所有 pass 只通过 RHI 实现 | `engine/src/rhi/opengl/`、`engine/src/rhi/vulkan/` 之外搜索 `gl[A-Z]` / `vk[A-Z]` 调用与图形 API 头文件，无结果 | ✅ |
 | OpenGL 与 Vulkan 截图一致（含 256 盏随机阴影光源的压力场景） | `--demo --deterministic [--stress-lights=256]` 截图逐像素对比，容差 0；Vulkan 验证层零报错 | ✅ |
 | Windows 上的帧时间与一致性 | Windows 上重复 `--profile` 与截图对比 | ⏳ 待在 Windows 机器上验证 |
+
+## M3 验收条件
+
+| 条件 | 验证方式 | 状态 |
+|---|---|---|
+| GPU 粒子、水面与更多流体类型、植被种类与风场 | 烟雾深坑：瀑布与水雾（GPU 粒子）、水池；三个房间的垂苔 / 发光花 / 芦苇、阵风与气流（ADR-0018 ~ 0020） | ✅ |
+| 效果可在关卡数据中配置并复用 | 见上文“关卡数据速查”：观感、粒子（CPU / GPU）、植物都是预设文件，在 Tiled 中引用与覆盖；水、风、发射器、植物区域都是 Tiled 对象 | ✅ |
+| 固定测试场景下结果稳定 | `--deterministic` 下同一后端两次运行截图逐像素相同（演示路线、含瀑布 / 烟 / 水的烟雾深坑 600 帧），两后端之间也逐像素相同；模拟测试覆盖各系统的确定性 | ✅ |
+| 有开关、参数控制与性能计数 | F5 烟雾（含休眠状态）、F10 粒子（CPU 与 GPU）、F3 / F4 / F6 / F7；参数在预设与 Tiled 属性中；覆盖层显示各效果数量、CPU 耗时、GPU 粒子数与分 pass GPU 耗时，`--profile` 输出平均 / 最大值（预算见 ADR-0016）。水与植物没有单独的运行时开关 | ✅ |
+| OpenGL 4.1 下有片元着色器实现路径 | 烟雾、水、GPU 粒子都只用片元着色器，OpenGL 4.1 为主开发后端 | ✅ |
+| 性能预算 | Vulkan、Release、Apple M2：三个房间 GPU 整帧 1.2–2.2 ms，各效果均在 ADR-0016 的预算内 | ✅（Apple M2） |
+| Windows 上的表现与一致性 | Windows 上重复以上步骤 | ⏳ 待在 Windows 机器上验证 |
