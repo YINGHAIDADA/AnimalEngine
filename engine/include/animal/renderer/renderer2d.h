@@ -7,6 +7,7 @@
 #include <animal/renderer/pixel_canvas.h>
 #include <animal/renderer/post.h>
 #include <animal/renderer/sprite_batch.h>
+#include <animal/renderer/water.h>
 #include <animal/resources/loaders.h>
 #include <animal/rhi/rhi.h>
 
@@ -23,6 +24,8 @@ class DebugFont;
 class FluidPass;
 class LightingPass;
 class PostPass;
+class WaterPass;
+struct WaterFrame;
 
 // Frame structure (ADR-0007):
 //   beginFrame
@@ -56,6 +59,7 @@ public:
     void drawGlow(Vec2 position, Color color, float size = 1.0f);
     void addLight(const PointLight& light);
     void addFluidSplat(const FluidSplat& splat);
+    void addWater(const WaterSurface& surface); // ADR-0018
     void endWorld();
 
     // Smoke simulation (ADR-0008). Obstacles: kFluidGrid bytes, row 0 at the top, non-zero =
@@ -124,6 +128,8 @@ private:
     std::unique_ptr<LightingPass> lightingPass_;
     std::unique_ptr<FluidPass> fluidPass_;
     std::unique_ptr<PostPass> postPass_;
+    std::unique_ptr<WaterPass> waterPass_;
+    std::unique_ptr<WaterFrame> water_; // this frame's water bodies
     PostSettings postSettings_;
     FluidSettings fluidSettings_;
     std::vector<FluidSplat> fluidSplats_;
@@ -142,6 +148,7 @@ private:
     rhi::TextureHandle emissive_;
     rhi::TextureHandle light_;
     rhi::TextureHandle rimLight_;
+    rhi::TextureHandle lit_; // composite output when water is drawn over it
     rhi::TextureHandle flags_; // material flags: r = rim strength
     rhi::TextureHandle flatNormal_;
     rhi::TextureHandle noEmission_;

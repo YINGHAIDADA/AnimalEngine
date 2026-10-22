@@ -2,6 +2,7 @@
 #include "fluid_pass.h"
 #include "lighting_pass.h"
 #include "post_pass.h"
+#include "water_pass.h"
 
 #include <animal/core/assert.h>
 #include <animal/core/log.h>
@@ -26,11 +27,17 @@ constexpr rhi::ClearColor kNoEmissionClear{0.0f, 0.0f, 0.0f, 0.0f};
 
 } // namespace
 
+struct WaterFrame : WaterPass::Frame {
+    size_t styleCount = 0;
+};
+
 Renderer2D::Renderer2D()
     : font_(std::make_unique<DebugFont>()),
       lightingPass_(std::make_unique<LightingPass>()),
       fluidPass_(std::make_unique<FluidPass>()),
-      postPass_(std::make_unique<PostPass>()) {}
+      postPass_(std::make_unique<PostPass>()),
+      waterPass_(std::make_unique<WaterPass>()),
+      water_(std::make_unique<WaterFrame>()) {}
 
 Renderer2D::~Renderer2D() = default;
 
@@ -98,9 +105,10 @@ bool Renderer2D::init(rhi::Device& device, const std::string& dataDirectory) {
     flags_ = createTarget(rhi::Format::RGBA8_UNorm, "g-buffer material flags");
     light_ = createTarget(rhi::Format::RGBA16_Float, "light accumulation");
     rimLight_ = createTarget(rhi::Format::RGBA16_Float, "rim light accumulation");
+    lit_ = createTarget(rhi::Format::RGBA8_UNorm, "lit scene");
     flatNormal_ = createSolidTexture(Color::rgba(128, 128, 255), "flat normal");
     noEmission_ = createSolidTexture(Color::rgba(0, 0, 0), "no emission");
-    if (!canvas_ || !final_ || !albedo_ || !normal_ || !emissive_ || !flags_ || !light_ || !rimLight_ || !flatNormal_ || !noEmission_) {
+    if (!canvas_ || !final_ || !albedo_ || !normal_ || !emissive_ || !flags_ || !light_ || !rimLight_ || !lit_ || !flatNormal_ || !noEmission_) {
         return false;
     }
 
@@ -109,6 +117,9 @@ bool Renderer2D::init(rhi::Device& device, const std::string& dataDirectory) {
     }
     LightingPass::Targets targets{albedo_, normal_, emissive_, flags_, light_, rimLight_, fluidPass_->smokeTexture(),
                                   kCanvasExtent};
+    if (!waterPass_->init(device, shaders, {lit_, light_, canvas_, kCanvasExtent})) {
+        return false;
+    }
     return lightingPass_->init(device, shaders, targets, rhi::Format::RGBA8_UNorm) &&
            postPass_->init(device, shaders, canvas_, final_, kCanvasExtent);
 }
@@ -118,13 +129,14 @@ void Renderer2D::shutdown() {
         return;
     }
     postPass_->shutdown();
+    waterPass_->shutdown();
     lightingPass_->shutdown();
     fluidPass_->shutdown();
     glowBatch_.shutdown();
     litBatch_.shutdown();
     batch_.shutdown();
     font_->shutdown(*device_);
-    for (rhi::TextureHandle texture : {canvas_, final_, albedo_, normal_, emissive_, flags_, light_, rimLight_, flatNormal_, noEmission_}) {
+    for (rhi::TextureHandle texture : {canvas_, final_, albedo_, normal_, emissive_, flags_, light_, rimLight_, lit_, flatNormal_, noEmission_}) {
         device_->destroy(texture);
     }
     device_ = nullptr;
@@ -148,6 +160,8 @@ void Renderer2D::beginWorld(const Camera2D& camera, Color clearColor) {
     lights_.clear();
     glow_.clear();
     fluidSplats_.clear();
+    water_->columns.assign(size_t{kCanvasExtent.width} * 4, 0);
+    water_->styleCount = 0;
 
     rhi::RenderPassDesc pass;
     pass.colorAttachments[0] = {albedo_, rhi::LoadOp::Clear, rhi::StoreOp::Store, toClearColor(clearColor)};
@@ -200,6 +214,44 @@ void Renderer2D::drawGlow(Vec2 position, Color color, float size) {
 void Renderer2D::addLight(const PointLight& light) {
     ANIMAL_ASSERT(phase_ == Phase::World);
     lights_.push_back(light);
+}
+
+void Renderer2D::addWater(const WaterSurface& surface) {
+    ANIMAL_ASSERT(phase_ == Phase::World);
+    if (water_->styleCount >= kMaxWaterStyles) {
+        log::warn("Renderer2D: more than {} water surfaces this frame; extra ones are not drawn", kMaxWaterStyles);
+        return;
+    }
+    const auto style = static_cast<uint8_t>(water_->styleCount);
+    WaterSurface& stored = water_->styles[style];
+    stored = surface;
+    stored.offsets = {};
+    if (style == 0) {
+        water_->phase = static_cast<int>(std::floor(surface.time * 8.0f));
+    }
+    ++water_->styleCount;
+
+    // Whole canvas rows, so the shader's decisions are exact integers.
+    const int left = static_cast<int>(std::lround(surface.topLeft.x - worldOrigin_.x));
+    const int height = static_cast<int>(kCanvasExtent.height);
+    const int bottom = std::clamp(static_cast<int>(std::lround(surface.topLeft.y + surface.depth - worldOrigin_.y)), 0,
+                                  height);
+    for (int i = 0; i < surface.width; ++i) {
+        const int x = left + i;
+        if (x < 0 || x >= static_cast<int>(kCanvasExtent.width)) {
+            continue;
+        }
+        const float offset = static_cast<size_t>(i) < surface.offsets.size() ? surface.offsets[static_cast<size_t>(i)] : 0.0f;
+        const int top = std::clamp(static_cast<int>(std::lround(surface.topLeft.y + offset - worldOrigin_.y)), 0, height);
+        if (top >= bottom) {
+            continue;
+        }
+        uint8_t* c = &water_->columns[static_cast<size_t>(x) * 4];
+        c[0] = static_cast<uint8_t>(top);
+        c[1] = static_cast<uint8_t>(bottom);
+        c[2] = style;
+        c[3] = 255;
+    }
 }
 
 void Renderer2D::addFluidSplat(const FluidSplat& splat) {
@@ -270,9 +322,19 @@ void Renderer2D::endWorld() {
 
     const LightingPass::SmokeLook smokeLook{fluidSettings_.smokeTint,
                                             fluidSettings_.enabled && !sleeping ? fluidSettings_.opacity : 0.0f};
+    const bool water = water_->styleCount > 0;
     commands_->beginTimer("lighting");
-    lightingPass_->render(*commands_, worldViewProjection_, worldOrigin_, lights_, lightingSettings_, smokeLook, canvas_);
+    lightingPass_->render(*commands_, worldViewProjection_, worldOrigin_, lights_, lightingSettings_, smokeLook,
+                          water ? lit_ : canvas_);
     commands_->endTimer();
+    if (water) {
+        water_->ambient = lightingSettings_.enabled ? lightingSettings_.ambient : Vec3{1.0f, 1.0f, 1.0f};
+        water_->bands = lightingSettings_.bands;
+        water_->dither = lightingSettings_.dither;
+        commands_->beginTimer("water");
+        waterPass_->render(*commands_, *water_);
+        commands_->endTimer();
+    }
 
     if (!glow_.empty()) {
         commands_->beginTimer("glow");

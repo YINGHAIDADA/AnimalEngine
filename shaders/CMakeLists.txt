@@ -16,4 +16,5 @@ animal_add_shaders(animal_shaders
         fluid_gradient.frag
         post_bright.frag
         post_blur.frag
-        post_grade.frag)
+        post_grade.frag
+        water.frag)

@@ -17,6 +17,7 @@ set(ANIMAL_ENGINE_HEADERS
     include/animal/renderer/post.h
     include/animal/renderer/renderer2d.h
     include/animal/renderer/sprite_batch.h
+    include/animal/renderer/water.h
     include/animal/resources/loaders.h
     include/animal/rhi/command_list.h
     include/animal/rhi/gpu_timers.h
@@ -43,6 +44,8 @@ set(ANIMAL_ENGINE_SOURCES
     src/renderer/post_pass.h
     src/renderer/renderer2d.cpp
     src/renderer/sprite_batch.cpp
+    src/renderer/water_pass.cpp
+    src/renderer/water_pass.h
     src/resources/loaders.cpp
     src/rhi/command_list.cpp
     src/rhi/rhi.cpp
