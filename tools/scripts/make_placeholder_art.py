@@ -39,6 +39,11 @@ PALETTE = {
     "v": ((230, 215, 180, 255), 0.85, None),  # wax
     "V": ((196, 176, 146, 255), 0.7, None),   # wax shade
     "h": ((70, 64, 80, 255), 0.5, None),      # candle holder
+    "u": ((150, 104, 196, 255), 0.8, (36, 22, 52)),     # beetle shell
+    "U": ((214, 176, 240, 255), 1.0, (110, 80, 150)),  # faint glow keeps it readable in the dark   # beetle shell highlight
+    "r": ((255, 90, 70, 255), 1.0, (255, 70, 50)),       # beetle eye (glows)
+    "e": ((70, 210, 180, 255), 0.8, (40, 170, 140)),     # gem
+    "E": ((200, 255, 238, 255), 1.0, (160, 255, 225)),   # gem highlight
 }
 
 
@@ -161,6 +166,29 @@ VENT = [
     "hhhhhhhh",
 ]
 
+# Patrolling beetle, facing right; two walking frames.
+_BEETLE = [
+    "........",
+    "........",
+    "..kkkk..",
+    ".kuUUuk.",
+    "kuuuuuuk",
+    "kuuuuurk",
+    ".kkkkkk.",
+]
+CRAWLER_FRAMES = [_BEETLE + [".k.k.k.."], _BEETLE + ["..k.k.k."]]
+
+GEM = [
+    "........",
+    "...E....",
+    "..eEe...",
+    ".eeEee..",
+    "..eee...",
+    "...e....",
+    "........",
+    "........",
+]
+
 CANDLE = [
     "...F....",
     "..fFf...",
@@ -271,7 +299,8 @@ def main():
     tiles = [empty, wall_tile(), ground_tile(), background, overlay(background, CRYSTAL)]
     write_material("tileset", tiles, heights_from_palette, wrap=True)
     write_material("creature", CREATURE_FRAMES, dome_heights, wrap=False)
-    write_material("props", [CANDLE, VENT], heights_from_palette, wrap=False)
+    write_material("props", [CANDLE, VENT, GEM], heights_from_palette, wrap=False)
+    write_material("crawler", CRAWLER_FRAMES, dome_heights, wrap=False)
     print(f"wrote textures to {OUT_DIR}")
 
 

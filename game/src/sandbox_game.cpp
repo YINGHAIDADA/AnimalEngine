@@ -1,10 +1,13 @@
 #include "sandbox_game.h"
 
+#include <animal/core/file.h>
 #include <animal/core/log.h>
 #include <animal/platform/input.h>
+#include <animal/platform/platform.h>
 #include <animal/renderer/renderer2d.h>
 #include <animal/rhi/rhi.h>
 
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <format>
@@ -31,6 +34,13 @@ constexpr int kBandPresets[] = {0, 3, 5, 8};
 constexpr animal::Color kBackdrop = animal::Color::rgba(12, 10, 20);
 constexpr animal::Vec3 kPlayerGlowColor{0.85f, 0.85f, 1.0f};
 constexpr uint32_t kRoomSeed = 0xA11CE;
+
+constexpr animal::Vec2 kKnockback{120.0f, -140.0f};
+constexpr float kInvulnerableSeconds = 1.0f;
+constexpr float kStunSeconds = 0.25f;
+constexpr float kMessageSeconds = 4.0f;
+constexpr animal::Color kHudColor = animal::Color::rgba(150, 240, 215);
+constexpr animal::Color kMessageColor = animal::Color::rgba(235, 228, 210);
 
 std::string roomName(const std::string& path) {
     const std::u8string stem = std::filesystem::path(std::u8string(path.begin(), path.end())).stem().u8string();
@@ -71,10 +81,11 @@ const animal::Room* SandboxGame::roomData(const animal::WorldRoom& worldRoom) {
 
 bool SandboxGame::enterRoom(const animal::WorldRoom& worldRoom, animal::Renderer2D& renderer) {
     const animal::Room* room = roomData(worldRoom);
-    if (!room || !cave_.build(*room, kRoomSeed + roomVisits_++)) {
+    if (!room || !cave_.build(*room, roomName(worldRoom.path), save_.flags, kRoomSeed + roomVisits_++)) {
         return false;
     }
     currentRoom_ = &worldRoom;
+    checkpointPending_ = true;
     climb_.climbing = false; // vine indices belong to the previous room
     renderer.resetFluid();
     renderer.setFluidObstacles(cave_.fluidObstacles(camera_.topLeft(animal::Renderer2D::kCanvasExtent)));
@@ -95,11 +106,12 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     auto tileset = animal::loadMaterial(*context.device, textures + "tileset");
     auto props = animal::loadMaterial(*context.device, textures + "props");
     auto creature = animal::loadMaterial(*context.device, textures + "creature");
+    auto crawler = animal::loadMaterial(*context.device, textures + "crawler");
     auto world = animal::loadWorld(context.dataDirectory + "world/test.world");
-    if (!tileset || !props || !creature || !world) {
+    if (!tileset || !props || !creature || !crawler || !world) {
         return false;
     }
-    assets_ = {*tileset, *props};
+    assets_ = {*tileset, *props, *crawler};
     creature_ = *creature;
     world_ = std::move(*world);
 
@@ -113,19 +125,32 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
             startRoom_ = &worldRoom;
             startFeet_ = spawn->position;
         }
+        for (const animal::LevelObject* gem : room->objectsOfType("gem")) {
+            gemFlags_.insert(CaveRoom::gemFlag(roomName(worldRoom.path), gem->id));
+        }
     }
     if (!startRoom_) {
         animal::log::error("No room in the world has a 'spawn' object");
         return false;
     }
+    checkpointRoom_ = startRoom_;
+    checkpointFeet_ = startFeet_;
+    save_.room = roomName(startRoom_->path);
+    save_.position = startFeet_;
+    if (!context.demo && !context.deterministic) {
+        if (const std::string dir = animal::platform::userDataDirectory("AnimalEngine", "Sandbox"); !dir.empty()) {
+            savePath_ = dir + "save.json";
+            loadProgress();
+        }
+    }
 
     camera_.center = kCameraCenter;
     player_ = entities_.create(animal::EntityKind::Player);
     entities_.get(player_)->body.collider = kPlayerCollider;
-    if (!enterRoom(*startRoom_, *context.renderer)) {
+    if (!enterRoom(*checkpointRoom_, *context.renderer)) {
         return false;
     }
-    placePlayerFeet(startFeet_);
+    placePlayerFeet(checkpointFeet_);
     bindActions();
     setupAnimations();
 
@@ -213,6 +238,9 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
     if (input.pressed(Key::F6)) {
         renderer.post().enabled = !renderer.post().enabled;
     }
+    if (input.pressed(Key::F8)) {
+        resetProgress(renderer);
+    }
     if (input.gamepadConnected() && (input.down(GamepadButton::South) || input.axis(GamepadAxis::LeftX) != 0.0f)) {
         usingGamepad_ = true;
     } else if (input.down(Key::Left) || input.down(Key::Right) || input.down(Key::Space) || input.down(Key::Z)) {
@@ -221,11 +249,97 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
 }
 
 void SandboxGame::respawn(animal::Renderer2D& renderer) {
-    if (currentRoom_ != startRoom_) {
-        enterRoom(*startRoom_, renderer);
-    }
-    placePlayerFeet(startFeet_);
+    enterRoom(*checkpointRoom_, renderer); // rebuilds the room even when already in it
+    placePlayerFeet(checkpointFeet_);
     playerState_ = {};
+    climb_ = {};
+    checkpointPending_ = false;
+}
+
+// Resumes at the saved checkpoint with the saved gems collected; a save naming a room that is
+// no longer in the world keeps its gems but starts at the spawn point.
+void SandboxGame::loadProgress() {
+    if (!animal::fileExists(savePath_)) {
+        return;
+    }
+    std::optional<animal::SaveData> loaded = animal::readSave(savePath_);
+    if (!loaded) {
+        return; // readSave logged why; the next save overwrites the file
+    }
+    save_.flags = loaded->flags;
+    for (const animal::WorldRoom& worldRoom : world_.rooms) {
+        if (roomName(worldRoom.path) == loaded->room) {
+            checkpointRoom_ = &worldRoom;
+            checkpointFeet_ = loaded->position;
+            save_.room = loaded->room;
+            save_.position = loaded->position;
+            animal::log::info("Loaded save: room '{}', {} gem(s)", save_.room, save_.flags.size());
+            return;
+        }
+    }
+    animal::log::warn("Save names unknown room '{}'; starting at the spawn point", loaded->room);
+}
+
+void SandboxGame::saveProgress() {
+    if (!savePath_.empty() && !animal::writeSave(savePath_, save_)) {
+        animal::log::warn("Could not write the save file {}", savePath_);
+    }
+}
+
+// F8: forget all progress and start over from the spawn point.
+void SandboxGame::resetProgress(animal::Renderer2D& renderer) {
+    if (!savePath_.empty() && animal::fileExists(savePath_)) {
+        animal::deleteFile(savePath_);
+    }
+    save_.flags.clear();
+    save_.room = roomName(startRoom_->path);
+    save_.position = startFeet_;
+    checkpointRoom_ = startRoom_;
+    checkpointFeet_ = startFeet_;
+    respawn(renderer);
+    showMessage("PROGRESS RESET");
+}
+
+void SandboxGame::showMessage(std::string text) {
+    message_ = std::move(text);
+    messageTime_ = kMessageSeconds;
+}
+
+// Gems, crawler hits, triggers and checkpoints, after the player has moved this step.
+void SandboxGame::updateGameplay(animal::Entity& player) {
+    const animal::IntRect collider = player.body.worldCollider();
+    const std::vector<std::string> gems = cave_.collectGems(collider);
+    save_.flags.insert(gems.begin(), gems.end());
+    if (!gems.empty()) {
+        saveProgress();
+    }
+
+    if (invulnerable_ <= 0.0f) {
+        if (const std::optional<animal::Vec2> crawler = cave_.touchingCrawler(collider)) {
+            const float playerX = static_cast<float>(collider.x) + collider.width * 0.5f;
+            const float away = playerX < crawler->x ? -1.0f : (playerX > crawler->x ? 1.0f : (facingLeft_ ? 1.0f : -1.0f));
+            playerState_.velocity = {away * kKnockback.x, kKnockback.y};
+            playerState_.rising = false; // not a jump: releasing the button must not cut it
+            playerState_.grounded = false;
+            climb_.climbing = false;
+            climb_.cooldown = climbParams_.regrabDelay;
+            invulnerable_ = kInvulnerableSeconds;            stunned_ = kStunSeconds;
+        }
+    }
+
+    for (std::string& message : cave_.enteredTriggers(collider)) {
+        showMessage(std::move(message));
+    }
+
+    if (checkpointPending_ && playerState_.grounded && !climb_.climbing) {
+        checkpointPending_ = false;
+        checkpointRoom_ = currentRoom_;
+        checkpointFeet_ = {static_cast<float>(collider.x) + collider.width * 0.5f,
+                           static_cast<float>(collider.y + collider.height)};
+        save_.room = roomName(currentRoom_->path);
+        save_.position = checkpointFeet_;
+        saveProgress();
+    }
 }
 
 // Leaving the room through an edge moves the player into the neighbouring room at the same
@@ -255,19 +369,25 @@ void SandboxGame::handleRoomExit(animal::Renderer2D& renderer) {
 void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
     time_ += dt;
     fluidTime_ += static_cast<float>(dt);
+    const float step = static_cast<float>(dt);
+    invulnerable_ = std::max(0.0f, invulnerable_ - step);
+    stunned_ = std::max(0.0f, stunned_ - step);
+    messageTime_ = std::max(0.0f, messageTime_ - step);
     animal::Entity* player = entities_.get(player_);
     if (player) {
-        const float moveX = actions_.strength(MoveRight) - actions_.strength(MoveLeft);
-        const float moveY = actions_.strength(MoveDown) - actions_.strength(MoveUp);
+        const bool control = stunned_ <= 0.0f;
+        const float moveX = control ? actions_.strength(MoveRight) - actions_.strength(MoveLeft) : 0.0f;
+        const float moveY = control ? actions_.strength(MoveDown) - actions_.strength(MoveUp) : 0.0f;
+        const bool jumpPressed = control && actions_.pressed(Jump);
         const bool wasClimbing = climb_.climbing;
-        const bool climbing = animal::stepClimb(player->body, playerState_, climb_, {moveX, moveY, actions_.pressed(Jump)},
+        const bool climbing = animal::stepClimb(player->body, playerState_, climb_, {moveX, moveY, jumpPressed},
                                                 climbParams_, cave_.vines(), cave_.tiles(), static_cast<float>(dt));
         if (!climbing) {
             animal::PlatformerInput input;
             input.moveX = moveX;
             // A jump that let go of a vine is already used up.
-            input.jumpPressed = actions_.pressed(Jump) && !wasClimbing;
-            input.jumpHeld = actions_.down(Jump);
+            input.jumpPressed = jumpPressed && !wasClimbing;
+            input.jumpHeld = control && actions_.down(Jump);
             animal::stepPlatformer(player->body, playerState_, input, playerParams_, cave_.tiles(),
                                    static_cast<float>(dt));
         }
@@ -278,6 +398,9 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
         }
         updateAnimation(static_cast<float>(dt));
         handleRoomExit(*context.renderer);
+        if ((player = entities_.get(player_))) {
+            updateGameplay(*player);
+        }
     }
 
     std::vector<animal::Influence> influences;
@@ -297,14 +420,19 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
 void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer) {
     renderer.beginWorld(camera_, kBackdrop);
     cave_.drawBehindPlayer(renderer, assets_);
+    cave_.drawGems(renderer, assets_, time_);
 
     const animal::Entity* player = entities_.get(player_);
-    if (player) {
+    // While invulnerable after a hit the creature blinks.
+    const bool blinkedOut = invulnerable_ > 0.0f && static_cast<int>(invulnerable_ * 16.0f) % 2 == 1;
+    if (player && !blinkedOut) {
         const float size = static_cast<float>(kTileSize);
         const animal::Vec2i p = player->body.position + kSpriteOffset;
         const float frame = static_cast<float>(animator_.frame());
         renderer.drawSprite(creature_, {static_cast<float>(p.x), static_cast<float>(p.y)},
                             {frame * size, 0.0f, size, size}, animal::Color::white(), facingLeft_);
+    }
+    if (player) {
         animal::PointLight glow;
         glow.position = player->body.exactPosition() + animal::Vec2{3.0f, 3.0f};
         glow.radius = 30.0f;
@@ -332,6 +460,26 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
     }
 }
 
+void SandboxGame::onScreen(animal::EngineContext&, animal::Renderer2D& renderer) {
+    const animal::PresentLayout& layout = renderer.presentLayout();
+    const float margin = static_cast<float>(6 * renderer.overlayScale());
+    const size_t collected = static_cast<size_t>(std::ranges::count_if(
+        save_.flags, [this](const std::string& flag) { return gemFlags_.count(flag) != 0; }));
+    const std::string gems = std::format("GEMS {}/{}", collected, gemFlags_.size());
+    renderer.drawText({static_cast<float>(layout.x + layout.width) - margin - renderer.textWidth(gems),
+                       static_cast<float>(layout.y) + margin},
+                      gems, kHudColor);
+
+    if (messageTime_ > 0.0f && !message_.empty()) {
+        const float fade = std::min({1.0f, messageTime_ / 0.6f, (kMessageSeconds - messageTime_) / 0.3f});
+        animal::Color color = kMessageColor;
+        color.a = static_cast<uint8_t>(std::lround(255.0f * fade));
+        renderer.drawText({static_cast<float>(layout.x) + (layout.width - renderer.textWidth(message_)) * 0.5f,
+                           static_cast<float>(layout.y + layout.height) - margin - renderer.textLineHeight()},
+                          message_, color);
+    }
+}
+
 void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::string>& lines) {
     if (currentRoom_) {
         lines.push_back(std::format("ROOM {} ({} IN WORLD)", roomName(currentRoom_->path), world_.rooms.size()));
@@ -352,13 +500,15 @@ void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::s
                                 renderer.fluid().enabled ? "ON" : "OFF", renderer.post().enabled ? "ON" : "OFF"));
     lines.push_back(usingGamepad_ ? "GAMEPAD: STICK MOVE  UP GRAB VINE  A JUMP"
                                   : "ARROWS/WASD MOVE  UP GRAB VINE  SPACE/Z JUMP");
-    lines.push_back(std::format("F2 COLLISION VIEW ({})", showCollision_ ? "ON" : "OFF"));
+    lines.push_back(std::format("F2 COLLISION VIEW ({})  F8 RESET PROGRESS{}", showCollision_ ? "ON" : "OFF",
+                                savePath_.empty() ? " (NOT SAVED)" : ""));
 }
 
 void SandboxGame::onShutdown(animal::EngineContext& context) {
     animal::destroyMaterial(*context.device, assets_.tileset);
     animal::destroyMaterial(*context.device, assets_.props);
     animal::destroyMaterial(*context.device, creature_);
+    animal::destroyMaterial(*context.device, assets_.crawler);
 }
 
 } // namespace game

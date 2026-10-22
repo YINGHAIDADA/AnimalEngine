@@ -78,6 +78,22 @@ class Room:
             entry["properties"] = [prop(k, *v) for k, v in props.items()]
         self.objects.append(entry)
 
+    def area(self, kind, tx, ty, tw, th, **props):
+        entry = {"id": len(self.objects) + 1, "name": "", "type": kind, "rotation": 0, "visible": True,
+                 "x": tx * TILE, "y": ty * TILE, "width": tw * TILE, "height": th * TILE}
+        if props:
+            entry["properties"] = [prop(k, *v) for k, v in props.items()]
+        self.objects.append(entry)
+
+    def trigger(self, tx, ty, tw, th, message, once=True):
+        self.area("trigger", tx, ty, tw, th, message=("string", message), once=("bool", once))
+
+    def gem(self, tx, ty):  # centred in a tile cell
+        self.obj("gem", tx * TILE + 4, ty * TILE + 4)
+
+    def crawler(self, tx, surface_row):  # feet on the surface
+        self.obj("crawler", tx * TILE + 4, surface_row * TILE)
+
     # Point objects stand on a surface: (tile column, surface row) -> bottom-centre of the prop.
     def candle(self, tx, surface_row):
         self.obj("candle", tx * TILE + 4, surface_row * TILE)
@@ -141,6 +157,11 @@ def cave_entrance():
     room.vent(13, 20)
     for tx, ty in [(9, 1), (15, 1), (33, 1), (13, 13), (19, 10), (27, 7)]:
         room.vine(tx, ty)
+    room.gem(30, 4)
+    room.gem(36, 19)
+    room.crawler(33, 14)
+    room.trigger(7, 16, 2, 4, "HOLD UP NEAR A VINE TO CLIMB")
+    room.trigger(24, 18, 2, 3, "THE TUNNEL LEADS EAST")
     return room
 
 
@@ -160,6 +181,11 @@ def crystal_gallery():
     room.candle(9, 8)
     for tx, ty in [(12, 1), (24, 1), (20, 7), (34, 16)]:
         room.vine(tx, ty)
+    room.gem(20, 4)
+    room.gem(30, 7)
+    room.gem(8, 13)
+    room.crawler(10, 20)
+    room.trigger(26, 16, 9, 4, "A WARM DRAFT RISES FROM BELOW")
     return room
 
 
@@ -180,6 +206,10 @@ def smoke_pit():
         room.candle(tx, row)
     for tx, ty in [(4, 1), (16, 1)]:
         room.vine(tx, ty)
+    room.gem(31, 1)
+    room.gem(22, 10)
+    room.crawler(25, 20)
+    room.trigger(18, 18, 3, 2, "CLIMB THE LEDGES TO GET BACK UP")
     return room
 
 

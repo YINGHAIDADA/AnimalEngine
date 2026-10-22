@@ -28,7 +28,10 @@ animal_add_data_files(animal_game_textures
         creature_n.png
         props.png
         props_n.png
-        props_e.png)
+        props_e.png
+        crawler.png
+        crawler_n.png
+        crawler_e.png)
 
 animal_add_data_files(animal_game_world
     SOURCE_DIR "${PROJECT_SOURCE_DIR}/assets/source/world"

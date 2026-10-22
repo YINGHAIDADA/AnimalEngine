@@ -21,6 +21,11 @@ constexpr animal::Vec3 kFireflyLight{0.75f, 1.0f, 0.45f};
 constexpr animal::Vec3 kSmokeColor{0.85f, 0.85f, 0.9f};
 constexpr animal::Color kDustColor = animal::Color::rgba(205, 195, 175, 170);
 constexpr animal::Color kFireflyColor = animal::Color::rgba(210, 255, 130, 255);
+constexpr animal::Color kSparkStart = animal::Color::rgba(200, 255, 235, 255);
+constexpr animal::Color kSparkEnd = animal::Color::rgba(40, 200, 160, 0);
+constexpr animal::Vec3 kGemLight{0.3f, 0.95f, 0.8f};
+constexpr animal::IntRect kCrawlerCollider{0, 0, 7, 5}; // inside the 8×8 sprite, feet on row 7
+constexpr animal::IntRect kGemArea{-3, -3, 6, 6};       // around the gem centre
 constexpr animal::Color kVineStem = animal::Color::rgba(70, 140, 72);
 constexpr animal::Color kVineLeaf = animal::Color::rgba(120, 196, 96);
 // Grass colors per [shade][level] (base → tip).
@@ -46,8 +51,12 @@ animal::Vec2 propTopLeft(const animal::LevelObject& object) {
 
 } // namespace
 
-bool CaveRoom::build(const animal::Room& room, uint32_t seed) {
+bool CaveRoom::build(const animal::Room& room, const std::string& name, const std::set<std::string>& collected,
+                     uint32_t seed) {
     tiles_ = room.tiles;
+    gems_.clear();
+    crawlers_.clear();
+    triggers_.clear();
     rng_ = animal::Random(seed);
     spawn_.reset();
     candles_.clear();
@@ -100,6 +109,28 @@ bool CaveRoom::build(const animal::Room& room, uint32_t seed) {
             const int drop = (row - anchorRow) * kTileSize - kVineClearance;
             const int segments = object.properties.getInt("segments", std::clamp(drop / kVineSegment, 2, kMaxVineSegments));
             vines_.addVine(object.position, segments);
+        } else if (object.type == "gem") {
+            Gem gem;
+            gem.flag = gemFlag(name, object.id);
+            gem.center = object.position;
+            gem.phase = static_cast<float>(object.id) * 0.9f;
+            gem.collected = collected.count(gem.flag) != 0;
+            gems_.push_back(gem);
+        } else if (object.type == "crawler") {
+            Crawler crawler;
+            crawler.body.collider = kCrawlerCollider;
+            crawler.body.position = {static_cast<int>(std::lround(object.position.x)) - kCrawlerCollider.width / 2,
+                                     static_cast<int>(std::lround(object.position.y)) - kCrawlerCollider.height};
+            crawler.patrol.direction = object.id % 2 == 0 ? 1.0f : -1.0f;
+            crawlers_.push_back(crawler);
+        } else if (object.type == "trigger") {
+            animal::TriggerSet::Trigger trigger;
+            trigger.id = object.id;
+            trigger.area = {static_cast<int>(object.position.x), static_cast<int>(object.position.y),
+                            static_cast<int>(object.size.x), static_cast<int>(object.size.y)};
+            trigger.once = object.properties.getBool("once", true);
+            trigger.message = object.properties.getString("message");
+            triggers_.add(trigger);
         } else if (object.type == "light") {
             TileLight light;
             light.position = object.position;
@@ -186,7 +217,61 @@ void CaveRoom::spawnEmber(const Candle& candle) {
     particles_.emit(p);
 }
 
+void CaveRoom::burst(animal::Vec2 center) {
+    for (int i = 0; i < 14; ++i) {
+        const float angle = rng_.range(0.0f, 6.2831853f);
+        const float speed = rng_.range(25.0f, 60.0f);
+        animal::Particle p;
+        p.kind = Spark;
+        p.position = center;
+        p.velocity = {std::cos(angle) * speed, std::sin(angle) * speed - 15.0f};
+        p.acceleration = {0.0f, 40.0f};
+        p.drag = 2.5f;
+        p.lifetime = rng_.range(0.5f, 0.9f);
+        p.startColor = kSparkStart;
+        p.endColor = kSparkEnd;
+        p.seed = rng_.next();
+        particles_.emit(p);
+    }
+}
+
+std::vector<std::string> CaveRoom::collectGems(const animal::IntRect& player) {
+    std::vector<std::string> picked;
+    for (Gem& gem : gems_) {
+        if (!gem.collected && kGemArea.offset({static_cast<int>(gem.center.x), static_cast<int>(gem.center.y)}).overlaps(player)) {
+            gem.collected = true;
+            burst(gem.center);
+            picked.push_back(gem.flag);
+        }
+    }
+    return picked;
+}
+
+std::optional<animal::Vec2> CaveRoom::touchingCrawler(const animal::IntRect& player) const {
+    for (const Crawler& crawler : crawlers_) {
+        const animal::IntRect c = crawler.body.worldCollider();
+        if (c.overlaps(player)) {
+            return animal::Vec2{static_cast<float>(c.x) + c.width * 0.5f, static_cast<float>(c.y) + c.height * 0.5f};
+        }
+    }
+    return std::nullopt;
+}
+
+std::vector<std::string> CaveRoom::enteredTriggers(const animal::IntRect& player) {
+    std::vector<std::string> messages;
+    for (const animal::TriggerSet::Trigger* trigger : triggers_.update(player)) {
+        if (!trigger->message.empty()) {
+            messages.push_back(trigger->message);
+        }
+    }
+    return messages;
+}
+
 void CaveRoom::step(float dt, double time, std::span<const animal::Influence> influences) {
+    for (Crawler& crawler : crawlers_) {
+        animal::stepPatrol(crawler.body, crawler.patrol, patrolParams_, tiles_, dt);
+        crawler.walkTime += dt;
+    }
     grass_.step(dt, time, influences, wind_);
     vines_.step(dt, time, influences, wind_);
     for (Candle& candle : candles_) {
@@ -221,9 +306,26 @@ void CaveRoom::drawBehindPlayer(animal::Renderer2D& renderer, const CaveAssets& 
     for (const Vent& vent : vents_) {
         renderer.drawSprite(assets.props, vent.position, {size, 0.0f, size, size});
     }
+    for (const Crawler& crawler : crawlers_) {
+        const animal::Vec2i p = crawler.body.position;
+        const float frame = static_cast<float>(static_cast<int>(crawler.walkTime * 6.0f) % 2);
+        renderer.drawSprite(assets.crawler, {p.x - 0.0f, p.y - 2.0f}, {frame * size, 0.0f, size, size},
+                            animal::Color::white(), crawler.patrol.direction < 0.0f);
+    }
     vines_.forEachPixel([&](int x, int y, bool leaf) {
         renderer.fillRect({static_cast<float>(x), static_cast<float>(y), 1.0f, 1.0f}, leaf ? kVineLeaf : kVineStem);
     });
+}
+
+void CaveRoom::drawGems(animal::Renderer2D& renderer, const CaveAssets& assets, double time) const {
+    const float size = static_cast<float>(kTileSize);
+    for (const Gem& gem : gems_) {
+        if (!gem.collected) {
+            const float bob = std::round(std::sin(static_cast<float>(time) * 2.5f + gem.phase) * 1.5f);
+            renderer.drawSprite(assets.props, {gem.center.x - 3.5f, gem.center.y - 3.5f + bob},
+                                {2.0f * size, 0.0f, size, size});
+        }
+    }
 }
 
 void CaveRoom::drawInFrontOfPlayer(animal::Renderer2D& renderer) const {
@@ -240,7 +342,7 @@ void CaveRoom::drawInFrontOfPlayer(animal::Renderer2D& renderer) const {
             for (const animal::Vec2 d : {animal::Vec2{1, 0}, animal::Vec2{-1, 0}, animal::Vec2{0, 1}, animal::Vec2{0, -1}}) {
                 renderer.drawGlow(p.position + d, halo);
             }
-        } else if (p.kind == Ember) {
+        } else if (p.kind == Ember || p.kind == Spark) {
             renderer.drawGlow(p.position, c);
         }
     }
@@ -275,6 +377,11 @@ void CaveRoom::addLights(animal::Renderer2D& renderer, double time) const {
         light.intensity = t.intensity + 0.15f * static_cast<float>(std::sin(time * 1.3 + t.phase));
         light.height = t.height;
         renderer.addLight(light);
+    }
+    for (const Gem& gem : gems_) {
+        if (!gem.collected) {
+            renderer.addLight({gem.center, 22.0f, kGemLight, 0.8f, 8.0f});
+        }
     }
     for (const TileLight& t : pointLights_) {
         renderer.addLight({t.position, t.radius, t.color, t.intensity, t.height});

@@ -11,7 +11,7 @@
  "tilewidth": 8,
  "tileheight": 8,
  "nextlayerid": 3,
- "nextobjectid": 15,
+ "nextobjectid": 20,
  "properties": [
   {
    "name": "ambient",
@@ -1118,6 +1118,88 @@
      "y": 56,
      "width": 0,
      "height": 0
+    },
+    {
+     "id": 15,
+     "name": "",
+     "type": "gem",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 244,
+     "y": 36,
+     "width": 0,
+     "height": 0
+    },
+    {
+     "id": 16,
+     "name": "",
+     "type": "gem",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 292,
+     "y": 156,
+     "width": 0,
+     "height": 0
+    },
+    {
+     "id": 17,
+     "name": "",
+     "type": "crawler",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 268,
+     "y": 112,
+     "width": 0,
+     "height": 0
+    },
+    {
+     "id": 18,
+     "name": "",
+     "type": "trigger",
+     "rotation": 0,
+     "visible": true,
+     "x": 56,
+     "y": 128,
+     "width": 16,
+     "height": 32,
+     "properties": [
+      {
+       "name": "message",
+       "type": "string",
+       "value": "HOLD UP NEAR A VINE TO CLIMB"
+      },
+      {
+       "name": "once",
+       "type": "bool",
+       "value": true
+      }
+     ]
+    },
+    {
+     "id": 19,
+     "name": "",
+     "type": "trigger",
+     "rotation": 0,
+     "visible": true,
+     "x": 192,
+     "y": 144,
+     "width": 16,
+     "height": 24,
+     "properties": [
+      {
+       "name": "message",
+       "type": "string",
+       "value": "THE TUNNEL LEADS EAST"
+      },
+      {
+       "name": "once",
+       "type": "bool",
+       "value": true
+      }
+     ]
     }
    ]
   }

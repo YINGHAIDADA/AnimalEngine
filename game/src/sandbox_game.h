@@ -9,10 +9,12 @@
 #include <animal/framework/entity.h>
 #include <animal/framework/level.h>
 #include <animal/framework/platformer.h>
+#include <animal/framework/save.h>
 #include <animal/renderer/camera2d.h>
 #include <animal/resources/loaders.h>
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -39,6 +41,7 @@ protected:
     void onFrame(animal::EngineContext& context) override;
     void onFixedUpdate(animal::EngineContext& context, double dt) override;
     void onRender(animal::EngineContext& context, animal::Renderer2D& renderer) override;
+    void onScreen(animal::EngineContext& context, animal::Renderer2D& renderer) override;
     void onDebugText(animal::EngineContext& context, std::vector<std::string>& lines) override;
     void onShutdown(animal::EngineContext& context) override;
 
@@ -50,14 +53,22 @@ private:
     void placePlayerFeet(animal::Vec2 feet);
     void handleRoomExit(animal::Renderer2D& renderer);
     void respawn(animal::Renderer2D& renderer);
+    void loadProgress();
+    void resetProgress(animal::Renderer2D& renderer);
+    void saveProgress();
+    void updateGameplay(animal::Entity& player);
+    void showMessage(std::string text);
     void setupAnimations();
     void updateAnimation(float dt);
 
     animal::World world_;
     std::map<std::string, animal::Room> rooms_; // loaded room data by path
     const animal::WorldRoom* currentRoom_ = nullptr;
-    const animal::WorldRoom* startRoom_ = nullptr;
+    const animal::WorldRoom* startRoom_ = nullptr; // where a new game begins
     animal::Vec2 startFeet_;
+    const animal::WorldRoom* checkpointRoom_ = nullptr; // respawn point: first footing in the last room entered
+    animal::Vec2 checkpointFeet_;
+    bool checkpointPending_ = false;
     CaveRoom cave_;
     uint32_t roomVisits_ = 0;
 
@@ -68,6 +79,14 @@ private:
     animal::ClimbParams climbParams_;
     animal::ClimbState climb_;
     bool facingLeft_ = false;
+    float invulnerable_ = 0.0f; // seconds left after a hit
+    float stunned_ = 0.0f;      // seconds of knockback without control
+
+    animal::SaveData save_;  // progress: checkpoint and collected gems
+    std::string savePath_;   // empty: progress is not persisted (--demo, --deterministic)
+    std::set<std::string> gemFlags_; // save flags of every gem in the world
+    std::string message_;    // trigger text at the bottom of the screen
+    float messageTime_ = 0.0f;
 
     animal::Animator animator_;
     struct Clips {

@@ -11,7 +11,7 @@
  "tilewidth": 8,
  "tileheight": 8,
  "nextlayerid": 3,
- "nextobjectid": 7,
+ "nextobjectid": 12,
  "properties": [
   {
    "name": "ambient",
@@ -1010,6 +1010,77 @@
      "y": 128,
      "width": 0,
      "height": 0
+    },
+    {
+     "id": 7,
+     "name": "",
+     "type": "gem",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 164,
+     "y": 36,
+     "width": 0,
+     "height": 0
+    },
+    {
+     "id": 8,
+     "name": "",
+     "type": "gem",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 244,
+     "y": 60,
+     "width": 0,
+     "height": 0
+    },
+    {
+     "id": 9,
+     "name": "",
+     "type": "gem",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 68,
+     "y": 108,
+     "width": 0,
+     "height": 0
+    },
+    {
+     "id": 10,
+     "name": "",
+     "type": "crawler",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 84,
+     "y": 160,
+     "width": 0,
+     "height": 0
+    },
+    {
+     "id": 11,
+     "name": "",
+     "type": "trigger",
+     "rotation": 0,
+     "visible": true,
+     "x": 208,
+     "y": 128,
+     "width": 72,
+     "height": 32,
+     "properties": [
+      {
+       "name": "message",
+       "type": "string",
+       "value": "A WARM DRAFT RISES FROM BELOW"
+      },
+      {
+       "name": "once",
+       "type": "bool",
+       "value": true
+      }
+     ]
     }
    ]
   }
