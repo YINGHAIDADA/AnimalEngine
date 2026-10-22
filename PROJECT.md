@@ -322,6 +322,7 @@ ctest --test-dir build/<preset> --output-on-failure
   - ADR-0017 粒子效果预设与发射器：`*.effect.json`、Tiled `emitter` 对象、开关与计数（Accepted）。
   - ADR-0018 水：一维表面波、漂浮规则、溅水，折射 / 倒影水 pass，Tiled `water` 对象（Accepted）。
   - ADR-0019 风场与植物种类：阵风前锋与局部气流，`*.plant.json` 种类（垂苔、芦苇、发光花），Tiled `plants` / `wind`（Accepted）。
+  - ADR-0020 GPU 粒子：RGBA32F 状态纹理的片元着色器模拟、整数哈希随机、实例化绘制，`"gpu": true` 预设与瀑布示例（Accepted）。
 
 ## 13. 当前待确认项（不阻塞 M0）
 

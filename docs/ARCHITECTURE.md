@@ -30,10 +30,11 @@ platform::pollEvents → Input::update → 固定步长 onFixedUpdate（60 Hz，
 Device::beginFrame（窗口最小化时返回 false，跳过渲染）
   Renderer2D::beginFrame
     game.onRender:  beginWorld(camera) … drawSprite / drawGlow / addLight / addFluidSplat … endWorld
-                    → 材质 pass（albedo / normal / emissive / 材质标志）→ 流体烟雾一步（ADR-0008）
+                    → [有 GPU 粒子时] GPU 粒子模拟一步（ADR-0020）
+                    → 材质 pass（albedo / normal / emissive / 材质标志；末尾画 lit 样式的 GPU 粒子）→ 流体烟雾一步（ADR-0008）
                     → 光照 pass（光照 + 边缘光两个 RGBA16F，按遮挡图做硬边阴影）→ 合成到 320×180 画布（含被照亮的烟与边缘光）
                     → [有水时] 合成改写到 lit，水 pass（折射、倒影、水色）读 lit 写画布（ADR-0018）
-                    → 发光 pass（drawGlow 收集的像素，加色混合叠加到画布，不受光照影响）
+                    → 发光 pass（drawGlow 收集的像素与 glow 样式的 GPU 粒子，加色混合叠加到画布，不受光照影响）
                     → 后处理：泛光（亮部提取 → 半分辨率模糊 → 量化抖动加回）+ 调色 → 最终画布（ADR-0009）
                     [beginWorldOverlay … 调试图形 … endWorldOverlay]（无光照、不调色，叠加在最终画布上）
     beginScreen:    最终画布按整数倍居中绘制到 swapchain，剩余留黑边
@@ -66,6 +67,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 - **绑定槽**：GLSL 410 不能写 `binding`，着色器工具把资源重命名为 `ubo_s<set>_b<binding>` / `tex_s<set>_b<binding>`，后端链接程序后按名字把它们接到槽位 `set × 8 + binding`。
 - **顶点输入**：4.1 没有独立的顶点格式状态，切换管线或顶点缓冲后在下一次 draw 前重新指定属性。
 - **多颜色附件**：单附件使用纹理自带的 framebuffer；多附件按附件组合缓存 framebuffer，任一纹理销毁时一并删除。
+- **实例编号**：着色器工具关闭 SPIRV-Cross 的非零 base instance 支持，`gl_InstanceIndex` 直接对应 `gl_InstanceID`（与不支持 `firstInstance` 一致）。
 - **GPU 计时**：有 `GL_TIMESTAMP` 时用时间戳查询，否则（macOS）用 `GL_TIME_ELAPSED` 链合成时间戳；macOS 上分 pass 的数值不可信（ADR-0016）。
 - **限制**：不支持 `firstInstance`、计算着色器。
 
@@ -117,6 +119,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | light | 画布 | RGBA16F | 光照 pass，Clear = 0，加色 One/One | 合成（最近邻） |
 | rim light | 画布 | RGBA16F | 光照 pass（第二个附件），Clear = 0，加色 One/One | 合成（最近邻） |
 | 流体速度 ×2、烟 ×2、压力 ×2、散度、旋度 | 流体网格 | RGBA16F | 流体各 pass，DontCare，不透明（乒乓，跨帧保留；`resetFluid` 时 Clear） | 流体各 pass（平流的速度 / 来源 / 密度为线性，其余最近邻）；烟 [0] 由合成读取（线性） |
+| GPU 粒子状态 A / B ×2 | 128×128 | RGBA32F | GPU 粒子模拟，DontCare，不透明（两个附件，乒乓） | 模拟与绘制（`texelFetch`，绘制在顶点着色器中） |
 | 流体障碍 | 流体网格 | R8 | CPU `setFluidObstacles` | 流体各 pass（最近邻） |
 | lit（仅有水时） | 画布 | RGBA8 | 合成，DontCare，不透明 | 水 pass（`texelFetch`） |
 | 水列数据 | 画布宽 × 1 | RGBA8 | CPU 每帧 `writeTexture`（水面行、水底行、样式） | 水 pass（`texelFetch`） |
@@ -128,7 +131,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 规则：
 
 - **尺寸**：与画面像素对应的目标都是画布尺寸，1 个画布像素 = 1 个纹素；只有模拟场（流体）和模糊（泛光）使用低分辨率，读取时线性放大。
-- **格式**：颜色与 [0, 1] 数据用 RGBA8；可能超过 1 的累积量（光照、边缘光、流体、泛光）用 RGBA16F；掩码用 R8。
+- **格式**：颜色与 [0, 1] 数据用 RGBA8；可能超过 1 的累积量（光照、边缘光、流体、泛光）用 RGBA16F；需要完整精度的模拟状态（GPU 粒子位置）用 RGBA32F；掩码用 R8。
 - **混合**：材质 pass 的所有附件都是预乘 over（含材质标志，所以遮挡关系正确）；光照累积是加色；全屏 pass 不透明且覆盖整个目标，因此用 DontCare（Debug 构建的 OpenGL 后端把 DontCare 填成品红，暴露误用）。
 - **生命周期**：除流体场（跨帧乒乓）外，每个目标在被读取前都会在本帧完整重写；泛光目标首次使用前清零以免读到未定义内容。
 - **采样**：画布空间的读取一律最近邻 / `texelFetch`；屏幕 uv 由裁剪坐标计算（不用 `gl_FragCoord`），整数像素坐标为 `floor(uv × 尺寸)`。
