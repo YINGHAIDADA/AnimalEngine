@@ -1,3 +1,5 @@
+#include "gamepads.h"
+
 #include <animal/core/log.h>
 #include <animal/platform/platform.h>
 
@@ -16,6 +18,7 @@ bool initialize() {
 }
 
 void shutdown() {
+    detail::closeAllGamepads();
     SDL_Quit();
 }
 
@@ -26,6 +29,7 @@ FrameEvents pollEvents() {
         if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
             events.quitRequested = true;
         }
+        detail::handleGamepadEvent(event);
     }
     return events;
 }

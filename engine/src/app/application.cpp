@@ -118,6 +118,8 @@ void drawOverlay(EngineContext& context, Renderer2D& renderer, std::vector<std::
 
 } // namespace
 
+void Application::onFrame(EngineContext&) {}
+
 void Application::onDebugText(EngineContext&, std::vector<std::string>&) {}
 
 void Application::onShutdown(EngineContext&) {}
@@ -215,6 +217,7 @@ int Application::run(int argc, char** argv) {
                 const double frameTime = std::min(static_cast<double>(now - lastTime) * 1e-9, 0.25);
                 lastTime = now;
                 timer.tick(frameTime, context.stats);
+                onFrame(context);
 
                 accumulator += frameTime;
                 int steps = 0;

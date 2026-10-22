@@ -63,15 +63,20 @@ void Renderer2D::beginWorld(const Camera2D& camera, Color clearColor) {
     batch_.begin(*commands_, camera.viewProjection(kCanvasExtent));
 }
 
-void Renderer2D::drawSprite(const LoadedTexture& texture, Vec2 position, const RectF& source, Color tint) {
+void Renderer2D::drawSprite(const LoadedTexture& texture, Vec2 position, const RectF& source, Color tint,
+                            bool flipX) {
     if (texture.width == 0 || texture.height == 0) {
         return;
     }
     const Vec2 p = roundToPixel(position);
     const auto tw = static_cast<float>(texture.width);
     const auto th = static_cast<float>(texture.height);
-    batch_.draw(texture.handle, {p.x, p.y, source.width, source.height},
-                {source.x / tw, source.y / th, source.width / tw, source.height / th}, tint);
+    RectF uv{source.x / tw, source.y / th, source.width / tw, source.height / th};
+    if (flipX) {
+        uv.x += uv.width;
+        uv.width = -uv.width;
+    }
+    batch_.draw(texture.handle, {p.x, p.y, source.width, source.height}, uv, tint);
 }
 
 void Renderer2D::endWorld() {
@@ -124,6 +129,14 @@ void Renderer2D::drawText(Vec2 position, std::string_view text, Color color) {
 
 void Renderer2D::fillRect(const RectF& rect, Color color) {
     batch_.draw(font_->texture(), rect, font_->solidUV(), color);
+}
+
+void Renderer2D::strokeRect(const RectF& rect, Color color, float thickness) {
+    const float t = thickness;
+    fillRect({rect.x, rect.y, rect.width, t}, color);
+    fillRect({rect.x, rect.y + rect.height - t, rect.width, t}, color);
+    fillRect({rect.x, rect.y + t, t, rect.height - 2.0f * t}, color);
+    fillRect({rect.x + rect.width - t, rect.y + t, t, rect.height - 2.0f * t}, color);
 }
 
 void Renderer2D::endScreen() {

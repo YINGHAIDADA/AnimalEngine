@@ -53,6 +53,8 @@ public:
 protected:
     virtual AppConfig configure() { return {}; }
     virtual bool onInit(EngineContext& context) = 0;
+    // Once per rendered frame, before the fixed steps (input sampling, debug toggles).
+    virtual void onFrame(EngineContext& context);
     virtual void onFixedUpdate(EngineContext& context, double dt) = 0;
     // Render the world into the canvas: renderer.beginWorld() .. renderer.endWorld().
     virtual void onRender(EngineContext& context, Renderer2D& renderer) = 0;

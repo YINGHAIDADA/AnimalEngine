@@ -35,13 +35,17 @@ public:
 
     void beginWorld(const Camera2D& camera, Color clearColor);
     // Draws `source` (texture pixels) with its top-left at `position` (world pixels, snapped to
-    // whole pixels).
-    void drawSprite(const LoadedTexture& texture, Vec2 position, const RectF& source, Color tint = Color::white());
+    // whole pixels), optionally mirrored horizontally.
+    void drawSprite(const LoadedTexture& texture, Vec2 position, const RectF& source, Color tint = Color::white(),
+                    bool flipX = false);
     void endWorld();
 
     void beginScreen(Color letterboxColor);
     void drawText(Vec2 position, std::string_view text, Color color);
+    // Solid rectangle in the current pass's coordinates (world pixels inside beginWorld, window
+    // pixels inside beginScreen).
     void fillRect(const RectF& rect, Color color);
+    void strokeRect(const RectF& rect, Color color, float thickness = 1.0f);
     void endScreen();
 
     void endFrame();

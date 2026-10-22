@@ -23,6 +23,7 @@ set(ANIMAL_ENGINE_SOURCES
     src/core/assert.cpp
     src/core/file.cpp
     src/core/log.cpp
+    src/platform/gamepads.h
     src/platform/input.cpp
     src/platform/platform.cpp
     src/platform/window.cpp
