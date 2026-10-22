@@ -12,6 +12,7 @@ set(ANIMAL_ENGINE_HEADERS
     include/animal/platform/window.h
     include/animal/renderer/camera2d.h
     include/animal/renderer/fluid.h
+    include/animal/renderer/gpu_particles.h
     include/animal/renderer/lighting.h
     include/animal/renderer/pixel_canvas.h
     include/animal/renderer/post.h
@@ -37,6 +38,8 @@ set(ANIMAL_ENGINE_SOURCES
     src/renderer/debug_font.h
     src/renderer/fluid_pass.cpp
     src/renderer/fluid_pass.h
+    src/renderer/gpu_particle_pass.cpp
+    src/renderer/gpu_particle_pass.h
     src/renderer/lighting_pass.cpp
     src/renderer/lighting_pass.h
     src/renderer/pixel_canvas.cpp

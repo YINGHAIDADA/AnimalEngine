@@ -1,5 +1,6 @@
 #include "debug_font.h"
 #include "fluid_pass.h"
+#include "gpu_particle_pass.h"
 #include "lighting_pass.h"
 #include "post_pass.h"
 #include "water_pass.h"
@@ -37,6 +38,7 @@ Renderer2D::Renderer2D()
       fluidPass_(std::make_unique<FluidPass>()),
       postPass_(std::make_unique<PostPass>()),
       waterPass_(std::make_unique<WaterPass>()),
+      gpuParticles_(std::make_unique<GpuParticlePass>()),
       water_(std::make_unique<WaterFrame>()) {}
 
 Renderer2D::~Renderer2D() = default;
@@ -120,7 +122,16 @@ bool Renderer2D::init(rhi::Device& device, const std::string& dataDirectory) {
     if (!waterPass_->init(device, shaders, {lit_, light_, canvas_, kCanvasExtent})) {
         return false;
     }
-    return lightingPass_->init(device, shaders, targets, rhi::Format::RGBA8_UNorm) &&
+    if (!lightingPass_->init(device, shaders, targets, rhi::Format::RGBA8_UNorm)) {
+        return false;
+    }
+    const GpuParticlePass::Formats particleFormats{
+        {rhi::Format::RGBA8_UNorm, rhi::Format::RGBA8_UNorm, rhi::Format::RGBA8_UNorm, rhi::Format::RGBA8_UNorm},
+        rhi::Format::RGBA8_UNorm};
+    if (!gpuParticles_->init(device, shaders, lightingPass_->occluders(), kCanvasExtent, particleFormats)) {
+        return false;
+    }
+    return
            postPass_->init(device, shaders, canvas_, final_, kCanvasExtent);
 }
 
@@ -130,6 +141,7 @@ void Renderer2D::shutdown() {
     }
     postPass_->shutdown();
     waterPass_->shutdown();
+    gpuParticles_->shutdown();
     lightingPass_->shutdown();
     fluidPass_->shutdown();
     glowBatch_.shutdown();
@@ -169,6 +181,11 @@ void Renderer2D::beginWorld(const Camera2D& camera, Color clearColor) {
     pass.colorAttachments[2] = {emissive_, rhi::LoadOp::Clear, rhi::StoreOp::Store, kNoEmissionClear};
     pass.colorAttachments[3] = {flags_, rhi::LoadOp::Clear, rhi::StoreOp::Store, {0.0f, 0.0f, 0.0f, 0.0f}};
     pass.colorAttachmentCount = 4;
+    if (gpuParticles_->active()) {
+        commands_->beginTimer("gpu particles");
+        gpuParticles_->update(*commands_, gpuParticleStep_, gpuParticleWind_, worldOrigin_);
+        commands_->endTimer();
+    }
     commands_->beginTimer("material");
     commands_->beginRenderPass(pass);
     litBatch_.begin(*commands_, worldViewProjection_);
@@ -254,6 +271,14 @@ void Renderer2D::addWater(const WaterSurface& surface) {
     }
 }
 
+void Renderer2D::setGpuEmitters(std::span<const GpuEmitter> emitters) {
+    gpuParticles_->setEmitters(emitters);
+}
+
+uint32_t Renderer2D::gpuParticleCount() const {
+    return gpuParticles_->slotsUsed();
+}
+
 void Renderer2D::addFluidSplat(const FluidSplat& splat) {
     ANIMAL_ASSERT(phase_ == Phase::World);
     fluidSplats_.push_back(splat);
@@ -282,6 +307,7 @@ void Renderer2D::setFluidObstacles(std::span<const uint8_t> mask) {
 void Renderer2D::endWorld() {
     ANIMAL_ASSERT(phase_ == Phase::World);
     litBatch_.end();
+    gpuParticles_->draw(*commands_, worldViewProjection_, GpuEmitter::Style::Lit);
     commands_->endRenderPass();
     commands_->endTimer();
 
@@ -336,7 +362,7 @@ void Renderer2D::endWorld() {
         commands_->endTimer();
     }
 
-    if (!glow_.empty()) {
+    if (!glow_.empty() || gpuParticles_->hasStyle(GpuEmitter::Style::Glow)) {
         commands_->beginTimer("glow");
         commands_->beginRenderPass(rhi::RenderPassDesc::single({canvas_, rhi::LoadOp::Load, rhi::StoreOp::Store, {}}));
         glowBatch_.begin(*commands_, worldViewProjection_);
@@ -344,6 +370,7 @@ void Renderer2D::endWorld() {
             glowBatch_.draw(font_->texture(), quad.rect, font_->solidUV(), quad.color);
         }
         glowBatch_.end();
+        gpuParticles_->draw(*commands_, worldViewProjection_, GpuEmitter::Style::Glow);
         commands_->endRenderPass();
         commands_->endTimer();
     }

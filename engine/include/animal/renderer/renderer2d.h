@@ -3,6 +3,7 @@
 #include <animal/core/math.h>
 #include <animal/renderer/camera2d.h>
 #include <animal/renderer/fluid.h>
+#include <animal/renderer/gpu_particles.h>
 #include <animal/renderer/lighting.h>
 #include <animal/renderer/pixel_canvas.h>
 #include <animal/renderer/post.h>
@@ -25,6 +26,7 @@ class FluidPass;
 class LightingPass;
 class PostPass;
 class WaterPass;
+class GpuParticlePass;
 struct WaterFrame;
 
 // Frame structure (ADR-0007):
@@ -70,6 +72,15 @@ public:
     void setLightOccluders(std::span<const uint8_t> mask);
     void setFluidTimeStep(float seconds) { fluidTimeStep_ = seconds; }
     void resetFluid(); // clears velocity and smoke (e.g. on room change); the simulation sleeps until smoke is added
+
+    // GPU particles (ADR-0020). Emitters are set per room (their particles start over); the step
+    // (simulation time and wind) must be set before beginWorld each frame.
+    void setGpuEmitters(std::span<const GpuEmitter> emitters);
+    void setGpuParticleStep(float seconds, Vec2 wind) {
+        gpuParticleStep_ = seconds;
+        gpuParticleWind_ = wind;
+    }
+    uint32_t gpuParticleCount() const; // slots in use
     // The simulation sleeps (costs nothing) once no smoke has been added for long enough that what
     // is left has faded out; adding smoke wakes it.
     bool fluidSleeping() const { return fluidQuietSeconds_ > fluidFadeSeconds(); }
@@ -129,6 +140,9 @@ private:
     std::unique_ptr<FluidPass> fluidPass_;
     std::unique_ptr<PostPass> postPass_;
     std::unique_ptr<WaterPass> waterPass_;
+    std::unique_ptr<GpuParticlePass> gpuParticles_;
+    float gpuParticleStep_ = 0.0f;
+    Vec2 gpuParticleWind_;
     std::unique_ptr<WaterFrame> water_; // this frame's water bodies
     PostSettings postSettings_;
     FluidSettings fluidSettings_;

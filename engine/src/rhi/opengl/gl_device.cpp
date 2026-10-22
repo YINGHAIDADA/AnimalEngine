@@ -88,6 +88,8 @@ TextureFormatInfo textureFormatInfo(Format format) {
         return {GL_R8, GL_RED, GL_UNSIGNED_BYTE};
     case Format::RGBA16_Float:
         return {GL_RGBA16F, GL_RGBA, GL_HALF_FLOAT};
+    case Format::RGBA32_Float:
+        return {GL_RGBA32F, GL_RGBA, GL_FLOAT};
     case Format::Undefined:
         break;
     }

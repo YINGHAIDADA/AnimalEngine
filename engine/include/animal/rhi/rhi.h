@@ -52,6 +52,7 @@ enum class Format : uint8_t {
     RGBA8_UNorm,
     R8_UNorm,
     RGBA16_Float,
+    RGBA32_Float, // simulation state (render target, no blending)
 };
 
 uint32_t bytesPerPixel(Format format);

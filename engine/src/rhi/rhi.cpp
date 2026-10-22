@@ -40,6 +40,8 @@ uint32_t bytesPerPixel(Format format) {
         return 1;
     case Format::RGBA16_Float:
         return 8;
+    case Format::RGBA32_Float:
+        return 16;
     case Format::Undefined:
         break;
     }

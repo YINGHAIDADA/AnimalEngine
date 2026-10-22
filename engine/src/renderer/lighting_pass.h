@@ -52,6 +52,7 @@ public:
     void endFrame();
 
     uint32_t lightCount() const { return lastFrameLights_; }
+    rhi::TextureHandle occluders() const { return occluders_; }
 
 private:
     struct LightVertex {

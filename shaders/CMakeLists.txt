@@ -17,4 +17,8 @@ animal_add_shaders(animal_shaders
         post_bright.frag
         post_blur.frag
         post_grade.frag
-        water.frag)
+        water.frag
+        gpu_particles_update.frag
+        gpu_particles.vert
+        gpu_particles_lit.frag
+        gpu_particles_glow.frag)

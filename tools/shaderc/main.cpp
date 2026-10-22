@@ -172,6 +172,9 @@ bool crossCompile(const Options& options, ShaderPackage& package) {
     glslOptions.enable_420pack_extension = false;
     glslOptions.vertex.fixup_clipspace = options.stage == ShaderStage::Vertex;
     glslOptions.vertex.flip_vert_y = false;
+    // The OpenGL backend has no firstInstance (DeviceCaps::firstInstance), so gl_InstanceIndex is
+    // plain gl_InstanceID; without this SPIRV-Cross adds a base-instance uniform nobody sets.
+    glslOptions.vertex.support_nonzero_base_instance = false;
     compiler.set_common_options(glslOptions);
 
     package.glsl = compiler.compile();
