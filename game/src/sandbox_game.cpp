@@ -512,6 +512,7 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
     std::vector<animal::Influence> influences;
     if (player) {
         animal::Influence influence{player->body.worldCollider(), playerState_.velocity, false};
+        influence.pushesVines = !climb_.climbing; // a climber hangs on its vine rather than pushing it
         if (playerState_.landedThisStep) {
             influence.landed = true;
             influence.velocity.y = playerState_.landingSpeed;
