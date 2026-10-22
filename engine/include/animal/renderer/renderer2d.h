@@ -5,6 +5,7 @@
 #include <animal/renderer/fluid.h>
 #include <animal/renderer/lighting.h>
 #include <animal/renderer/pixel_canvas.h>
+#include <animal/renderer/post.h>
 #include <animal/renderer/sprite_batch.h>
 #include <animal/resources/loaders.h>
 #include <animal/rhi/rhi.h>
@@ -20,11 +21,12 @@ namespace animal {
 class DebugFont;
 class FluidPass;
 class LightingPass;
+class PostPass;
 
 // Frame structure (ADR-0007):
 //   beginFrame
 //   beginWorld .. drawSprite / drawGlow / addLight / addFluidSplat .. endWorld
-//                                     material pass -> fluid step -> lights -> composite (+ smoke) -> glow
+//                material pass -> fluid step -> lights -> composite (+ smoke) -> glow -> bloom + grade
 //   [beginWorldOverlay .. fillRect / strokeRect .. endWorldOverlay]   unlit, over the lit canvas
 //   beginScreen .. drawText / fillRect .. endScreen     canvas scaled into the window + overlays
 //   endFrame                                            uploads batched data; call before Device::submit
@@ -60,6 +62,7 @@ public:
     void setFluidObstacles(std::span<const uint8_t> mask);
     void setFluidTimeStep(float seconds) { fluidTimeStep_ = seconds; }
     FluidSettings& fluid() { return fluidSettings_; }
+    PostSettings& post() { return postSettings_; }
 
     void beginWorldOverlay(const Camera2D& camera);
     void endWorldOverlay();
@@ -111,6 +114,8 @@ private:
     std::unique_ptr<DebugFont> font_;
     std::unique_ptr<LightingPass> lightingPass_;
     std::unique_ptr<FluidPass> fluidPass_;
+    std::unique_ptr<PostPass> postPass_;
+    PostSettings postSettings_;
     FluidSettings fluidSettings_;
     std::vector<FluidSplat> fluidSplats_;
     float fluidTimeStep_ = 0.0f;
@@ -119,7 +124,8 @@ private:
     std::vector<PointLight> lights_;
     Mat4 worldViewProjection_;
 
-    rhi::TextureHandle canvas_;
+    rhi::TextureHandle canvas_; // lit scene (lighting, smoke, glow)
+    rhi::TextureHandle final_;  // after bloom and grading; shown on screen, overlays draw here
     rhi::TextureHandle albedo_;
     rhi::TextureHandle normal_;
     rhi::TextureHandle emissive_;

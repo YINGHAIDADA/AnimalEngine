@@ -13,4 +13,7 @@ animal_add_shaders(animal_shaders
         fluid_vorticity.frag
         fluid_divergence.frag
         fluid_pressure.frag
-        fluid_gradient.frag)
+        fluid_gradient.frag
+        post_bright.frag
+        post_blur.frag
+        post_grade.frag)

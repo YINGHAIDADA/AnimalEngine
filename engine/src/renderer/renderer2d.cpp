@@ -1,6 +1,7 @@
 #include "debug_font.h"
 #include "fluid_pass.h"
 #include "lighting_pass.h"
+#include "post_pass.h"
 
 #include <animal/core/assert.h>
 #include <animal/core/log.h>
@@ -26,7 +27,8 @@ constexpr rhi::ClearColor kNoEmissionClear{0.0f, 0.0f, 0.0f, 0.0f};
 Renderer2D::Renderer2D()
     : font_(std::make_unique<DebugFont>()),
       lightingPass_(std::make_unique<LightingPass>()),
-      fluidPass_(std::make_unique<FluidPass>()) {}
+      fluidPass_(std::make_unique<FluidPass>()),
+      postPass_(std::make_unique<PostPass>()) {}
 
 Renderer2D::~Renderer2D() = default;
 
@@ -86,13 +88,14 @@ bool Renderer2D::init(rhi::Device& device, const std::string& dataDirectory) {
     }
 
     canvas_ = createTarget(rhi::Format::RGBA8_UNorm, "pixel canvas");
+    final_ = createTarget(rhi::Format::RGBA8_UNorm, "final canvas");
     albedo_ = createTarget(rhi::Format::RGBA8_UNorm, "g-buffer albedo");
     normal_ = createTarget(rhi::Format::RGBA8_UNorm, "g-buffer normal");
     emissive_ = createTarget(rhi::Format::RGBA8_UNorm, "g-buffer emissive");
     light_ = createTarget(rhi::Format::RGBA16_Float, "light accumulation");
     flatNormal_ = createSolidTexture(Color::rgba(128, 128, 255), "flat normal");
     noEmission_ = createSolidTexture(Color::rgba(0, 0, 0), "no emission");
-    if (!canvas_ || !albedo_ || !normal_ || !emissive_ || !light_ || !flatNormal_ || !noEmission_) {
+    if (!canvas_ || !final_ || !albedo_ || !normal_ || !emissive_ || !light_ || !flatNormal_ || !noEmission_) {
         return false;
     }
 
@@ -100,20 +103,22 @@ bool Renderer2D::init(rhi::Device& device, const std::string& dataDirectory) {
         return false;
     }
     LightingPass::Targets targets{albedo_, normal_, emissive_, light_, fluidPass_->smokeTexture(), kCanvasExtent};
-    return lightingPass_->init(device, shaders, targets, rhi::Format::RGBA8_UNorm);
+    return lightingPass_->init(device, shaders, targets, rhi::Format::RGBA8_UNorm) &&
+           postPass_->init(device, shaders, canvas_, final_, kCanvasExtent);
 }
 
 void Renderer2D::shutdown() {
     if (!device_) {
         return;
     }
+    postPass_->shutdown();
     lightingPass_->shutdown();
     fluidPass_->shutdown();
     glowBatch_.shutdown();
     litBatch_.shutdown();
     batch_.shutdown();
     font_->shutdown(*device_);
-    for (rhi::TextureHandle texture : {canvas_, albedo_, normal_, emissive_, light_, flatNormal_, noEmission_}) {
+    for (rhi::TextureHandle texture : {canvas_, final_, albedo_, normal_, emissive_, light_, flatNormal_, noEmission_}) {
         device_->destroy(texture);
     }
     device_ = nullptr;
@@ -242,13 +247,14 @@ void Renderer2D::endWorld() {
         glowBatch_.end();
         commands_->endRenderPass();
     }
+    postPass_->render(*commands_, postSettings_);
     phase_ = Phase::Idle;
 }
 
 void Renderer2D::beginWorldOverlay(const Camera2D& camera) {
     ANIMAL_ASSERT(commands_ != nullptr && phase_ == Phase::Idle);
     phase_ = Phase::WorldOverlay;
-    commands_->beginRenderPass(rhi::RenderPassDesc::single({canvas_, rhi::LoadOp::Load, rhi::StoreOp::Store, {}}));
+    commands_->beginRenderPass(rhi::RenderPassDesc::single({final_, rhi::LoadOp::Load, rhi::StoreOp::Store, {}}));
     batch_.begin(*commands_, camera.viewProjection(kCanvasExtent));
 }
 
@@ -269,7 +275,7 @@ void Renderer2D::beginScreen(Color letterboxColor) {
         {device_->swapchainTexture(), rhi::LoadOp::Clear, rhi::StoreOp::Store, toClearColor(letterboxColor)}));
     batch_.begin(*commands_, Mat4::orthographic(0.0f, static_cast<float>(window.width), 0.0f,
                                                 static_cast<float>(window.height)));
-    batch_.draw(canvas_,
+    batch_.draw(final_,
                 {static_cast<float>(presentLayout_.x), static_cast<float>(presentLayout_.y),
                  static_cast<float>(presentLayout_.width), static_cast<float>(presentLayout_.height)},
                 {0.0f, 0.0f, 1.0f, 1.0f});

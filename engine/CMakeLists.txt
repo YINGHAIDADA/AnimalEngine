@@ -14,6 +14,7 @@ set(ANIMAL_ENGINE_HEADERS
     include/animal/renderer/fluid.h
     include/animal/renderer/lighting.h
     include/animal/renderer/pixel_canvas.h
+    include/animal/renderer/post.h
     include/animal/renderer/renderer2d.h
     include/animal/renderer/sprite_batch.h
     include/animal/resources/loaders.h
@@ -37,6 +38,8 @@ set(ANIMAL_ENGINE_SOURCES
     src/renderer/lighting_pass.cpp
     src/renderer/lighting_pass.h
     src/renderer/pixel_canvas.cpp
+    src/renderer/post_pass.cpp
+    src/renderer/post_pass.h
     src/renderer/renderer2d.cpp
     src/renderer/sprite_batch.cpp
     src/resources/loaders.cpp
