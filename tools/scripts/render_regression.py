@@ -5,7 +5,8 @@ final canvas between backends (must be identical) and against the golden images 
 usage: render_regression.py [--binary PATH] [--backends opengl,vulkan] [--only NAME,...] [--update]
 
   --update   rewrite the golden images from the first backend (after an intended visual change)
-Exit code 0 when everything matches and Vulkan reports no validation errors, 1 otherwise.
+Exit code 0 when everything matches and neither the Vulkan validation layers nor the engine's RHI
+validation (Debug builds) report errors, 1 otherwise.
 Pure standard library; needs a display and a GPU (the game opens a window).
 """
 
@@ -49,9 +50,10 @@ def run_scene(binary, backend, name, frames, extra, out_dir):
     result = subprocess.run(command, capture_output=True, text=True, timeout=300)
     log = result.stdout + result.stderr
     errors = 0
-    match = re.search(r"Vulkan shutdown: (\d+) validation error", log)
-    if match:
-        errors = int(match.group(1))
+    for pattern in (r"Vulkan shutdown: (\d+) validation error", r"RHI validation: (\d+) error"):
+        match = re.search(pattern, log)
+        if match:
+            errors += int(match.group(1))
     if result.returncode != 0 or not out.exists():
         return None, errors, log
     return out, errors, log

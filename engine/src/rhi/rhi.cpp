@@ -1,5 +1,6 @@
 #include <animal/core/log.h>
 #include <animal/rhi/rhi.h>
+#include <animal/rhi/validation.h>
 
 namespace animal::rhi {
 
@@ -57,12 +58,19 @@ std::unique_ptr<Device> createDevice(const DeviceDesc& desc) {
         log::error("The {} backend is not available in this build", backendName(desc.backend));
         return nullptr;
     }
+    std::unique_ptr<Device> device;
 #if defined(ANIMAL_RHI_VULKAN)
     if (desc.backend == Backend::Vulkan) {
-        return createVulkanDevice(desc);
+        device = createVulkanDevice(desc);
     }
 #endif
-    return createOpenGLDevice(desc);
+    if (!device && desc.backend == Backend::OpenGL) {
+        device = createOpenGLDevice(desc);
+    }
+    if (device && desc.debug) {
+        return std::make_unique<ValidatingDevice>(std::move(device));
+    }
+    return device;
 }
 
 } // namespace animal::rhi

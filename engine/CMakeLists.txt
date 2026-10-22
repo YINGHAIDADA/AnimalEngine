@@ -22,6 +22,7 @@ set(ANIMAL_ENGINE_HEADERS
     include/animal/resources/loaders.h
     include/animal/rhi/command_list.h
     include/animal/rhi/gpu_timers.h
+    include/animal/rhi/validation.h
     include/animal/rhi/rhi.h
     include/animal/rhi/shader_package.h)
 
@@ -52,6 +53,7 @@ set(ANIMAL_ENGINE_SOURCES
     src/resources/loaders.cpp
     src/rhi/command_list.cpp
     src/rhi/rhi.cpp
+    src/rhi/validation.cpp
     src/rhi/opengl/gl_device.cpp
     src/rhi/opengl/gl_loader.cpp
     src/rhi/opengl/gl_loader.h)
