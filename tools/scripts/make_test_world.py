@@ -39,7 +39,10 @@ TILESET = {
                                  prop("lightColor", "color", color(89, 204, 255)),
                                  prop("lightRadius", "float", 44.0),
                                  prop("lightIntensity", "float", 1.1),
-                                 prop("lightHeight", "float", 12.0)]},
+                                 prop("lightHeight", "float", 12.0),
+                                 prop("lightAnimation", "string", "pulse"),
+                                 prop("lightSpeed", "float", 0.21),
+                                 prop("lightAmount", "float", 0.14)]},
     ],
 }
 
@@ -88,9 +91,16 @@ class Room:
     def trigger(self, tx, ty, tw, th, message, once=True):
         self.area("trigger", tx, ty, tw, th, message=("string", message), once=("bool", once))
 
-    def light(self, tx, ty, rgb, radius, intensity=1.0, height=12.0):  # centred in a tile cell
-        self.obj("light", tx * TILE + 4, ty * TILE + 4, color=("color", color(*rgb)),
-                 radius=("float", radius), intensity=("float", intensity), height=("float", height))
+    def light(self, x, y, rgb, radius, intensity=1.0, height=12.0, cone=None, direction=None):  # pixels
+        extra = {}
+        if cone is not None:
+            extra["cone"] = ("float", cone)
+            extra["direction"] = ("float", direction)
+        self.obj("light", x, y, color=("color", color(*rgb)), radius=("float", radius),
+                 intensity=("float", intensity), height=("float", height), **extra)
+
+    def lantern(self, tx, ty):  # centred in a tile cell; hangs from the ceiling above
+        self.obj("lantern", tx * TILE + 4, ty * TILE + 4)
 
     def gem(self, tx, ty):  # centred in a tile cell
         self.obj("gem", tx * TILE + 4, ty * TILE + 4)
@@ -166,6 +176,9 @@ def cave_entrance():
     room.crawler(33, 14)
     room.trigger(7, 16, 2, 4, "HOLD UP NEAR A VINE TO CLIMB")
     room.trigger(24, 18, 2, 3, "THE TUNNEL LEADS EAST")
+    # A crack in the ceiling lets daylight in: a narrow cold spot light shining down through it.
+    room.open(0, 21, 22)
+    room.light(22 * TILE, 2, (170, 200, 255), 176.0, 1.5, height=24.0, cone=44.0, direction=90.0)
     return room
 
 
@@ -191,7 +204,7 @@ def crystal_gallery():
     room.crawler(10, 20)
     room.trigger(26, 16, 9, 4, "A WARM DRAFT RISES FROM BELOW")
     # Object ids are save keys (gems): only ever append objects to a room.
-    room.light(14, 11, (255, 226, 180), 104.0, 1.8)  # big pale light: platforms cast shadows around it
+    room.lantern(14, 11)  # platforms cast shadows around it
     return room
 
 

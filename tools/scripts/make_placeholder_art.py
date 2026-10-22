@@ -40,10 +40,14 @@ PALETTE = {
     "V": ((196, 176, 146, 255), 0.7, None),   # wax shade
     "h": ((70, 64, 80, 255), 0.5, None),      # candle holder
     "u": ((150, 104, 196, 255), 0.8, (36, 22, 52)),     # beetle shell
-    "U": ((214, 176, 240, 255), 1.0, (110, 80, 150)),  # faint glow keeps it readable in the dark   # beetle shell highlight
+    "U": ((214, 176, 240, 255), 1.0, (110, 80, 150)),   # beetle shell highlight (faint glow: readable in the dark)
     "r": ((255, 90, 70, 255), 1.0, (255, 70, 50)),       # beetle eye (glows)
     "e": ((70, 210, 180, 255), 0.8, (40, 170, 140)),     # gem
     "E": ((200, 255, 238, 255), 1.0, (160, 255, 225)),   # gem highlight
+    "l": ((92, 76, 62, 255), 0.6, None),      # lantern frame
+    "L": ((150, 126, 96, 255), 1.0, None),    # lantern frame highlight
+    "y": ((120, 84, 48, 255), 0.9, (100, 62, 26)),       # lantern glass (dark albedo: its own light would wash it out)
+    "Y": ((160, 150, 120, 255), 1.0, (255, 232, 180)),   # lantern flame
 }
 
 
@@ -189,6 +193,18 @@ GEM = [
     "........",
 ]
 
+# Hangs from the ring at the top centre (the game draws the chain above it).
+LANTERN = [
+    "...ll...",
+    "..lLLl..",
+    ".lyyyyl.",
+    ".lyYYyl.",
+    ".lyYYyl.",
+    ".lyyyyl.",
+    "..lLLl..",
+    "...ll...",
+]
+
 CANDLE = [
     "...F....",
     "..fFf...",
@@ -299,7 +315,7 @@ def main():
     tiles = [empty, wall_tile(), ground_tile(), background, overlay(background, CRYSTAL)]
     write_material("tileset", tiles, heights_from_palette, wrap=True)
     write_material("creature", CREATURE_FRAMES, dome_heights, wrap=False)
-    write_material("props", [CANDLE, VENT, GEM], heights_from_palette, wrap=False)
+    write_material("props", [CANDLE, VENT, GEM, LANTERN], heights_from_palette, wrap=False)
     write_material("crawler", CRAWLER_FRAMES, dome_heights, wrap=False)
     print(f"wrote textures to {OUT_DIR}")
 

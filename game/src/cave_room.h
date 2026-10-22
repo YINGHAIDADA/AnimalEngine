@@ -4,10 +4,12 @@
 #include <animal/framework/foliage.h>
 #include <animal/framework/influence.h>
 #include <animal/framework/level.h>
+#include <animal/framework/light_animation.h>
 #include <animal/framework/particles.h>
 #include <animal/framework/patrol.h>
 #include <animal/framework/triggers.h>
 #include <animal/framework/tilemap.h>
+#include <animal/renderer/lighting.h>
 #include <animal/resources/loaders.h>
 
 #include <set>
@@ -25,7 +27,7 @@ constexpr int kTileSize = 8;
 
 struct CaveAssets {
     animal::SpriteMaterial tileset; // tile id = horizontal cell index
-    animal::SpriteMaterial props;   // cell 0: candle, cell 1: vent grate, cell 2: gem
+    animal::SpriteMaterial props;   // cell 0: candle, cell 1: vent grate, cell 2: gem, cell 3: lantern
     animal::SpriteMaterial crawler; // two walking frames
 };
 
@@ -79,13 +81,16 @@ private:
         float force = 420.0f;  // upward push, px/s²
     };
 
-    struct TileLight {
-        animal::Vec2 position;
-        animal::Vec3 color;
-        float radius = 44.0f;
-        float intensity = 1.0f;
-        float height = 12.0f;
+    // Light tiles, light objects and lanterns.
+    struct LightSource {
+        animal::PointLight light;
+        animal::LightAnimation animation;
         float phase = 0.0f;
+    };
+
+    struct Lantern {
+        animal::Vec2 position;  // top-left of the 8×8 prop
+        float chainTop = 0.0f;  // y where the chain meets the ceiling
     };
 
     struct Gem {
@@ -119,8 +124,8 @@ private:
     animal::Vec3 ambient_{0.07f, 0.07f, 0.11f};
     std::vector<Candle> candles_;
     std::vector<Vent> vents_;
-    std::vector<TileLight> tileLights_;
-    std::vector<TileLight> pointLights_;
+    std::vector<LightSource> lights_;
+    std::vector<Lantern> lanterns_;
     std::vector<Gem> gems_;
     std::vector<Crawler> crawlers_;
     animal::PatrolParams patrolParams_;

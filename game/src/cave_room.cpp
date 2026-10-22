@@ -5,7 +5,9 @@
 #include <animal/renderer/renderer2d.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <format>
 
 namespace game {
 
@@ -39,9 +41,48 @@ animal::Vec3 toVec3(animal::Color c) {
     return {c.r / 255.0f, c.g / 255.0f, c.b / 255.0f};
 }
 
-float flicker(double time, float phase) {
-    const auto t = static_cast<float>(time);
-    return 1.0f + 0.08f * std::sin(t * 13.0f + phase) + 0.05f * std::sin(t * 29.0f + phase * 2.3f);
+constexpr animal::LightAnimation kCandleFlicker{animal::LightAnimation::Mode::Flicker, 1.0f, 0.13f};
+constexpr animal::Color kLanternColor = animal::Color::rgba(255, 214, 150);
+constexpr animal::Color kChainColor = animal::Color::rgba(70, 60, 52);
+
+// Light settings of a light tile (properties "lightColor", "lightRadius", ...) or of a light /
+// lantern object ("color", "radius", ...), over the given defaults. Angles are in degrees;
+// direction 0 = right, 90 = down.
+animal::PointLight readLight(const animal::Properties& p, bool tile, animal::PointLight light) {
+    auto key = [tile](std::string name) {
+        if (tile) {
+            name[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(name[0])));
+            name = "light" + name;
+        }
+        return name;
+    };
+    const animal::Color fallback = animal::Color::rgba(static_cast<uint8_t>(std::lround(light.color.x * 255.0f)),
+                                                       static_cast<uint8_t>(std::lround(light.color.y * 255.0f)),
+                                                       static_cast<uint8_t>(std::lround(light.color.z * 255.0f)));
+    light.color = toVec3(p.getColor(key("color"), fallback));
+    light.radius = p.getFloat(key("radius"), light.radius);
+    light.intensity = p.getFloat(key("intensity"), light.intensity);
+    light.height = p.getFloat(key("height"), light.height);
+    light.castsShadows = p.getBool(key("shadows"), light.castsShadows);
+    light.coneAngle = p.getFloat(key("cone"), 0.0f) * animal::kPi / 180.0f;
+    const float direction = p.getFloat(key("direction"), 90.0f) * animal::kPi / 180.0f;
+    light.direction = {std::cos(direction), std::sin(direction)};
+    return light;
+}
+
+animal::LightAnimation readLightAnimation(const animal::Properties& p, bool tile, animal::LightAnimation animation,
+                                          const std::string& where) {
+    const char* modeKey = tile ? "lightAnimation" : "animation";
+    if (const std::string name = p.getString(modeKey); !name.empty()) {
+        if (const auto mode = animal::parseLightAnimationMode(name)) {
+            animation.mode = *mode;
+        } else {
+            animal::log::warn("{}: unknown light animation '{}' (use none, flicker or pulse)", where, name);
+        }
+    }
+    animation.speed = p.getFloat(tile ? "lightSpeed" : "speed", animation.speed);
+    animation.amount = p.getFloat(tile ? "lightAmount" : "amount", animation.amount);
+    return animation;
 }
 
 // Point objects stand on a surface: the point is the bottom-centre of the 8×8 prop.
@@ -61,8 +102,8 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
     spawn_.reset();
     candles_.clear();
     vents_.clear();
-    tileLights_.clear();
-    pointLights_.clear();
+    lights_.clear();
+    lanterns_.clear();
     particles_.clear();
     vines_ = animal::VineSystem();
 
@@ -76,14 +117,13 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
         for (int tx = 0; tx < tiles_.width(); ++tx) {
             const animal::Properties& p = room.propertiesOf(tiles_.tile(tx, ty));
             if (p.getBool("light")) {
-                TileLight light;
-                light.position = {tx * 8.0f + 4.0f, ty * 8.0f + 4.0f};
-                light.color = toVec3(p.getColor("lightColor"));
-                light.radius = p.getFloat("lightRadius", 44.0f);
-                light.intensity = p.getFloat("lightIntensity", 1.0f);
-                light.height = p.getFloat("lightHeight", 12.0f);
-                light.phase = static_cast<float>(tx);
-                tileLights_.push_back(light);
+                animal::PointLight defaults;
+                defaults.position = {tx * 8.0f + 4.0f, ty * 8.0f + 4.0f};
+                defaults.radius = 44.0f;
+                defaults.height = 12.0f;
+                const std::string where = std::format("{}: tile {}", room.path, tiles_.tile(tx, ty));
+                lights_.push_back({readLight(p, true, defaults), readLightAnimation(p, true, {}, where),
+                                   static_cast<float>(tx)});
             }
         }
     }
@@ -131,14 +171,30 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
             trigger.once = object.properties.getBool("once", true);
             trigger.message = object.properties.getString("message");
             triggers_.add(trigger);
-        } else if (object.type == "light") {
-            TileLight light;
-            light.position = object.position;
-            light.color = toVec3(object.properties.getColor("color"));
-            light.radius = object.properties.getFloat("radius", 48.0f);
-            light.intensity = object.properties.getFloat("intensity", 1.0f);
-            light.height = object.properties.getFloat("height", 16.0f);
-            pointLights_.push_back(light);
+        } else if (object.type == "light" || object.type == "lantern") {
+            const bool lantern = object.type == "lantern";
+            const std::string where = std::format("{}: object {}", room.path, object.id);
+            animal::PointLight defaults;
+            defaults.position = object.position;
+            animal::LightAnimation animation;
+            if (lantern) {
+                // The point is the centre of the lantern; it hangs on a chain from the ceiling above.
+                defaults.color = toVec3(kLanternColor);
+                defaults.radius = 96.0f;
+                defaults.intensity = 1.6f;
+                defaults.height = 12.0f;
+                animation = {animal::LightAnimation::Mode::Flicker, 0.6f, 0.06f};
+                const animal::Vec2 topLeft{std::round(object.position.x) - 4.0f, std::round(object.position.y) - 4.0f};
+                const int tx = static_cast<int>(std::floor((topLeft.x + 3.0f) / kTileSize));
+                int ty = static_cast<int>(std::floor((topLeft.y - 1.0f) / kTileSize));
+                while (ty >= 0 && !tiles_.isSolid(tx, ty)) {
+                    --ty;
+                }
+                lanterns_.push_back({topLeft, static_cast<float>((ty + 1) * kTileSize)});
+            }
+            lights_.push_back({readLight(object.properties, false, defaults),
+                               readLightAnimation(object.properties, false, animation, where),
+                               static_cast<float>(object.id) * 1.3f});
         } else {
             animal::log::warn("{}: unknown object type '{}' (id {}) ignored", room.path, object.type, object.id);
         }
@@ -306,6 +362,14 @@ void CaveRoom::drawBehindPlayer(animal::Renderer2D& renderer, const CaveAssets& 
     for (const Vent& vent : vents_) {
         renderer.drawSprite(assets.props, vent.position, {size, 0.0f, size, size});
     }
+    for (const Lantern& lantern : lanterns_) {
+        // Chain links alternate between the two ring columns every 2 px.
+        for (float y = lantern.chainTop; y < lantern.position.y; y += 1.0f) {
+            const float x = lantern.position.x + 3.0f + static_cast<float>(static_cast<int>(y) / 2 % 2);
+            renderer.fillRect({x, y, 1.0f, 1.0f}, kChainColor);
+        }
+        renderer.drawSprite(assets.props, lantern.position, {3.0f * size, 0.0f, size, size});
+    }
     for (const Crawler& crawler : crawlers_) {
         const animal::Vec2i p = crawler.body.position;
         const float frame = static_cast<float>(static_cast<int>(crawler.walkTime * 6.0f) % 2);
@@ -365,26 +429,19 @@ void CaveRoom::addLights(animal::Renderer2D& renderer, double time) const {
         light.position = candle.position + animal::Vec2{3.5f, 1.5f}; // the flame
         light.radius = 60.0f;
         light.color = kCandleColor;
-        light.intensity = 1.5f * flicker(time, candle.phase);
+        light.intensity = 1.5f * kCandleFlicker.factor(time, candle.phase);
         light.height = 10.0f;
         renderer.addLight(light);
     }
-    for (const TileLight& t : tileLights_) {
-        animal::PointLight light;
-        light.position = t.position;
-        light.radius = t.radius;
-        light.color = t.color;
-        light.intensity = t.intensity + 0.15f * static_cast<float>(std::sin(time * 1.3 + t.phase));
-        light.height = t.height;
+    for (const LightSource& source : lights_) {
+        animal::PointLight light = source.light;
+        light.intensity *= source.animation.factor(time, source.phase);
         renderer.addLight(light);
     }
     for (const Gem& gem : gems_) {
         if (!gem.collected) {
             renderer.addLight({gem.center, 22.0f, kGemLight, 0.8f, 8.0f});
         }
-    }
-    for (const TileLight& t : pointLights_) {
-        renderer.addLight({t.position, t.radius, t.color, t.intensity, t.height});
     }
     for (const animal::Particle& p : particles_.particles()) {
         if (p.kind == Firefly) {

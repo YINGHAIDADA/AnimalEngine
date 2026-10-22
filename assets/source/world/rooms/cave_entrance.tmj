@@ -11,7 +11,7 @@
  "tilewidth": 8,
  "tileheight": 8,
  "nextlayerid": 3,
- "nextobjectid": 20,
+ "nextobjectid": 21,
  "properties": [
   {
    "name": "ambient",
@@ -68,8 +68,8 @@
     2,
     2,
     2,
-    2,
-    2,
+    4,
+    4,
     2,
     2,
     2,
@@ -1198,6 +1198,50 @@
        "name": "once",
        "type": "bool",
        "value": true
+      }
+     ]
+    },
+    {
+     "id": 20,
+     "name": "",
+     "type": "light",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 176,
+     "y": 2,
+     "width": 0,
+     "height": 0,
+     "properties": [
+      {
+       "name": "color",
+       "type": "color",
+       "value": "#ffaac8ff"
+      },
+      {
+       "name": "radius",
+       "type": "float",
+       "value": 176.0
+      },
+      {
+       "name": "intensity",
+       "type": "float",
+       "value": 1.5
+      },
+      {
+       "name": "height",
+       "type": "float",
+       "value": 24.0
+      },
+      {
+       "name": "cone",
+       "type": "float",
+       "value": 44.0
+      },
+      {
+       "name": "direction",
+       "type": "float",
+       "value": 90.0
       }
      ]
     }

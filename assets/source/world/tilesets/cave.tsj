@@ -65,6 +65,21 @@
      "name": "lightHeight",
      "type": "float",
      "value": 12.0
+    },
+    {
+     "name": "lightAnimation",
+     "type": "string",
+     "value": "pulse"
+    },
+    {
+     "name": "lightSpeed",
+     "type": "float",
+     "value": 0.21
+    },
+    {
+     "name": "lightAmount",
+     "type": "float",
+     "value": 0.14
     }
    ]
   }
