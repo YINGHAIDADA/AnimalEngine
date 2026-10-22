@@ -29,8 +29,9 @@ shaders/         GLSL 450 着色器源码
 platform::pollEvents → Input::update → 固定步长 onFixedUpdate（60 Hz，每帧最多 5 步，超出丢弃积压）
 Device::beginFrame（窗口最小化时返回 false，跳过渲染）
   Renderer2D::beginFrame
-    game.onRender:  beginWorld(camera) … drawSprite / drawGlow / addLight … endWorld
-                    → 材质 pass（albedo / normal / emissive）→ 光照 pass（RGBA16F）→ 合成到 320×180 画布
+    game.onRender:  beginWorld(camera) … drawSprite / drawGlow / addLight / addFluidSplat … endWorld
+                    → 材质 pass（albedo / normal / emissive）→ 流体烟雾一步（ADR-0008）
+                    → 光照 pass（RGBA16F）→ 合成到 320×180 画布（含被照亮的烟）
                     → 发光 pass（drawGlow 收集的像素，加色混合叠加到画布，不受光照影响）
                     [beginWorldOverlay … 调试图形 … endWorldOverlay]（无光照，叠加在画布上）
     beginScreen:    画布按整数倍居中绘制到 swapchain，剩余留黑边
@@ -88,6 +89,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | 相机 | 整数像素相机：`Camera2D::center` 先四舍五入再构建视图矩阵。 |
 | 精灵位置 | 世界 pass 中 `drawSprite` 把位置四舍五入到整像素；模拟可以使用浮点位置。 |
 | Alpha | **预乘 Alpha**。颜色纹理在加载时预乘（法线、自发光等数据纹理不预乘）；API 接收直通 Alpha 的 `Color`，写入顶点前预乘；混合为 `One, OneMinusSrcAlpha`。 |
+| 烟雾 | 160×90 网格的 stable fluids（平流、浮力、涡量约束、Jacobi 压力投影），片元着色器实现；合成时被同一光照照亮（ADR-0008）。 |
 | 光照 | 画布分辨率的延迟光照：材质 pass 写 albedo / normal / emissive（RGBA8），光照 pass 加色累积到 RGBA16F，合成 `albedo × (ambient + light) + emissive`，可选量化 + 有序抖动（ADR-0007）。 |
 | 颜色空间 | 目前全程 UNorm（不做 sRGB 转换）。M2 光照前需要重新评估。 |
 | 调试文字 | 内置 3×5 像素字体（不依赖资源文件），覆盖层缩放 = 画布缩放 / 2（至少 1）。 |

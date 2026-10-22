@@ -2,7 +2,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**V1 视觉样板**——像素光照、可互动的草与藤蔓、粒子（萤火虫 / 火星 / 灰尘）已完成，接下来是流体烟雾、泛光调色（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
+当前阶段：**V1 视觉样板**——像素光照、可互动的草与藤蔓、粒子（萤火虫 / 火星 / 灰尘）、流体烟雾已完成，接下来是泛光与调色（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 
@@ -59,6 +59,7 @@ cmake --build --preset windows-ninja-debug
 | F2 | | 开关碰撞视图（实心 Tile 与角色碰撞框，绿色 = 着地） |
 | F3 | | 开关光照（关闭时显示原始颜色） |
 | F4 | | 切换光照量化：平滑 / 3 / 5 / 8 级 |
+| F5 | | 开关流体烟雾 |
 | F12 | | 截图到 `screenshots/` |
 | Esc | | 退出 |
 
