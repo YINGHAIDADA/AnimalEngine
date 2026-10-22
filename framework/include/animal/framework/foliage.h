@@ -2,6 +2,7 @@
 
 #include <animal/core/math.h>
 #include <animal/framework/geometry.h>
+#include <animal/framework/influence.h>
 #include <animal/framework/tilemap.h>
 
 #include <cmath>
@@ -12,13 +13,6 @@
 #include <vector>
 
 namespace animal {
-
-// Something that pushes foliage around (the player; later creatures and projectiles).
-struct FoliageInfluence {
-    IntRect bounds;    // world pixels
-    Vec2 velocity;     // px/s
-    bool landed = false;
-};
 
 struct WindParams {
     float strength = 1.0f; // 0 = calm, 1 = gentle breeze
@@ -56,7 +50,7 @@ public:
     // Positions and heights come from a hash of `seed`, so generation is deterministic.
     void generate(const TileMap& map, const std::function<bool(TileId)>& isGrassy, uint32_t seed);
 
-    void step(float dt, double time, std::span<const FoliageInfluence> influences, const WindParams& wind);
+    void step(float dt, double time, std::span<const Influence> influences, const WindParams& wind);
 
     // Calls fn(x, y, level, shade) for every pixel; level 0 = base .. 2 = tip.
     template <typename F>
@@ -102,7 +96,7 @@ public:
     };
 
     void addVine(Vec2 anchor, int segments);
-    void step(float dt, double time, std::span<const FoliageInfluence> influences, const WindParams& wind);
+    void step(float dt, double time, std::span<const Influence> influences, const WindParams& wind);
 
     // Calls fn(x, y, isLeaf) for every pixel along each chain (leaves sprout every few points).
     template <typename F>

@@ -3,6 +3,8 @@ set(ANIMAL_FRAMEWORK_HEADERS
     include/animal/framework/entity.h
     include/animal/framework/foliage.h
     include/animal/framework/geometry.h
+    include/animal/framework/influence.h
+    include/animal/framework/particles.h
     include/animal/framework/physics.h
     include/animal/framework/platformer.h
     include/animal/framework/tilemap.h)
@@ -11,6 +13,7 @@ set(ANIMAL_FRAMEWORK_SOURCES
     src/action_map.cpp
     src/entity.cpp
     src/foliage.cpp
+    src/particles.cpp
     src/physics.cpp
     src/platformer.cpp
     src/tilemap.cpp)

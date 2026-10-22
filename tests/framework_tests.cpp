@@ -1,8 +1,10 @@
 // Framework: tile collision, pixel-stepped movement, platformer feel, action latching.
 
+#include <animal/core/random.h>
 #include <animal/framework/action_map.h>
 #include <animal/framework/entity.h>
 #include <animal/framework/foliage.h>
+#include <animal/framework/particles.h>
 #include <animal/framework/physics.h>
 #include <animal/framework/platformer.h>
 #include <animal/framework/tilemap.h>
@@ -262,7 +264,7 @@ GrassField makeGrass() {
     return grass;
 }
 
-FoliageInfluence playerAt(int32_t x, float vx = 0.0f) {
+Influence playerAt(int32_t x, float vx = 0.0f) {
     return {{x, 80 - 7, 6, 7}, {vx, 0.0f}, false};
 }
 
@@ -295,7 +297,7 @@ TEST(grass_settles_back_upright_without_wind) {
 TEST(grass_bends_away_from_the_player) {
     GrassField grass = makeGrass();
     const WindParams calm{0.0f, 0.8f};
-    const FoliageInfluence player = playerAt(60); // center x = 63
+    const Influence player = playerAt(60); // center x = 63
     for (int i = 0; i < 30; ++i) {
         grass.step(kDt, i * kDt, std::span(&player, 1), calm);
     }
@@ -315,7 +317,7 @@ TEST(grass_bends_away_from_the_player) {
 
 TEST(grass_is_flattened_by_landing) {
     GrassField grass = makeGrass();
-    FoliageInfluence landing = playerAt(60);
+    Influence landing = playerAt(60);
     landing.velocity.y = 200.0f;
     landing.landed = true;
     landing.bounds.x = 40; // center 43; push overlap ends at 49
@@ -347,7 +349,7 @@ TEST(vine_hangs_from_its_anchor) {
 TEST(vine_is_pushed_by_the_player) {
     VineSystem vines;
     vines.addVine({50.0f, 8.0f}, 10); // tip around y = 38
-    FoliageInfluence player{{44, 26, 6, 7}, {80.0f, 0.0f}, false}; // walking right through it
+    Influence player{{44, 26, 6, 7}, {80.0f, 0.0f}, false}; // walking right through it
     for (int i = 0; i < 20; ++i) {
         player.bounds.x = 44 + i;
         vines.step(kDt, i * kDt, std::span(&player, 1), WindParams{0.0f, 0.8f});
@@ -380,7 +382,7 @@ TEST(vine_leans_as_a_whole_in_steady_wind) {
 TEST(vine_push_at_the_tip_moves_the_upper_chain) {
     VineSystem vines;
     vines.addVine({50.0f, 8.0f}, 20); // tip around y = 68
-    FoliageInfluence player{{44, 58, 6, 7}, {90.0f, 0.0f}, false};
+    Influence player{{44, 58, 6, 7}, {90.0f, 0.0f}, false};
     float maxUpper = 0.0f;
     float maxTip = 0.0f;
     for (int i = 0; i < 40; ++i) {
@@ -400,13 +402,121 @@ TEST(foliage_simulation_is_deterministic) {
         VineSystem vines;
         vines.addVine({30.0f, 8.0f}, 8);
         for (int i = 0; i < 120; ++i) {
-            const FoliageInfluence player = playerAt(20 + i / 4, 40.0f);
+            const Influence player = playerAt(20 + i / 4, 40.0f);
             grass.step(kDt, i * kDt, std::span(&player, 1), WindParams{});
             vines.step(kDt, i * kDt, std::span(&player, 1), WindParams{});
         }
         return std::pair{grass.blades()[3].angle, vines.vines()[0].points.back().x};
     };
     CHECK(run() == run());
+}
+
+// --- Random & particles --------------------------------------------------------------------
+
+TEST(random_is_reproducible_and_in_range) {
+    Random a(42);
+    Random b(42);
+    Random c(43);
+    bool differs = false;
+    for (int i = 0; i < 1000; ++i) {
+        const uint32_t va = a.next();
+        CHECK(va == b.next());
+        differs = differs || va != c.next();
+        const float u = a.uniform();
+        b.uniform();
+        CHECK(u >= 0.0f && u < 1.0f);
+        const float r = a.range(-3.0f, 5.0f);
+        b.range(-3.0f, 5.0f);
+        CHECK(r >= -3.0f && r < 5.0f);
+    }
+    CHECK(differs);
+}
+
+Particle basicParticle(Vec2 position) {
+    Particle p;
+    p.position = position;
+    p.lifetime = 10.0f;
+    return p;
+}
+
+TEST(particles_integrate_and_expire) {
+    ParticleSystem system;
+    Particle p = basicParticle({100.0f, 50.0f});
+    p.velocity = {60.0f, 0.0f};
+    p.lifetime = 0.5f;
+    system.emit(p);
+    for (int i = 0; i < 15; ++i) {
+        system.step(kDt, i * kDt, nullptr, {}, WindParams{0.0f, 0.5f});
+    }
+    CHECK(system.size() == 1);
+    CHECK(test::near(system.particles()[0].position.x, 115.0f, 0.01f)); // 60 px/s × 0.25 s
+    for (int i = 0; i < 30; ++i) {
+        system.step(kDt, i * kDt, nullptr, {}, WindParams{0.0f, 0.5f});
+    }
+    CHECK(system.size() == 0);
+}
+
+TEST(particles_respect_capacity_and_solid_tiles) {
+    ParticleSystem system(2);
+    CHECK(system.emit(basicParticle({10.0f, 10.0f})));
+    CHECK(system.emit(basicParticle({20.0f, 10.0f})));
+    CHECK(!system.emit(basicParticle({30.0f, 10.0f})));
+
+    TileMap map = emptyMap();
+    map.setTile(5, 5, kSolid); // x 40..47, y 40..47
+    ParticleSystem embers;
+    Particle ember = basicParticle({43.0f, 60.0f});
+    ember.velocity = {0.0f, -60.0f}; // flies up into the block
+    ember.dieOnSolid = true;
+    embers.emit(ember);
+    Particle ghost = ember;
+    ghost.dieOnSolid = false;
+    embers.emit(ghost);
+    for (int i = 0; i < 30; ++i) {
+        embers.step(kDt, i * kDt, &map, {}, WindParams{0.0f, 0.5f});
+    }
+    CHECK(embers.size() == 1);
+    CHECK(!embers.particles()[0].dieOnSolid);
+}
+
+TEST(particles_are_pushed_away_by_influences) {
+    ParticleSystem system;
+    system.emit(basicParticle({70.0f, 40.0f}));  // right of the player
+    system.emit(basicParticle({52.0f, 40.0f}));  // left of the player
+    system.emit(basicParticle({200.0f, 40.0f})); // far away
+    const Influence player{{58, 37, 6, 7}, {0.0f, 0.0f}, false}; // center (61, 40.5)
+    for (int i = 0; i < 20; ++i) {
+        system.step(kDt, i * kDt, nullptr, std::span(&player, 1), WindParams{0.0f, 0.5f});
+    }
+    float right = 0.0f;
+    float left = 0.0f;
+    float far = 0.0f;
+    for (const Particle& p : system.particles()) {
+        if (p.position.x > 150.0f) {
+            far = p.position.x;
+        } else if (p.position.x > 61.0f) {
+            right = p.position.x;
+        } else {
+            left = p.position.x;
+        }
+    }
+    CHECK(right > 70.5f);
+    CHECK(left < 51.5f);
+    CHECK(far == 200.0f);
+}
+
+TEST(particle_color_fades_and_interpolates) {
+    ParticleSystem system;
+    Particle p = basicParticle({0.0f, 0.0f});
+    p.startColor = Color::rgba(200, 100, 0, 255);
+    p.endColor = Color::rgba(0, 100, 200, 255);
+    p.lifetime = 2.0f;
+    p.fade = 0.5f;
+    p.age = 1.0f; // halfway, fully faded in
+    CHECK((system.colorOf(p) == Color::rgba(100, 100, 100, 255)));
+    p.age = 0.25f; // half-way through the fade-in
+    const Color early = system.colorOf(p);
+    CHECK(early.a > 120 && early.a < 135);
 }
 
 // --- Entities & input ---------------------------------------------------------------------

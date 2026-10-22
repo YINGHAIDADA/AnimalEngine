@@ -177,9 +177,9 @@ void SandboxGame::onFixedUpdate(animal::EngineContext&, double dt) {
         }
     }
 
-    std::vector<animal::FoliageInfluence> influences;
+    std::vector<animal::Influence> influences;
     if (player) {
-        animal::FoliageInfluence influence{player->body.worldCollider(), playerState_.velocity, false};
+        animal::Influence influence{player->body.worldCollider(), playerState_.velocity, false};
         if (playerState_.landedThisStep) {
             influence.landed = true;
             influence.velocity.y = playerState_.landingSpeed;

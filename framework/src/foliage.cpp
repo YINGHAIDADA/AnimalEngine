@@ -56,12 +56,12 @@ void GrassField::generate(const TileMap& map, const std::function<bool(TileId)>&
     }
 }
 
-void GrassField::step(float dt, double time, std::span<const FoliageInfluence> influences, const WindParams& wind) {
+void GrassField::step(float dt, double time, std::span<const Influence> influences, const WindParams& wind) {
     for (Blade& blade : blades_) {
         float target = params_.windLean * wind.strength * windAt(wind, blade.x, time);
         const float top = blade.baseY - static_cast<float>(blade.height);
 
-        for (const FoliageInfluence& influence : influences) {
+        for (const Influence& influence : influences) {
             const IntRect& r = influence.bounds;
             const float left = static_cast<float>(r.x) - params_.pushReach;
             const float right = static_cast<float>(r.right()) + params_.pushReach;
@@ -120,7 +120,7 @@ void VineSystem::satisfyConstraint(Vine& vine, size_t i) const {
     }
 }
 
-void VineSystem::step(float dt, double time, std::span<const FoliageInfluence> influences, const WindParams& wind) {
+void VineSystem::step(float dt, double time, std::span<const Influence> influences, const WindParams& wind) {
     // Substeps keep each correction small, so constraints converge without stretching and a
     // push anywhere propagates both up and down the chain (the whole vine swings together).
     const int substeps = std::max(1, params_.substeps);
@@ -142,7 +142,7 @@ void VineSystem::step(float dt, double time, std::span<const FoliageInfluence> i
             }
 
             // Influences push points out sideways and drag them along.
-            for (const FoliageInfluence& influence : influences) {
+            for (const Influence& influence : influences) {
                 const IntRect& r = influence.bounds;
                 const float left = static_cast<float>(r.x) - 1.0f;
                 const float right = static_cast<float>(r.right()) + 1.0f;

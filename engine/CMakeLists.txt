@@ -6,6 +6,7 @@ set(ANIMAL_ENGINE_HEADERS
     include/animal/core/handle.h
     include/animal/core/log.h
     include/animal/core/math.h
+    include/animal/core/random.h
     include/animal/platform/input.h
     include/animal/platform/platform.h
     include/animal/platform/window.h
