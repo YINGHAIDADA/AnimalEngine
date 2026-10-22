@@ -1,7 +1,13 @@
 #include <animal/framework/foliage.h>
+#include <animal/core/log.h>
+#include <animal/framework/level.h>
+
+#include <json.hpp>
 
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
+#include <map>
 
 namespace animal {
 
@@ -30,51 +36,287 @@ float windAt(const WindParams& wind, float x, double time) {
     return gust * (0.8f * std::sin(t + x * 0.02f) + 0.2f * std::sin(t * 1.7f + x * 0.07f));
 }
 
+Vec2 windVectorAt(const WindParams& wind, Vec2 position, double time) {
+    Vec2 w{wind.strength * windAt(wind, position.x, time), 0.0f};
+    if (wind.gustStrength > 0.0f && wind.gustInterval > 0.0f && wind.gustSpeed != 0.0f) {
+        // A narrow pulse travelling at gustSpeed, repeating every gustInterval seconds.
+        const double cycle = time / wind.gustInterval -
+                             static_cast<double>(position.x) / (static_cast<double>(wind.gustSpeed) * wind.gustInterval);
+        const auto phase = static_cast<float>(cycle - std::floor(cycle));
+        const float width = wind.gustWidth / (std::fabs(wind.gustSpeed) * wind.gustInterval);
+        if (phase < width) {
+            const float pulse = std::sin(kPi * phase / width);
+            w.x += (wind.gustSpeed > 0.0f ? 1.0f : -1.0f) * wind.gustStrength * pulse * pulse;
+        }
+    }
+    for (const WindSource& source : wind.sources) {
+        const Vec2 offset = position - source.position;
+        const float along = offset.x * source.direction.x + offset.y * source.direction.y;
+        const float across = std::fabs(offset.x * source.direction.y - offset.y * source.direction.x);
+        if (along >= 0.0f && along < source.length && across < source.radius) {
+            const float sideways = across / source.radius;
+            w += source.direction * (source.strength * (1.0f - along / source.length) * (1.0f - sideways * sideways));
+        }
+    }
+    return w;
+}
+
+// --- Plant species -------------------------------------------------------------------------
+
+namespace {
+
+using Json = nlohmann::json;
+
+std::optional<Color> plantColor(const Json& v) {
+    if (v.is_string()) {
+        const std::string s = v.get<std::string>();
+        return s.size() == 7 ? parseColor(s) : std::nullopt;
+    }
+    if (v.is_array() && v.size() == 4 &&
+        std::all_of(v.begin(), v.end(), [](const Json& e) { return e.is_number_integer() && e >= 0 && e <= 255; })) {
+        return Color::rgba(v[0].get<uint8_t>(), v[1].get<uint8_t>(), v[2].get<uint8_t>(), v[3].get<uint8_t>());
+    }
+    return std::nullopt;
+}
+
+} // namespace
+
+std::optional<PlantSpecies> parsePlant(std::string_view text, const std::string& path, std::string* error) {
+    auto fail = [error](const std::string& message) -> std::optional<PlantSpecies> {
+        if (error) {
+            *error = message;
+        }
+        return std::nullopt;
+    };
+    Json json;
+    try {
+        json = Json::parse(text);
+    } catch (const Json::exception& e) {
+        return fail(path + ": not valid JSON (" + e.what() + ")");
+    }
+    if (!json.is_object() || !json.contains("format") || json["format"] != "animal-plant") {
+        return fail(path + ": not a plant file (\"format\" must be \"animal-plant\")");
+    }
+    if (!json.contains("version") || json["version"] != 1) {
+        return fail(path + ": unsupported version (expected 1)");
+    }
+    PlantSpecies species;
+    const std::u8string file = std::filesystem::path(std::u8string(path.begin(), path.end())).filename().u8string();
+    species.name.assign(file.begin(), file.end());
+    if (const size_t dot = species.name.find('.'); dot != std::string::npos) {
+        species.name.resize(dot);
+    }
+    using Reader = std::function<const char*(const Json&)>;
+    auto whole = [&species](int PlantSpecies::*m, int lo) -> Reader {
+        return [&species, m, lo](const Json& v) -> const char* {
+            if (!v.is_number_integer() || v.get<int>() < lo) {
+                return lo > 0 ? "a whole number >= 1" : "a whole number >= 0";
+            }
+            species.*m = v.get<int>();
+            return nullptr;
+        };
+    };
+    auto number = [&species](float PlantSpecies::*m) -> Reader {
+        return [&species, m](const Json& v) -> const char* {
+            if (!v.is_number()) {
+                return "a number";
+            }
+            species.*m = v.get<float>();
+            return nullptr;
+        };
+    };
+    auto flag = [&species](bool PlantSpecies::*m) -> Reader {
+        return [&species, m](const Json& v) -> const char* {
+            if (!v.is_boolean()) {
+                return "true or false";
+            }
+            species.*m = v.get<bool>();
+            return nullptr;
+        };
+    };
+    const std::map<std::string, Reader> readers = {
+        {"heightMin", whole(&PlantSpecies::heightMin, 1)},
+        {"heightMax", whole(&PlantSpecies::heightMax, 1)},
+        {"spacing", whole(&PlantSpecies::spacing, 1)},
+        {"gaps", number(&PlantSpecies::gaps)},
+        {"hanging", flag(&PlantSpecies::hanging)},
+        {"stiffness", number(&PlantSpecies::stiffness)},
+        {"damping", number(&PlantSpecies::damping)},
+        {"windLean", number(&PlantSpecies::windLean)},
+        {"flutter", number(&PlantSpecies::flutter)},
+        {"maxBend", number(&PlantSpecies::maxBend)},
+        {"colors",
+         [&species](const Json& v) -> const char* {
+             if (!v.is_array() || v.size() != 3) {
+                 return "three colours [base, middle, tip]";
+             }
+             for (size_t i = 0; i < 3; ++i) {
+                 const auto c = plantColor(v[i]);
+                 if (!c) {
+                     return "three colours [base, middle, tip]";
+                 }
+                 species.colors[i] = *c;
+             }
+             return nullptr;
+         }},
+        {"flowerColor",
+         [&species](const Json& v) -> const char* {
+             const auto c = plantColor(v);
+             if (!c) {
+                 return "a colour \"#rrggbb\" or [r, g, b, a]";
+             }
+             species.flowerColor = *c;
+             return nullptr;
+         }},
+        {"flowerGlow", flag(&PlantSpecies::flowerGlow)},
+        {"flowerLightRadius", number(&PlantSpecies::flowerLightRadius)},
+        {"flowerLightColor",
+         [&species](const Json& v) -> const char* {
+             const auto c = plantColor(v);
+             if (!c) {
+                 return "a colour \"#rrggbb\" or [r, g, b, a]";
+             }
+             species.flowerLightColor = {c->r / 255.0f, c->g / 255.0f, c->b / 255.0f};
+             return nullptr;
+         }},
+        {"flowerLightIntensity", number(&PlantSpecies::flowerLightIntensity)},
+    };
+    for (const auto& [name, value] : json.items()) {
+        if (name == "format" || name == "version") {
+            continue;
+        }
+        const auto it = readers.find(name);
+        if (it == readers.end()) {
+            return fail(path + ": unknown field \"" + name + "\"");
+        }
+        if (const char* expected = it->second(value)) {
+            return fail(path + ": \"" + name + "\" must be " + expected);
+        }
+    }
+    if (species.heightMax < species.heightMin) {
+        return fail(path + ": \"heightMax\" must not be below \"heightMin\"");
+    }
+    return species;
+}
+
+const PlantSpecies* PlantLibrary::load(const std::string& path) {
+    if (const auto it = cache_.find(path); it != cache_.end()) {
+        return it->second ? &*it->second : nullptr;
+    }
+    std::optional<PlantSpecies> species;
+    if (const auto text = readText(path)) {
+        std::string error;
+        species = parsePlant(*text, path, &error);
+        if (!species) {
+            log::error("Invalid plant: {}", error);
+        }
+    } else {
+        log::error("Cannot read plant '{}'", path);
+    }
+    const auto it = cache_.emplace(path, std::move(species)).first;
+    return it->second ? &*it->second : nullptr;
+}
+
 // --- Grass ---------------------------------------------------------------------------------
 
-void GrassField::generate(const TileMap& map, const std::function<bool(TileId)>& isGrassy, uint32_t seed) {
+void GrassField::clear() {
     blades_.clear();
+    species_.clear();
+}
+
+size_t GrassField::addSpecies(const PlantSpecies& species) {
+    if (species_.size() >= 255) {
+        return species_.size() - 1;
+    }
+    species_.push_back(species);
+    return species_.size() - 1;
+}
+
+void GrassField::addStrands(const TileMap& map, int tx, int ty, size_t speciesIndex, uint32_t seed) {
+    const PlantSpecies& species = species_[speciesIndex];
     const int size = map.tileSize();
+    const int range = std::max(1, species.heightMax - species.heightMin + 1);
+    for (int px = 0; px < size; px += std::max(1, species.spacing)) {
+        const uint32_t h = hash(seed ^ hash(static_cast<uint32_t>(ty * 4096 + tx * size + px)) ^
+                                hash(static_cast<uint32_t>(speciesIndex) + 1u));
+        if (static_cast<float>(h % 1000u) < species.gaps * 1000.0f) {
+            continue; // gaps keep the tufts irregular
+        }
+        Blade blade;
+        blade.x = static_cast<float>(tx * size + px + static_cast<int>((h >> 8) % 2));
+        blade.baseY = species.hanging ? static_cast<float>((ty + 1) * size) : static_cast<float>(ty * size - 1);
+        blade.height = species.heightMin + static_cast<int>((h >> 12) % static_cast<uint32_t>(range));
+        blade.shade = static_cast<uint8_t>((h >> 20) % 3);
+        blade.species = static_cast<uint8_t>(speciesIndex);
+        blades_.push_back(blade);
+    }
+}
+
+void GrassField::generate(const TileMap& map, const std::function<bool(TileId)>& isGrassy, uint32_t seed) {
+    if (species_.empty()) {
+        addSpecies(PlantSpecies{});
+    }
     for (int ty = 0; ty < map.height(); ++ty) {
         for (int tx = 0; tx < map.width(); ++tx) {
-            if (!isGrassy(map.tile(tx, ty)) || map.isSolid(tx, ty - 1)) {
-                continue;
-            }
-            for (int px = 0; px < size; px += 2) {
-                const uint32_t h = hash(seed ^ hash(static_cast<uint32_t>(ty * 4096 + tx * size + px)));
-                if (h % 5 == 0) {
-                    continue; // gaps keep the tufts irregular
-                }
-                Blade blade;
-                blade.x = static_cast<float>(tx * size + px + static_cast<int>((h >> 8) % 2));
-                blade.baseY = static_cast<float>(ty * size - 1);
-                blade.height = 2 + static_cast<int>((h >> 12) % 4);
-                blade.shade = static_cast<uint8_t>((h >> 20) % 3);
-                blades_.push_back(blade);
+            if (isGrassy(map.tile(tx, ty)) && !map.isSolid(tx, ty - 1)) {
+                addStrands(map, tx, ty, 0, seed);
             }
         }
     }
 }
 
+void GrassField::plant(const TileMap& map, const IntRect& area, size_t species, uint32_t seed) {
+    if (species >= species_.size()) {
+        return;
+    }
+    const bool hanging = species_[species].hanging;
+    const int size = map.tileSize();
+    const size_t before = blades_.size();
+    for (int ty = 0; ty < map.height(); ++ty) {
+        for (int tx = 0; tx < map.width(); ++tx) {
+            const int faceY = hanging ? (ty + 1) * size : ty * size;
+            const bool exposed = map.isSolid(tx, ty) && !map.isSolid(tx, hanging ? ty + 1 : ty - 1);
+            if (exposed && faceY >= area.y && faceY <= area.bottom() && (tx + 1) * size > area.x &&
+                tx * size < area.right()) {
+                addStrands(map, tx, ty, species, seed);
+            }
+        }
+    }
+    // Keep only strands rooted inside the area horizontally.
+    blades_.erase(std::remove_if(blades_.begin() + static_cast<std::ptrdiff_t>(before), blades_.end(),
+                                 [&area](const Blade& b) {
+                                     return b.x < static_cast<float>(area.x) || b.x >= static_cast<float>(area.right());
+                                 }),
+                  blades_.end());
+}
+
 void GrassField::step(float dt, double time, std::span<const Influence> influences, const WindParams& wind) {
+    const auto t = static_cast<float>(time);
     for (Blade& blade : blades_) {
-        float target = params_.windLean * wind.strength * windAt(wind, blade.x, time);
-        const float top = blade.baseY - static_cast<float>(blade.height);
+        const PlantSpecies& species = species_[blade.species];
+        const float height = static_cast<float>(blade.height);
+        const float top = species.hanging ? blade.baseY : blade.baseY - height;
+        const float bottom = species.hanging ? blade.baseY + height : blade.baseY;
+        const Vec2 w = windVectorAt(wind, {blade.x, (top + bottom) * 0.5f}, time);
+        float target = species.windLean * w.x;
+        // Wind stronger than a breeze (gusts, drafts) also makes strands shiver.
+        const float excess = std::max(0.0f, length(w) - 1.0f);
+        target += species.flutter * excess * std::sin(t * 13.0f + blade.x * 1.7f + blade.baseY * 0.3f);
 
         for (const Influence& influence : influences) {
             const IntRect& r = influence.bounds;
             const float left = static_cast<float>(r.x) - params_.pushReach;
             const float right = static_cast<float>(r.right()) + params_.pushReach;
-            const bool verticalOverlap = static_cast<float>(r.bottom()) > top && static_cast<float>(r.y) <= blade.baseY;
+            const bool verticalOverlap = static_cast<float>(r.bottom()) > top && static_cast<float>(r.y) <= bottom;
             if (verticalOverlap && blade.x >= left && blade.x <= right) {
                 const float offset = blade.x - centerX(r);
                 const float halfSpan = (right - left) * 0.5f;
                 const float proximity = 1.0f - std::min(1.0f, std::fabs(offset) / halfSpan);
                 const float direction = offset >= 0.0f ? 1.0f : -1.0f;
-                target += direction * params_.maxBend * (0.35f + 0.65f * proximity);
+                target += direction * species.maxBend * (0.35f + 0.65f * proximity);
                 target += influence.velocity.x * params_.dragFactor;
             }
-            if (influence.landed) {
+            if (influence.landed && !species.hanging) {
                 const float offset = blade.x - centerX(r);
                 const float feetY = static_cast<float>(r.bottom());
                 if (std::fabs(offset) < params_.landingRadius && std::fabs(feetY - blade.baseY - 1.0f) < 2.0f) {
@@ -86,11 +328,11 @@ void GrassField::step(float dt, double time, std::span<const Influence> influenc
             }
         }
 
-        target = std::clamp(target, -params_.maxBend, params_.maxBend);
+        target = std::clamp(target, -species.maxBend, species.maxBend);
         const float acceleration =
-            -params_.stiffness * (blade.angle - target) - params_.damping * blade.angularVelocity;
+            -species.stiffness * (blade.angle - target) - species.damping * blade.angularVelocity;
         blade.angularVelocity += acceleration * dt;
-        blade.angle = std::clamp(blade.angle + blade.angularVelocity * dt, -params_.maxBend, params_.maxBend);
+        blade.angle = std::clamp(blade.angle + blade.angularVelocity * dt, -species.maxBend, species.maxBend);
     }
 }
 
@@ -190,8 +432,11 @@ void VineSystem::step(float dt, double time, std::span<const Influence> influenc
 
     for (Vine& vine : vines_) {
         const size_t count = vine.points.size();
-        // One wind value per vine: a uniform force leans the chain as a whole.
-        const float windX = params_.windForce * wind.strength * windAt(wind, vine.points[0].x, time);
+        // Wind sampled per point once per step (drafts push only the part of the vine inside them).
+        std::vector<Vec2> windForce(count);
+        for (size_t i = 0; i < count; ++i) {
+            windForce[i] = windVectorAt(wind, vine.points[i], time) * params_.windForce;
+        }
 
         for (int s = 0; s < substeps; ++s) {
             for (size_t i = 1; i < count; ++i) {
@@ -199,7 +444,7 @@ void VineSystem::step(float dt, double time, std::span<const Influence> influenc
                 Vec2& prev = vine.previous[i];
                 const Vec2 velocity = (p - prev) * damping;
                 prev = p;
-                p = p + velocity + (Vec2{windX, params_.gravity} + vine.forces[i]) * (h * h);
+                p = p + velocity + (windForce[i] + Vec2{0.0f, params_.gravity} + vine.forces[i]) * (h * h);
             }
 
             // Influences push points out sideways and drag them along.

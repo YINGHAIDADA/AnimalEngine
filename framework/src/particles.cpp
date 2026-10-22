@@ -36,7 +36,7 @@ void ParticleSystem::step(float dt, double time, const TileMap* map, std::span<c
 
         Vec2 acceleration = p.acceleration;
         if (p.windResponse != 0.0f) {
-            acceleration.x += p.windResponse * wind.strength * windAt(wind, p.position.x, time);
+            acceleration += windVectorAt(wind, p.position, time) * p.windResponse;
         }
         if (p.wander != 0.0f) {
             // A slowly turning heading unique to each particle.

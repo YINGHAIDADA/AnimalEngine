@@ -8,30 +8,86 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <algorithm>
+#include <array>
 #include <functional>
+#include <map>
 #include <optional>
 #include <span>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace animal {
 
+// A local draft (ADR-0019): blows along `direction` from `position`, `radius` px either side of
+// its axis, fading to nothing over `length` px (a vent's updraft, air out of a tunnel).
+struct WindSource {
+    Vec2 position;
+    Vec2 direction{0.0f, -1.0f}; // unit
+    float strength = 2.0f;       // wind units at the source (1 = gentle breeze)
+    float length = 64.0f;
+    float radius = 10.0f;
+};
+
 struct WindParams {
     float strength = 1.0f; // 0 = calm, 1 = gentle breeze
     float speed = 0.5f;    // how fast gusts evolve
+    // Gust fronts sweeping across the room every `gustInterval` s at `gustSpeed` px/s (the sign
+    // is the direction), `gustWidth` px wide; 0 strength = none.
+    float gustStrength = 0.0f;
+    float gustInterval = 6.0f;
+    float gustSpeed = 120.0f;
+    float gustWidth = 60.0f;
+    std::vector<WindSource> sources;
 };
 
-// Horizontal wind in [-1, 1] at world x and simulation time; smooth in both.
+// The base breeze: horizontal, in [-1, 1] at world x and simulation time; smooth in both.
 float windAt(const WindParams& wind, float x, double time);
+// The full wind at a point: base breeze × strength, gust fronts and local drafts, in wind units.
+Vec2 windVectorAt(const WindParams& wind, Vec2 position, double time);
 
-// Grass blades are damped angular springs rooted on top of grass tiles. Rendered as pixel
-// columns whose tip bends by the blade angle (quadratic curvature).
+// A kind of plant growing as springy pixel strands (ADR-0019): grass, reeds, hanging moss,
+// flowers. Upright species grow on exposed tops of solid tiles, hanging ones from exposed bottoms.
+struct PlantSpecies {
+    std::string name;
+    int heightMin = 2;
+    int heightMax = 5;
+    int spacing = 2;          // px between strands
+    float gaps = 0.2f;        // share of strand positions left empty
+    bool hanging = false;
+    float stiffness = 120.0f; // 1/s²
+    float damping = 7.0f;     // 1/s
+    float windLean = 0.12f;   // radians per wind unit
+    float flutter = 0.15f;    // radians of quick shiver per wind unit above a breeze
+    float maxBend = 1.15f;    // radians
+    std::array<Color, 3> colors{Color::rgba(46, 104, 52), Color::rgba(76, 150, 70), Color::rgba(136, 198, 92)};
+    // A flower on the tip (alpha 0: none); glowing flowers are drawn unlit and may carry a light.
+    Color flowerColor = Color::rgba(0, 0, 0, 0);
+    bool flowerGlow = false;
+    float flowerLightRadius = 0.0f;
+    Vec3 flowerLightColor{1.0f, 1.0f, 1.0f};
+    float flowerLightIntensity = 0.5f;
+};
+
+// File format: {"format": "animal-plant", "version": 1, "heightMin": 8, "colors": [c, c, c], ...};
+// colours "#rrggbb" or [r, g, b, a]. Unknown fields and wrong types are errors.
+std::optional<PlantSpecies> parsePlant(std::string_view json, const std::string& path, std::string* error);
+
+// Loads plant species once per path; failures are logged and remembered.
+class PlantLibrary {
+public:
+    const PlantSpecies* load(const std::string& path);
+
+private:
+    std::map<std::string, std::optional<PlantSpecies>> cache_; // node-based: returned pointers stay valid
+};
+
+// Plant strands (grass blades, reeds, moss) are damped angular springs rooted on tile faces.
+// Rendered as pixel columns whose tip bends by the strand angle (quadratic curvature).
 class GrassField {
 public:
     struct Params {
-        float stiffness = 120.0f;   // spring constant (1/s²)
-        float windLean = 0.12f;     // radians at full wind
-        float damping = 7.0f;       // (1/s)
-        float maxBend = 1.15f;      // radians
         float pushReach = 3.0f;     // px beyond the influence bounds that still bend blades
         float dragFactor = 0.004f;  // extra lean per px/s of the influence's horizontal speed
         float landingImpulse = 0.06f; // angular velocity per px/s of landing speed
@@ -40,40 +96,72 @@ public:
 
     struct Blade {
         float x = 0.0f;     // pixel column (left edge)
-        float baseY = 0.0f; // first pixel row above the ground
+        float baseY = 0.0f; // first pixel row off the tile face (above it, or below for hanging)
         int height = 4;
         float angle = 0.0f;
         float angularVelocity = 0.0f;
         uint8_t shade = 0;  // art variation
+        uint8_t species = 0;
     };
 
-    // One blade every ~2 px on each exposed top of a tile for which `isGrassy(id)` is true.
-    // Positions and heights come from a hash of `seed`, so generation is deterministic.
+    void clear();
+    // At most 255 species; returns the index.
+    size_t addSpecies(const PlantSpecies& species);
+    // Default species (index 0, added if there is none) on each exposed top of a tile for which
+    // `isGrassy(id)` is true. Positions and heights come from a hash of `seed` (deterministic).
     void generate(const TileMap& map, const std::function<bool(TileId)>& isGrassy, uint32_t seed);
+    // `species` on every exposed solid-tile face inside `area` (world px): tops for upright
+    // species, bottoms for hanging ones.
+    void plant(const TileMap& map, const IntRect& area, size_t species, uint32_t seed);
 
     void step(float dt, double time, std::span<const Influence> influences, const WindParams& wind);
 
-    // Calls fn(x, y, level, shade) for every pixel; level 0 = base .. 2 = tip.
+    // Calls fn(x, y, color) for every pixel.
     template <typename F>
     void forEachPixel(F&& fn) const {
         for (const Blade& blade : blades_) {
+            const PlantSpecies& species = species_[blade.species];
             const float tip = std::sin(blade.angle) * static_cast<float>(blade.height);
+            const int direction = species.hanging ? 1 : -1;
             for (int i = 0; i < blade.height; ++i) {
                 const float t = static_cast<float>(i + 1) / static_cast<float>(blade.height);
                 const int x = static_cast<int>(std::lround(blade.x + tip * t * t));
-                const int y = static_cast<int>(blade.baseY) - i;
-                const int level = i * 3 / blade.height;
-                fn(x, y, level, blade.shade);
+                const int y = static_cast<int>(blade.baseY) + direction * i;
+                fn(x, y, shaded(species.colors[static_cast<size_t>(i * 3 / blade.height)], blade.shade));
             }
+        }
+    }
+
+    // Calls fn(position, species) for the tip of every strand of a flowering species.
+    template <typename F>
+    void forEachFlower(F&& fn) const {
+        for (const Blade& blade : blades_) {
+            const PlantSpecies& species = species_[blade.species];
+            if (species.flowerColor.a == 0) {
+                continue;
+            }
+            const float tip = std::sin(blade.angle) * static_cast<float>(blade.height);
+            const float y = blade.baseY + (species.hanging ? 1.0f : -1.0f) * static_cast<float>(blade.height);
+            fn(Vec2{std::round(blade.x + tip), y}, species);
         }
     }
 
     const std::vector<Blade>& blades() const { return blades_; }
     std::vector<Blade>& blades() { return blades_; }
+    const std::vector<PlantSpecies>& species() const { return species_; }
     Params& params() { return params_; }
 
 private:
+    // Shade 0 = as authored, 1 = darker, 2 = lighter.
+    static Color shaded(Color c, uint8_t shade) {
+        const int scale = shade == 1 ? 88 : (shade == 2 ? 112 : 100);
+        auto channel = [scale](uint8_t v) { return static_cast<uint8_t>(std::min(255, v * scale / 100)); };
+        return Color::rgba(channel(c.r), channel(c.g), channel(c.b), c.a);
+    }
+    void addStrands(const TileMap& map, int tx, int ty, size_t species, uint32_t seed);
+
     std::vector<Blade> blades_;
+    std::vector<PlantSpecies> species_;
     Params params_;
 };
 
