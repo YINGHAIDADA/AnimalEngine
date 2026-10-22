@@ -4,6 +4,8 @@
 
 #include <animal/app/application.h>
 #include <animal/framework/action_map.h>
+#include <animal/framework/animation.h>
+#include <animal/framework/climbing.h>
 #include <animal/framework/entity.h>
 #include <animal/framework/level.h>
 #include <animal/framework/platformer.h>
@@ -48,6 +50,8 @@ private:
     void placePlayerFeet(animal::Vec2 feet);
     void handleRoomExit(animal::Renderer2D& renderer);
     void respawn(animal::Renderer2D& renderer);
+    void setupAnimations();
+    void updateAnimation(float dt);
 
     animal::World world_;
     std::map<std::string, animal::Room> rooms_; // loaded room data by path
@@ -61,7 +65,14 @@ private:
     animal::EntityId player_;
     animal::PlatformerParams playerParams_;
     animal::PlatformerState playerState_;
+    animal::ClimbParams climbParams_;
+    animal::ClimbState climb_;
     bool facingLeft_ = false;
+
+    animal::Animator animator_;
+    struct Clips {
+        animal::Animator::ClipId idle, run, jump, fall, climb, land;
+    } clips_{};
     double time_ = 0.0;      // simulation time, drives animation
     float fluidTime_ = 0.0f; // simulation time not yet handed to the smoke solver
 

@@ -75,6 +75,7 @@ bool SandboxGame::enterRoom(const animal::WorldRoom& worldRoom, animal::Renderer
         return false;
     }
     currentRoom_ = &worldRoom;
+    climb_.climbing = false; // vine indices belong to the previous room
     renderer.resetFluid();
     renderer.setFluidObstacles(cave_.fluidObstacles(camera_.topLeft(animal::Renderer2D::kCanvasExtent)));
     renderer.lighting().ambient = cave_.ambient();
@@ -126,6 +127,7 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     }
     placePlayerFeet(startFeet_);
     bindActions();
+    setupAnimations();
 
     animal::Renderer2D& renderer = *context.renderer;
     renderer.lighting().bands = kBandPresets[bandsPreset_];
@@ -147,13 +149,44 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     return true;
 }
 
-// --demo: a short tour driven by simulation time (reproducible with --deterministic): run right
-// through the grass and vines of the entrance (jumping once), along the tunnel into the crystal
-// gallery, and drop through its pit into the smoke pit.
+// --demo: a short tour driven by simulation time (reproducible with --deterministic): run right,
+// grab the long vine in the entrance and climb a little while swinging, jump off, continue
+// along the tunnel into the crystal gallery, and drop through its pit into the smoke pit.
 void SandboxGame::applyDemoInput() {
     actions_.applyStrength(MoveRight, time_ < 7.5 ? 1.0f : 0.0f);
     actions_.applyStrength(MoveLeft, 0.0f);
-    actions_.applyStrength(Jump, time_ >= 0.9 && time_ < 1.2 ? 1.0f : 0.0f);
+    actions_.applyStrength(MoveUp, time_ >= 0.5 && time_ < 1.3 ? 1.0f : 0.0f);
+    actions_.applyStrength(MoveDown, 0.0f);
+    actions_.applyStrength(Jump, time_ >= 1.35 && time_ < 1.55 ? 1.0f : 0.0f);
+}
+
+void SandboxGame::setupAnimations() {
+    // Cells of creature.png: 0-1 idle (1 = blink), 2-5 run, 6 jump, 7 fall, 8-9 climb, 10 land.
+    clips_.idle = animator_.add({{0, 0, 0, 0, 0, 1}, 3.0f, true});
+    clips_.run = animator_.add({{2, 3, 4, 5}, 10.0f, true});
+    clips_.jump = animator_.add({{6}, 1.0f, true});
+    clips_.fall = animator_.add({{7}, 1.0f, true});
+    clips_.climb = animator_.add({{8, 9}, 6.0f, true});
+    clips_.land = animator_.add({{10}, 12.0f, false});
+    animator_.play(clips_.idle);
+}
+
+// The animation state machine: the clip follows the movement state.
+void SandboxGame::updateAnimation(float dt) {
+    const animal::PlatformerState& s = playerState_;
+    if (climb_.climbing) {
+        animator_.play(clips_.climb);
+    } else if (s.landedThisStep) {
+        animator_.restart(clips_.land);
+    } else if (animator_.current() == clips_.land && !animator_.finished()) {
+        // let the squash finish
+    } else if (s.grounded) {
+        animator_.play(std::fabs(s.velocity.x) > 10.0f ? clips_.run : clips_.idle);
+    } else {
+        animator_.play(s.velocity.y < 0.0f ? clips_.jump : clips_.fall);
+    }
+    // On a vine the climb cycle only plays while moving along it.
+    animator_.update(dt, climb_.climbing && !climb_.movedThisStep ? 0.0f : 1.0f);
 }
 
 void SandboxGame::onFrame(animal::EngineContext& context) {
@@ -224,17 +257,26 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
     fluidTime_ += static_cast<float>(dt);
     animal::Entity* player = entities_.get(player_);
     if (player) {
-        animal::PlatformerInput input;
-        input.moveX = actions_.strength(MoveRight) - actions_.strength(MoveLeft);
-        input.jumpPressed = actions_.pressed(Jump);
-        input.jumpHeld = actions_.down(Jump);
-        animal::stepPlatformer(player->body, playerState_, input, playerParams_, cave_.tiles(),
-                               static_cast<float>(dt));
-        if (input.moveX < 0.0f) {
+        const float moveX = actions_.strength(MoveRight) - actions_.strength(MoveLeft);
+        const float moveY = actions_.strength(MoveDown) - actions_.strength(MoveUp);
+        const bool wasClimbing = climb_.climbing;
+        const bool climbing = animal::stepClimb(player->body, playerState_, climb_, {moveX, moveY, actions_.pressed(Jump)},
+                                                climbParams_, cave_.vines(), cave_.tiles(), static_cast<float>(dt));
+        if (!climbing) {
+            animal::PlatformerInput input;
+            input.moveX = moveX;
+            // A jump that let go of a vine is already used up.
+            input.jumpPressed = actions_.pressed(Jump) && !wasClimbing;
+            input.jumpHeld = actions_.down(Jump);
+            animal::stepPlatformer(player->body, playerState_, input, playerParams_, cave_.tiles(),
+                                   static_cast<float>(dt));
+        }
+        if (moveX < 0.0f) {
             facingLeft_ = true;
-        } else if (input.moveX > 0.0f) {
+        } else if (moveX > 0.0f) {
             facingLeft_ = false;
         }
+        updateAnimation(static_cast<float>(dt));
         handleRoomExit(*context.renderer);
     }
 
@@ -260,8 +302,9 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
     if (player) {
         const float size = static_cast<float>(kTileSize);
         const animal::Vec2i p = player->body.position + kSpriteOffset;
-        renderer.drawSprite(creature_, {static_cast<float>(p.x), static_cast<float>(p.y)}, {0.0f, 0.0f, size, size},
-                            animal::Color::white(), facingLeft_);
+        const float frame = static_cast<float>(animator_.frame());
+        renderer.drawSprite(creature_, {static_cast<float>(p.x), static_cast<float>(p.y)},
+                            {frame * size, 0.0f, size, size}, animal::Color::white(), facingLeft_);
         animal::PointLight glow;
         glow.position = player->body.exactPosition() + animal::Vec2{3.0f, 3.0f};
         glow.radius = 30.0f;
@@ -295,8 +338,9 @@ void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::s
     }
     if (const animal::Entity* player = entities_.get(player_)) {
         const animal::PlatformerState& s = playerState_;
-        lines.push_back(std::format("PLAYER {},{}  VEL {:.0f},{:.0f}  GROUNDED {}", player->body.position.x,
-                                    player->body.position.y, s.velocity.x, s.velocity.y, s.grounded ? "YES" : "NO"));
+        lines.push_back(std::format("PLAYER {},{}  VEL {:.0f},{:.0f}  {}", player->body.position.x,
+                                    player->body.position.y, s.velocity.x, s.velocity.y,
+                                    climb_.climbing ? "CLIMBING" : (s.grounded ? "GROUNDED" : "AIRBORNE")));
     }
     lines.push_back(std::format("GRASS {}  VINES {}  PARTICLES {}", cave_.bladeCount(), cave_.vineCount(),
                                 cave_.particleCount()));
@@ -306,7 +350,8 @@ void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::s
                                 renderer.lighting().bands == 0 ? std::string("SMOOTH")
                                                                : std::to_string(renderer.lighting().bands),
                                 renderer.fluid().enabled ? "ON" : "OFF", renderer.post().enabled ? "ON" : "OFF"));
-    lines.push_back(usingGamepad_ ? "GAMEPAD: STICK/DPAD MOVE  A JUMP" : "ARROWS/WASD MOVE  SPACE/Z JUMP");
+    lines.push_back(usingGamepad_ ? "GAMEPAD: STICK MOVE  UP GRAB VINE  A JUMP"
+                                  : "ARROWS/WASD MOVE  UP GRAB VINE  SPACE/Z JUMP");
     lines.push_back(std::format("F2 COLLISION VIEW ({})", showCollision_ ? "ON" : "OFF"));
 }
 

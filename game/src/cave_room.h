@@ -31,6 +31,7 @@ public:
     bool build(const animal::Room& room, uint32_t seed);
 
     const animal::TileMap& tiles() const { return tiles_; }
+    animal::VineSystem& vines() { return vines_; }
     // Feet position (bottom-centre) of the room's "spawn" object, if it has one.
     std::optional<animal::Vec2> spawnPoint() const { return spawn_; }
     animal::Vec3 ambient() const { return ambient_; }

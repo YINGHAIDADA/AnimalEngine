@@ -115,8 +115,9 @@ CRYSTAL = [
     "ccCcccCc",
 ]
 
-# Faces right; the game mirrors it when moving left.
-CREATURE = [
+# Creature animation strip, facing right (the game mirrors it when moving left).
+# Cells: 0-1 idle (1 = blink), 2-5 run, 6 jump, 7 fall, 8-9 climb, 10 land.
+_BODY = [
     ".k....k.",
     "kwk..kwk",
     "kwwkkwwk",
@@ -124,7 +125,28 @@ CREATURE = [
     "kwwwwwwk",
     "kwpwwwpk",
     ".kwwwwk.",
-    ".kk..kk.",
+]
+
+
+def _with(rows, **changes):
+    out = list(rows)
+    for index, row in changes.items():
+        out[int(index[1:])] = row
+    return out
+
+
+CREATURE_FRAMES = [
+    _BODY + [".kk..kk."],                                   # idle
+    _with(_BODY, r3="kwwwwwwk") + [".kk..kk."],             # idle, blink
+    _BODY + [".kk..kk."],                                   # run: passing
+    _BODY + ["kk....k."],                                   # run: stride
+    _BODY + ["..kkkk.."],                                   # run: gather
+    _BODY + [".k....kk"],                                   # run: stride (other leg)
+    _with(_BODY, r6=".kwwwwk.") + ["..kkkk.."],             # jump: legs tucked
+    _with(_BODY, r0="........", r1=".k....k.") + [".k....k."],  # fall: ears back, legs dangling
+    _with(_BODY, r0="k......k", r1="kk....kk") + [".k...k.."],  # climb: paws up
+    _with(_BODY, r0=".k....k.", r1="kk....kk") + ["..k...k."],  # climb: other side
+    ["........"] + _with(_BODY, r6=".kkkkkk.")[:6] + [".kkkkkk."],  # land: squash
 ]
 
 # Floor vent grate (bottom rows of the cell, resting on the floor).
@@ -248,7 +270,7 @@ def main():
     background = background_tile()
     tiles = [empty, wall_tile(), ground_tile(), background, overlay(background, CRYSTAL)]
     write_material("tileset", tiles, heights_from_palette, wrap=True)
-    write_material("creature", [CREATURE], dome_heights, wrap=False)
+    write_material("creature", CREATURE_FRAMES, dome_heights, wrap=False)
     write_material("props", [CANDLE, VENT], heights_from_palette, wrap=False)
     print(f"wrote textures to {OUT_DIR}")
 
