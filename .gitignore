@@ -1,0 +1,17 @@
+# Build output (includes generated Xcode / Visual Studio projects)
+/build/
+/out/
+
+# Local CMake overrides
+CMakeUserPresets.json
+
+# Generated assets and captures
+/assets/cooked/
+/screenshots/
+
+# IDE / OS
+.vs/
+.vscode/
+.idea/
+*.user
+.DS_Store
