@@ -83,6 +83,7 @@ public:
     const PresentLayout& presentLayout() const { return presentLayout_; }
     uint32_t overlayScale() const;
     float textLineHeight() const;
+    float textWidth(std::string_view text) const;
     // Totals of the last completed frame.
     SpriteBatchStats stats() const;
     uint32_t lightCount() const;

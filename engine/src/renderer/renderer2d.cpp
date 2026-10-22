@@ -293,6 +293,10 @@ float Renderer2D::textLineHeight() const {
     return static_cast<float>(DebugFont::kLineHeight * overlayScale());
 }
 
+float Renderer2D::textWidth(std::string_view text) const {
+    return static_cast<float>(text.size() * DebugFont::kAdvance * overlayScale());
+}
+
 void Renderer2D::drawText(Vec2 position, std::string_view text, Color color) {
     const auto scale = static_cast<float>(overlayScale());
     const Color shadow = Color::rgba(0, 0, 0, color.a);

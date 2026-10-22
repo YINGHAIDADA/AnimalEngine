@@ -36,7 +36,8 @@ struct EngineContext {
     Renderer2D* renderer = nullptr;
     std::string dataDirectory; // with trailing separator
     FrameStats stats;
-    bool demo = false; // --demo: the game drives itself with scripted input
+    bool demo = false;          // --demo: the game drives itself with scripted input
+    bool deterministic = false; // --deterministic: one fixed step per frame (reproducible runs)
     bool quitRequested = false;
 };
 
@@ -59,6 +60,8 @@ protected:
     virtual void onFixedUpdate(EngineContext& context, double dt) = 0;
     // Render the world into the canvas: renderer.beginWorld() .. renderer.endWorld().
     virtual void onRender(EngineContext& context, Renderer2D& renderer) = 0;
+    // Screen-space HUD in window pixels, drawn over the presented canvas (before the debug overlay).
+    virtual void onScreen(EngineContext& context, Renderer2D& renderer);
     virtual void onDebugText(EngineContext& context, std::vector<std::string>& lines);
     virtual void onShutdown(EngineContext& context);
 };

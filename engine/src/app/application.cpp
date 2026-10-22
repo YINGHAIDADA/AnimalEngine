@@ -126,6 +126,8 @@ void drawOverlay(EngineContext& context, Renderer2D& renderer, std::vector<std::
 
 void Application::onFrame(EngineContext&) {}
 
+void Application::onScreen(EngineContext&, Renderer2D&) {}
+
 void Application::onDebugText(EngineContext&, std::vector<std::string>&) {}
 
 void Application::onShutdown(EngineContext&) {}
@@ -183,6 +185,7 @@ int Application::run(int argc, char** argv) {
         context.renderer = &renderer;
         context.dataDirectory = platform::executableDirectory() + "data/";
         context.demo = commandLine->demo;
+        context.deterministic = commandLine->deterministic;
         log::info("Backend: {} | data: {}", rhi::backendName(config.backend), context.dataDirectory);
 
         if (!device || !renderer.init(*device, context.dataDirectory) || !onInit(context)) {
@@ -253,6 +256,7 @@ int Application::run(int argc, char** argv) {
                     renderer.beginFrame(commands);
                     onRender(context, renderer);
                     renderer.beginScreen(Color::black());
+                    onScreen(context, renderer);
                     if (overlayVisible) {
                         const rhi::Extent2D extent = device->swapchainExtent();
                         const PresentLayout& layout = renderer.presentLayout();

@@ -38,6 +38,17 @@ uint64_t nowNanoseconds() {
     return SDL_GetTicksNS();
 }
 
+std::string userDataDirectory(const char* organization, const char* application) {
+    char* path = SDL_GetPrefPath(organization, application);
+    if (!path) {
+        log::error("No user data directory: {}", SDL_GetError());
+        return {};
+    }
+    std::string result(path);
+    SDL_free(path);
+    return result;
+}
+
 std::string executableDirectory() {
     const char* base = SDL_GetBasePath();
     return base ? std::string(base) : std::string("./");
