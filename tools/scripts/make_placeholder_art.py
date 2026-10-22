@@ -127,6 +127,18 @@ CREATURE = [
     ".kk..kk.",
 ]
 
+# Floor vent grate (bottom rows of the cell, resting on the floor).
+VENT = [
+    "........",
+    "........",
+    "........",
+    "........",
+    "........",
+    "hhhhhhhh",
+    "hkhkhkhk",
+    "hhhhhhhh",
+]
+
 CANDLE = [
     "...F....",
     "..fFf...",
@@ -237,7 +249,7 @@ def main():
     tiles = [empty, wall_tile(), ground_tile(), background, overlay(background, CRYSTAL)]
     write_material("tileset", tiles, heights_from_palette, wrap=True)
     write_material("creature", [CREATURE], dome_heights, wrap=False)
-    write_material("props", [CANDLE], heights_from_palette, wrap=False)
+    write_material("props", [CANDLE, VENT], heights_from_palette, wrap=False)
     print(f"wrote textures to {OUT_DIR}")
 
 

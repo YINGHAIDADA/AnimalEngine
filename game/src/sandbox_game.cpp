@@ -56,11 +56,16 @@ constexpr animal::Color kDustColor = animal::Color::rgba(205, 195, 175, 170);
 constexpr animal::Color kFireflyColor = animal::Color::rgba(210, 255, 130, 255);
 constexpr animal::Vec3 kFireflyLight{0.75f, 1.0f, 0.45f};
 
+// Floor vent under the left platform, beside a candle: the smoke rises through warm light,
+// pools under the platform and spills out sideways.
+constexpr animal::Vec2 kVentPosition{13.0f * kTileSize, 19.0f * kTileSize}; // top-left of the 8×8 prop
+constexpr animal::Vec3 kSmokeColor{0.85f, 0.85f, 0.9f};
+
 // Candles stand on platform tops: x in tiles, y = top row of the platform.
 constexpr struct {
     int tileX;
     int surfaceRow;
-} kCandleSpots[] = {{8, 20}, {21, 20}, {13, 11}, {28, 5}, {36, 17}, {20, 8}};
+} kCandleSpots[] = {{11, 20}, {21, 20}, {13, 11}, {28, 5}, {36, 17}, {20, 8}};
 
 float flicker(double time, float phase) {
     const auto t = static_cast<float>(time);
@@ -133,6 +138,11 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     animal::LightingSettings& lighting = context.renderer->lighting();
     lighting.ambient = kAmbient;
     lighting.bands = kBandPresets[bandsPreset_];
+    buildFluidObstacles(*context.renderer);
+    animal::FluidSettings& fluid = context.renderer->fluid();
+    fluid.smokeKeepPerSecond = 0.8f;
+    fluid.velocityKeepPerSecond = 0.7f;
+    fluid.buoyancy = 45.0f;
     return true;
 }
 
@@ -158,6 +168,9 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
     if (input.pressed(Key::F3)) {
         lighting.enabled = !lighting.enabled;
     }
+    if (input.pressed(Key::F5)) {
+        context.renderer->fluid().enabled = !context.renderer->fluid().enabled;
+    }
     if (input.pressed(Key::F4)) {
         bandsPreset_ = (bandsPreset_ + 1) % std::size(kBandPresets);
         lighting.bands = kBandPresets[bandsPreset_];
@@ -171,6 +184,7 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
 
 void SandboxGame::onFixedUpdate(animal::EngineContext&, double dt) {
     time_ += dt;
+    fluidTime_ += static_cast<float>(dt);
     animal::Entity* player = entities_.get(player_);
     if (player) {
         animal::PlatformerInput input;
@@ -312,6 +326,49 @@ void SandboxGame::drawParticles(animal::Renderer2D& renderer) const {
     }
 }
 
+// Fluid cells (2×2 canvas pixels) covering solid tiles, plus the canvas rows outside the room.
+void SandboxGame::buildFluidObstacles(animal::Renderer2D& renderer) const {
+    const animal::Vec2 origin = camera_.topLeft(animal::Renderer2D::kCanvasExtent);
+    const float cellSize = static_cast<float>(animal::Renderer2D::kCanvasExtent.width) / animal::kFluidGrid.width;
+    std::vector<uint8_t> mask(size_t{animal::kFluidGrid.width} * animal::kFluidGrid.height);
+    for (uint32_t cy = 0; cy < animal::kFluidGrid.height; ++cy) {
+        for (uint32_t cx = 0; cx < animal::kFluidGrid.width; ++cx) {
+            const float wx = origin.x + (static_cast<float>(cx) + 0.5f) * cellSize;
+            const float wy = origin.y + (static_cast<float>(cy) + 0.5f) * cellSize;
+            const auto tx = static_cast<int>(std::floor(wx / kTileSize));
+            const auto ty = static_cast<int>(std::floor(wy / kTileSize));
+            mask[cy * animal::kFluidGrid.width + cx] = (!room_.inBounds(tx, ty) || room_.isSolid(tx, ty)) ? 1 : 0;
+        }
+    }
+    renderer.setFluidObstacles(mask);
+}
+
+void SandboxGame::addFluidSources(animal::Renderer2D& renderer) {
+    renderer.setFluidTimeStep(fluidTime_);
+    fluidTime_ = 0.0f;
+
+    const float puff = 0.75f + 0.25f * static_cast<float>(std::sin(time_ * 1.3));
+    animal::FluidSplat vent;
+    vent.position = kVentPosition + animal::Vec2{4.0f, 5.0f};
+    vent.radius = 5.0f;
+    // A slight sideways wobble keeps the column from rising perfectly straight.
+    vent.force = {90.0f * static_cast<float>(std::sin(time_ * 2.1) + 0.5 * std::sin(time_ * 5.3)), -420.0f * puff};
+    vent.color = kSmokeColor;
+    vent.smoke = 6.0f * puff;
+    renderer.addFluidSplat(vent);
+
+    if (const animal::Entity* player = entities_.get(player_)) {
+        const animal::Vec2 velocity = playerState_.velocity;
+        if (std::fabs(velocity.x) + std::fabs(velocity.y) > 5.0f) {
+            animal::FluidSplat stir;
+            stir.position = player->body.exactPosition() + animal::Vec2{3.0f, 3.5f};
+            stir.radius = 5.0f;
+            stir.force = velocity * 6.0f;
+            renderer.addFluidSplat(stir);
+        }
+    }
+}
+
 void SandboxGame::addLights(animal::Renderer2D& renderer) {
     for (const Candle& candle : candles_) {
         animal::PointLight light;
@@ -378,6 +435,7 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
     for (const Candle& candle : candles_) {
         renderer.drawSprite(props_, candle.position, {0.0f, 0.0f, size, size});
     }
+    renderer.drawSprite(props_, kVentPosition, {size, 0.0f, size, size});
     drawVines(renderer);
 
     const animal::Entity* player = entities_.get(player_);
@@ -389,6 +447,7 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
     drawGrass(renderer); // in front of the player: it wades through
     drawParticles(renderer);
     addLights(renderer);
+    addFluidSources(renderer);
     renderer.endWorld();
 
     if (showCollision_ && player) {
@@ -438,8 +497,9 @@ void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::s
     const animal::LightingSettings& lighting = context.renderer->lighting();
     lines.push_back(std::format("GRASS {} BLADES  VINES {}  PARTICLES {}", grass_.blades().size(),
                                 vines_.vines().size(), particles_.size()));
-    lines.push_back(std::format("F3 LIGHTING {}  F4 BANDS {}", lighting.enabled ? "ON" : "OFF",
-                                lighting.bands == 0 ? std::string("SMOOTH") : std::to_string(lighting.bands)));
+    lines.push_back(std::format("F3 LIGHTING {}  F4 BANDS {}  F5 SMOKE {}", lighting.enabled ? "ON" : "OFF",
+                                lighting.bands == 0 ? std::string("SMOOTH") : std::to_string(lighting.bands),
+                                context.renderer->fluid().enabled ? "ON" : "OFF"));
     lines.push_back(usingGamepad_ ? "GAMEPAD: STICK/DPAD MOVE  A JUMP" : "ARROWS/WASD MOVE  SPACE/Z JUMP");
     lines.push_back(std::format("F2 COLLISION VIEW ({})", showCollision_ ? "ON" : "OFF"));
 }

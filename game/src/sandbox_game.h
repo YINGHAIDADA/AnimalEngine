@@ -59,6 +59,8 @@ private:
     void spawnEmber(const Candle& candle);
     void updateParticles(float dt, std::span<const animal::Influence> influences);
     void drawParticles(animal::Renderer2D& renderer) const;
+    void buildFluidObstacles(animal::Renderer2D& renderer) const;
+    void addFluidSources(animal::Renderer2D& renderer);
     void applyDemoInput();
     void addLights(animal::Renderer2D& renderer);
     void drawCollisionDebug(animal::Renderer2D& renderer, const animal::Entity& player);
@@ -72,6 +74,7 @@ private:
     animal::WindParams wind_;
     animal::ParticleSystem particles_;
     animal::Random rng_{0x5EED};
+    float fluidTime_ = 0.0f; // simulation time not yet handed to the smoke solver
     animal::EntityWorld entities_;
     animal::EntityId player_;
     animal::PlatformerParams playerParams_;
