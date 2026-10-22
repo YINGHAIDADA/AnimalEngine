@@ -25,6 +25,7 @@ struct CommandLine {
     bool hideOverlay = false;
     bool resizeTest = false;
     bool deterministic = false;
+    bool demo = false;
     uint64_t exitAfterFrames = 0;
     std::string screenshotPath;
 };
@@ -45,6 +46,8 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv) {
             cl.resizeTest = true;
         } else if (arg == "--deterministic") {
             cl.deterministic = true;
+        } else if (arg == "--demo") {
+            cl.demo = true;
         } else if (arg.starts_with("--frames=")) {
             cl.exitAfterFrames = std::strtoull(std::string(arg.substr(9)).c_str(), nullptr, 10);
         } else if (arg.starts_with("--screenshot=")) {
@@ -53,7 +56,7 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv) {
             // Added by macOS when launched from Finder.
         } else {
             log::error("Unknown argument '{}'. Options: --backend=opengl|vulkan --no-vsync --hide-overlay "
-                       "--resize-test --deterministic --frames=N --screenshot=path.png",
+                       "--resize-test --deterministic --demo --frames=N --screenshot=path.png",
                        arg);
             return std::nullopt;
         }
@@ -179,6 +182,7 @@ int Application::run(int argc, char** argv) {
         context.input = &input;
         context.renderer = &renderer;
         context.dataDirectory = platform::executableDirectory() + "data/";
+        context.demo = commandLine->demo;
         log::info("Backend: {} | data: {}", rhi::backendName(config.backend), context.dataDirectory);
 
         if (!device || !renderer.init(*device, context.dataDirectory) || !onInit(context)) {
@@ -217,12 +221,11 @@ int Application::run(int argc, char** argv) {
                 }
 
                 const uint64_t now = platform::nowNanoseconds();
-                // Deterministic runs advance exactly one fixed step per frame (reproducible captures).
-                const double frameTime = commandLine->deterministic
-                                             ? kFixedTimestep
-                                             : std::min(static_cast<double>(now - lastTime) * 1e-9, 0.25);
+                const double realFrameTime = std::min(static_cast<double>(now - lastTime) * 1e-9, 0.25);
                 lastTime = now;
-                timer.tick(frameTime, context.stats);
+                timer.tick(realFrameTime, context.stats);
+                // Deterministic runs advance exactly one fixed step per frame (reproducible captures).
+                const double frameTime = commandLine->deterministic ? kFixedTimestep : realFrameTime;
                 onFrame(context);
 
                 accumulator += frameTime;
