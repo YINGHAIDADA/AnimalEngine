@@ -4,58 +4,41 @@ namespace animal::rhi::vulkan {
 
 // --- Memory helpers --------------------------------------------------------------
 
-uint32_t VulkanDevice::findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties) const {
-    for (uint32_t i = 0; i < memoryProperties_.memoryTypeCount; ++i) {
-        if ((typeBits & (1u << i)) && (memoryProperties_.memoryTypes[i].propertyFlags & properties) == properties) {
-            return i;
-        }
-    }
-    return UINT32_MAX;
-}
-
-bool VulkanDevice::allocateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
-                                  VkBuffer& buffer, VkDeviceMemory& memory) {
+bool VulkanDevice::allocateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, bool host, VkBuffer& buffer,
+                                  VmaAllocation& allocation, void** mapped) {
     VkBufferCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     info.size = size;
     info.usage = usage;
     info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    if (!check(vkCreateBuffer(device_, &info, nullptr, &buffer), "vkCreateBuffer")) {
-        return false;
+    VmaAllocationCreateInfo alloc{};
+    alloc.usage = host ? VMA_MEMORY_USAGE_AUTO : VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+    if (host) {
+        // Staging and readback: mapped for the buffer's lifetime, coherent so no flushes are needed.
+        alloc.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+        alloc.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
     }
-    VkMemoryRequirements requirements;
-    vkGetBufferMemoryRequirements(device_, buffer, &requirements);
-    VkMemoryAllocateInfo alloc{};
-    alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    alloc.allocationSize = requirements.size;
-    alloc.memoryTypeIndex = findMemoryType(requirements.memoryTypeBits, properties);
-    if (alloc.memoryTypeIndex == UINT32_MAX ||
-        !check(vkAllocateMemory(device_, &alloc, nullptr, &memory), "vkAllocateMemory (buffer)")) {
-        vkDestroyBuffer(device_, buffer, nullptr);
+    VmaAllocationInfo result{};
+    if (!check(vmaCreateBuffer(allocator_, &info, &alloc, &buffer, &allocation, &result), "vmaCreateBuffer")) {
         buffer = VK_NULL_HANDLE;
+        allocation = VK_NULL_HANDLE;
         return false;
     }
-    vkBindBufferMemory(device_, buffer, memory, 0);
+    if (mapped) {
+        *mapped = result.pMappedData;
+    }
     return true;
 }
 
 bool VulkanDevice::createHostBuffer(VkDeviceSize size, HostBuffer& out) {
     out.size = size;
-    if (!allocateBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, out.buffer,
-                        out.memory)) {
-        return false;
-    }
-    return check(vkMapMemory(device_, out.memory, 0, size, 0, &out.mapped), "vkMapMemory");
+    return allocateBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, true,
+                          out.buffer, out.allocation, &out.mapped);
 }
 
 void VulkanDevice::destroyHostBuffer(HostBuffer& buffer) {
-    if (buffer.memory) {
-        vkUnmapMemory(device_, buffer.memory);
-        vkFreeMemory(device_, buffer.memory, nullptr);
-    }
     if (buffer.buffer) {
-        vkDestroyBuffer(device_, buffer.buffer, nullptr);
+        vmaDestroyBuffer(allocator_, buffer.buffer, buffer.allocation);
     }
     buffer = {};
 }
@@ -107,6 +90,7 @@ VkCommandBuffer VulkanDevice::finishPendingUpload() {
 void VulkanDevice::stage(const void* data, VkDeviceSize size, VkBuffer& buffer, VkDeviceSize& offset) {
     Frame& frame = frames_[frameIndex_];
     const VkDeviceSize aligned = (frame.stagingOffset + 15) & ~VkDeviceSize{15};
+    frame.stagingWanted = std::max(frame.stagingWanted, aligned + size);
     if (aligned + size <= frame.staging.size) {
         std::memcpy(static_cast<uint8_t*>(frame.staging.mapped) + aligned, data, size);
         frame.stagingOffset = aligned + size;
@@ -114,7 +98,8 @@ void VulkanDevice::stage(const void* data, VkDeviceSize size, VkBuffer& buffer, 
         offset = aligned;
         return;
     }
-    // Frame staging exhausted: a dedicated buffer, released once this frame retires.
+    // Frame staging exhausted: a dedicated buffer, released once this frame retires (the slot's
+    // staging buffer grows to fit the next time it begins a frame).
     HostBuffer overflow;
     createHostBuffer(size, overflow);
     std::memcpy(overflow.mapped, data, size);
@@ -295,7 +280,7 @@ BufferHandle VulkanDevice::createBuffer(const BufferDesc& desc, const void* init
     Buffer buffer;
     buffer.size = desc.size;
     buffer.usage = desc.usage;
-    if (!allocateBuffer(desc.size, usage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, buffer.buffer, buffer.memory)) {
+    if (!allocateBuffer(desc.size, usage, false, buffer.buffer, buffer.allocation)) {
         return {};
     }
     const BufferHandle handle = buffers_.insert(buffer);
@@ -326,22 +311,13 @@ bool VulkanDevice::createImageResources(Texture& texture) {
     info.usage = usage;
     info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    if (!check(vkCreateImage(device_, &info, nullptr, &texture.image), "vkCreateImage")) {
+    VmaAllocationCreateInfo alloc{};
+    alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+    if (!check(vmaCreateImage(allocator_, &info, &alloc, &texture.image, &texture.allocation, nullptr),
+               "vmaCreateImage")) {
+        texture.image = VK_NULL_HANDLE;
         return false;
     }
-
-    VkMemoryRequirements requirements;
-    vkGetImageMemoryRequirements(device_, texture.image, &requirements);
-    VkMemoryAllocateInfo alloc{};
-    alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    alloc.allocationSize = requirements.size;
-    alloc.memoryTypeIndex = findMemoryType(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    if (alloc.memoryTypeIndex == UINT32_MAX ||
-        !check(vkAllocateMemory(device_, &alloc, nullptr, &texture.memory), "vkAllocateMemory (image)")) {
-        destroyImageResources(texture);
-        return false;
-    }
-    vkBindImageMemory(device_, texture.image, texture.memory, 0);
 
     VkImageViewCreateInfo view{};
     view.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -362,14 +338,11 @@ void VulkanDevice::destroyImageResources(Texture& texture) {
         vkDestroyImageView(device_, texture.view, nullptr);
     }
     if (texture.image) {
-        vkDestroyImage(device_, texture.image, nullptr);
-    }
-    if (texture.memory) {
-        vkFreeMemory(device_, texture.memory, nullptr);
+        vmaDestroyImage(allocator_, texture.image, texture.allocation);
     }
     texture.view = VK_NULL_HANDLE;
     texture.image = VK_NULL_HANDLE;
-    texture.memory = VK_NULL_HANDLE;
+    texture.allocation = VK_NULL_HANDLE;
 }
 
 TextureHandle VulkanDevice::createTexture(const TextureDesc& desc) {
@@ -420,10 +393,7 @@ SamplerHandle VulkanDevice::createSampler(const SamplerDesc& desc) {
 
 void VulkanDevice::destroy(BufferHandle handle) {
     if (auto buffer = buffers_.take(handle)) {
-        defer([this, b = *buffer] {
-            vkDestroyBuffer(device_, b.buffer, nullptr);
-            vkFreeMemory(device_, b.memory, nullptr);
-        });
+        defer([this, b = *buffer] { vmaDestroyBuffer(allocator_, b.buffer, b.allocation); });
     }
 }
 
@@ -460,7 +430,7 @@ void VulkanDevice::destroy(PipelineHandle handle) {
 
 void VulkanDevice::destroy(BindGroupHandle handle) {
     if (auto group = bindGroups_.take(handle)) {
-        defer([this, s = group->set] { vkFreeDescriptorSets(device_, descriptorPool_, 1, &s); });
+        defer([this, g = *group] { vkFreeDescriptorSets(device_, g.pool, 1, &g.set); });
     }
 }
 

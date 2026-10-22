@@ -38,21 +38,11 @@ bool VulkanDevice::initialize(const DeviceDesc& desc) {
         log::error("Vulkan: SDL_Vulkan_CreateSurface failed: {}", SDL_GetError());
         return false;
     }
-    if (!pickPhysicalDevice() || !createLogicalDevice() || !createFrames()) {
+    if (!pickPhysicalDevice() || !createLogicalDevice() || !createAllocator() || !createFrames()) {
         return false;
     }
 
-    std::array<VkDescriptorPoolSize, 2> poolSizes = {{
-        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 4096},
-        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4096},
-    }};
-    VkDescriptorPoolCreateInfo poolInfo{};
-    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    poolInfo.maxSets = 4096;
-    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-    poolInfo.pPoolSizes = poolSizes.data();
-    if (!check(vkCreateDescriptorPool(device_, &poolInfo, nullptr, &descriptorPool_), "vkCreateDescriptorPool")) {
+    if (!createDescriptorPool()) {
         return false;
     }
 
@@ -249,7 +239,6 @@ bool VulkanDevice::pickPhysicalDevice() {
     props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
     props2.pNext = &driver;
     vkGetPhysicalDeviceProperties2(physical_, &props2);
-    vkGetPhysicalDeviceMemoryProperties(physical_, &memoryProperties_);
 
     const VkPhysicalDeviceProperties& props = props2.properties;
     caps_.deviceName = props.deviceName;
@@ -303,6 +292,40 @@ bool VulkanDevice::createLogicalDevice() {
     return true;
 }
 
+bool VulkanDevice::createAllocator() {
+    VmaVulkanFunctions functions{};
+    functions.vkGetInstanceProcAddr = vkGetInstanceProcAddr; // loaded by volk
+    functions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
+    VmaAllocatorCreateInfo info{};
+    info.physicalDevice = physical_;
+    info.device = device_;
+    info.instance = instance_;
+    info.vulkanApiVersion = VK_API_VERSION_1_2;
+    info.pVulkanFunctions = &functions;
+    return check(vmaCreateAllocator(&info, &allocator_), "vmaCreateAllocator");
+}
+
+bool VulkanDevice::createDescriptorPool() {
+    constexpr uint32_t kSets = 128;
+    const std::array<VkDescriptorPoolSize, 2> sizes = {{
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, kSets * 2},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, kSets * 4},
+    }};
+    VkDescriptorPoolCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    info.maxSets = kSets;
+    info.poolSizeCount = static_cast<uint32_t>(sizes.size());
+    info.pPoolSizes = sizes.data();
+    VkDescriptorPool pool = VK_NULL_HANDLE;
+    if (!check(vkCreateDescriptorPool(device_, &info, nullptr, &pool), "vkCreateDescriptorPool")) {
+        return false;
+    }
+    descriptorPools_.push_back(pool);
+    log::debug("Vulkan: descriptor pool {} created", descriptorPools_.size());
+    return true;
+}
+
 bool VulkanDevice::createFrames() {
     for (Frame& frame : frames_) {
         VkCommandPoolCreateInfo poolInfo{};
@@ -333,6 +356,13 @@ bool VulkanDevice::createFrames() {
 }
 
 VulkanDevice::~VulkanDevice() {
+    if (allocator_) {
+        VmaTotalStatistics stats;
+        vmaCalculateStatistics(allocator_, &stats);
+        log::info("Vulkan memory: {} allocation(s) in {} device memory block(s), {:.1f} MiB",
+                  stats.total.statistics.allocationCount, stats.total.statistics.blockCount,
+                  static_cast<double>(stats.total.statistics.blockBytes) / (1024.0 * 1024.0));
+    }
     if (device_) {
         vkDeviceWaitIdle(device_);
         for (Frame& frame : frames_) {
@@ -341,7 +371,7 @@ VulkanDevice::~VulkanDevice() {
             }
             frame.deletions.clear();
         }
-        bindGroups_.forEach([this](BindGroup& g) { vkFreeDescriptorSets(device_, descriptorPool_, 1, &g.set); });
+        bindGroups_.forEach([this](BindGroup& g) { vkFreeDescriptorSets(device_, g.pool, 1, &g.set); });
         pipelines_.forEach([this](Pipeline& p) {
             vkDestroyPipeline(device_, p.pipeline, nullptr);
             vkDestroyPipelineLayout(device_, p.layout, nullptr);
@@ -349,10 +379,7 @@ VulkanDevice::~VulkanDevice() {
         shaders_.forEach([this](Shader& s) { vkDestroyShaderModule(device_, s.module, nullptr); });
         samplers_.forEach([this](Sampler& s) { vkDestroySampler(device_, s.sampler, nullptr); });
         textures_.forEach([this](Texture& t) { destroyImageResources(t); });
-        buffers_.forEach([this](Buffer& b) {
-            vkDestroyBuffer(device_, b.buffer, nullptr);
-            vkFreeMemory(device_, b.memory, nullptr);
-        });
+        buffers_.forEach([this](Buffer& b) { vmaDestroyBuffer(allocator_, b.buffer, b.allocation); });
         for (auto& [signature, layout] : setLayoutCache_) {
             vkDestroyDescriptorSetLayout(device_, layout, nullptr);
         }
@@ -368,7 +395,12 @@ VulkanDevice::~VulkanDevice() {
         }
         vkDestroySwapchainKHR(device_, swapchain_, nullptr);
         vkDestroyCommandPool(device_, immediatePool_, nullptr);
-        vkDestroyDescriptorPool(device_, descriptorPool_, nullptr);
+        for (VkDescriptorPool pool : descriptorPools_) {
+            vkDestroyDescriptorPool(device_, pool, nullptr);
+        }
+        if (allocator_) {
+            vmaDestroyAllocator(allocator_);
+        }
         vkDestroyDevice(device_, nullptr);
     }
     if (surface_) {

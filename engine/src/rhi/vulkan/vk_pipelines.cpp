@@ -272,12 +272,21 @@ BindGroupHandle VulkanDevice::createBindGroup(const BindGroupDesc& desc) {
 
     VkDescriptorSetAllocateInfo alloc{};
     alloc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    alloc.descriptorPool = descriptorPool_;
+    alloc.descriptorPool = descriptorPools_.back();
     alloc.descriptorSetCount = 1;
     alloc.pSetLayouts = &pipeline->setLayouts[desc.set];
-    if (!check(vkAllocateDescriptorSets(device_, &alloc, &group.set), "vkAllocateDescriptorSets")) {
+    VkResult result = vkAllocateDescriptorSets(device_, &alloc, &group.set);
+    if (result == VK_ERROR_OUT_OF_POOL_MEMORY || result == VK_ERROR_FRAGMENTED_POOL) {
+        if (!createDescriptorPool()) { // the current pool is full: continue in a new one
+            return {};
+        }
+        alloc.descriptorPool = descriptorPools_.back();
+        result = vkAllocateDescriptorSets(device_, &alloc, &group.set);
+    }
+    if (!check(result, "vkAllocateDescriptorSets")) {
         return {};
     }
+    group.pool = alloc.descriptorPool;
     for (VkWriteDescriptorSet& write : writes) {
         write.dstSet = group.set;
     }

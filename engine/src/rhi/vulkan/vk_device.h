@@ -15,6 +15,8 @@
 
 #include <volk.h>
 
+#include <vk_mem_alloc.h>
+
 #include <animal/core/assert.h>
 #include <animal/core/log.h>
 #include <animal/platform/window.h>
@@ -25,6 +27,7 @@
 #include <SDL3/SDL_vulkan.h>
 
 #include <algorithm>
+#include <bit>
 #include <array>
 #include <atomic>
 #include <cstring>
@@ -38,7 +41,7 @@
 namespace animal::rhi::vulkan {
 
 constexpr uint32_t kFramesInFlight = 2;
-constexpr VkDeviceSize kStagingBytesPerFrame = 8ull * 1024 * 1024;
+constexpr VkDeviceSize kStagingBytesPerFrame = 1ull * 1024 * 1024; // initial; grows when a frame needs more
 
 const char* resultName(VkResult result);
 bool check(VkResult result, const char* what);
@@ -54,14 +57,14 @@ VkDescriptorType toVk(BindingKind kind);
 
 struct Buffer {
     VkBuffer buffer = VK_NULL_HANDLE;
-    VkDeviceMemory memory = VK_NULL_HANDLE;
+    VmaAllocation allocation = VK_NULL_HANDLE;
     uint64_t size = 0;
     BufferUsage usage = BufferUsage::Vertex;
 };
 
 struct Texture {
     VkImage image = VK_NULL_HANDLE;
-    VkDeviceMemory memory = VK_NULL_HANDLE;
+    VmaAllocation allocation = VK_NULL_HANDLE;
     VkImageView view = VK_NULL_HANDLE;
     uint32_t width = 0;
     uint32_t height = 0;
@@ -90,14 +93,15 @@ struct Pipeline {
 
 struct BindGroup {
     VkDescriptorSet set = VK_NULL_HANDLE;
+    VkDescriptorPool pool = VK_NULL_HANDLE; // the pool it was allocated from
     uint32_t setIndex = 0;
     std::vector<TextureHandle> sampledTextures;
 };
 
 struct HostBuffer {
     VkBuffer buffer = VK_NULL_HANDLE;
-    VkDeviceMemory memory = VK_NULL_HANDLE;
-    void* mapped = nullptr;
+    VmaAllocation allocation = VK_NULL_HANDLE;
+    void* mapped = nullptr; // persistently mapped, host-coherent
     VkDeviceSize size = 0;
 };
 
@@ -109,6 +113,7 @@ struct Frame {
     VkSemaphore imageAvailable = VK_NULL_HANDLE;
     HostBuffer staging;
     VkDeviceSize stagingOffset = 0;
+    VkDeviceSize stagingWanted = 0; // bytes staged in this slot's last frame (it grows to fit)
     std::vector<std::function<void()>> deletions;
     VkQueryPool timerPool = VK_NULL_HANDLE; // timestamps; read back once the fence has signalled
     TimerScopes timers;
@@ -221,9 +226,11 @@ private:
     bool createImageResources(Texture& texture);
     void destroyImageResources(Texture& texture);
 
-    uint32_t findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties) const;
-    bool allocateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
-                        VkBuffer& buffer, VkDeviceMemory& memory);
+    bool createAllocator();
+    bool createDescriptorPool();
+    // Device-local, or (host) persistently mapped host-coherent memory, from the allocator.
+    bool allocateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, bool host, VkBuffer& buffer,
+                        VmaAllocation& allocation, void** mapped = nullptr);
     bool createHostBuffer(VkDeviceSize size, HostBuffer& out);
     void destroyHostBuffer(HostBuffer& buffer);
 
@@ -250,7 +257,6 @@ private:
     VkDebugUtilsMessengerEXT messenger_ = VK_NULL_HANDLE;
     VkSurfaceKHR surface_ = VK_NULL_HANDLE;
     VkPhysicalDevice physical_ = VK_NULL_HANDLE;
-    VkPhysicalDeviceMemoryProperties memoryProperties_{};
     bool portabilitySubset_ = false;
     VkDevice device_ = VK_NULL_HANDLE;
     VkQueue queue_ = VK_NULL_HANDLE;
@@ -258,7 +264,8 @@ private:
     uint32_t timestampBits_ = 0;
     double timestampPeriod_ = 0.0; // nanoseconds per tick
     std::vector<GpuTiming> gpuTimings_;
-    VkDescriptorPool descriptorPool_ = VK_NULL_HANDLE;
+    VmaAllocator allocator_ = VK_NULL_HANDLE;
+    std::vector<VkDescriptorPool> descriptorPools_; // bind groups come from the last; a new one when it is full
     VkCommandPool immediatePool_ = VK_NULL_HANDLE;
     std::map<std::string, VkDescriptorSetLayout> setLayoutCache_;
 

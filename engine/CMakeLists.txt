@@ -74,12 +74,15 @@ if(ANIMAL_ENABLE_VULKAN)
         src/rhi/vulkan/vk_commands.cpp
         src/rhi/vulkan/vk_device.cpp
         src/rhi/vulkan/vk_device.h
+        src/rhi/vulkan/vk_memory.cpp
         src/rhi/vulkan/vk_pipelines.cpp
         src/rhi/vulkan/vk_resources.cpp
         src/rhi/vulkan/vk_swapchain.cpp
         src/rhi/vulkan/vk_util.cpp)
     target_sources(animal_engine PRIVATE ${ANIMAL_VULKAN_SOURCES})
-    target_link_libraries(animal_engine PRIVATE volk)
+    target_link_libraries(animal_engine PRIVATE volk animal_vma)
+    # The VMA implementation is third-party code: compile it without project warnings.
+    set_source_files_properties(src/rhi/vulkan/vk_memory.cpp PROPERTIES COMPILE_OPTIONS "$<IF:$<CXX_COMPILER_ID:MSVC>,/w,-w>")
     target_compile_definitions(animal_engine PRIVATE ANIMAL_RHI_VULKAN=1)
     source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${ANIMAL_VULKAN_SOURCES})
 endif()

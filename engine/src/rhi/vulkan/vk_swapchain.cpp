@@ -148,6 +148,16 @@ bool VulkanDevice::beginFrame() {
     frame.timerPoolReset = false;
     vkResetCommandPool(device_, frame.pool, 0);
     frame.commandBuffersUsed = 0;
+    if (frame.stagingWanted > frame.staging.size) {
+        // The last frame in this slot overflowed its staging buffer: grow it (the GPU is done with it).
+        const VkDeviceSize size = std::bit_ceil(frame.stagingWanted);
+        destroyHostBuffer(frame.staging);
+        if (!createHostBuffer(size, frame.staging)) {
+            createHostBuffer(kStagingBytesPerFrame, frame.staging);
+        }
+        log::info("Vulkan: frame staging buffer grown to {} KiB", frame.staging.size / 1024);
+    }
+    frame.stagingWanted = 0;
     frame.stagingOffset = 0;
 
     const platform::PixelSize size = window_->pixelSize();

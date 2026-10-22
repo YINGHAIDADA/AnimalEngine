@@ -18,3 +18,7 @@
 	path = external/volk
 	url = https://github.com/zeux/volk.git
 	shallow = true
+[submodule "external/VulkanMemoryAllocator"]
+	path = external/VulkanMemoryAllocator
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+	shallow = true

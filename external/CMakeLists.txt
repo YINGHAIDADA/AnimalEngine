@@ -66,6 +66,12 @@ if(ANIMAL_ENABLE_VULKAN)
     add_subdirectory(volk EXCLUDE_FROM_ALL)
     target_link_libraries(volk PUBLIC Vulkan::Headers)
     animal_set_folder(external/vulkan volk)
+    # Vulkan Memory Allocator: header-only; functions come from volk at runtime.
+    animal_require_submodule(VulkanMemoryAllocator)
+    add_library(animal_vma INTERFACE)
+    target_include_directories(animal_vma SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/VulkanMemoryAllocator/include")
+    target_compile_definitions(animal_vma INTERFACE VMA_STATIC_VULKAN_FUNCTIONS=0 VMA_DYNAMIC_VULKAN_FUNCTIONS=1)
+    target_link_libraries(animal_vma INTERFACE Vulkan::Headers)
 endif()
 
 # --- Header-only / single-file dependencies ----------------------------------
