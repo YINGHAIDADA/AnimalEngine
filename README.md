@@ -2,7 +2,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**M0 基础运行时与像素画布**。
+当前阶段：**M1a 手感核心**（M0 已在 macOS 上完成；Windows 验证待做）。
 
 ## 环境要求
 
@@ -51,12 +51,14 @@ cmake --build --preset windows-ninja-debug
 ./build/macos-ninja-debug/bin/Debug/AnimalGame
 ```
 
-| 按键 | 作用 |
-|---|---|
-| 方向键 / WASD | 移动占位角色 |
-| F1 | 开关调试覆盖层 |
-| F12 | 截图到 `screenshots/` |
-| Esc | 退出 |
+| 键盘 | 手柄 | 作用 |
+|---|---|---|
+| 方向键 / A D | 左摇杆 / 十字键 | 跑动 |
+| Space / Z | A（Xbox）/ ×（PlayStation） | 跳跃（按住跳得更高） |
+| F1 | | 开关调试覆盖层 |
+| F2 | | 开关碰撞视图（实心 Tile 与角色碰撞框，绿色 = 着地） |
+| F12 | | 截图到 `screenshots/` |
+| Esc | | 退出 |
 
 命令行参数：
 
@@ -99,3 +101,13 @@ python3 tools/scripts/compare_images.py screenshots/gl.png screenshots/vk.png
 | 两个平台的验收截图 | `AnimalGame --frames=60 --screenshot=screenshots/m0_<platform>.png` | macOS ✅ / Windows ⏳ |
 
 全部通过后打 tag `milestone/m0-runtime`。
+
+## M1a 验收条件
+
+| 条件 | 验证方式 | 状态 |
+|---|---|---|
+| 在 8 px Tile 单屏房间中用键盘操控角色跑跳 | 运行 `AnimalGame` | ✅ |
+| 手柄操控（摇杆 / 十字键 / A 跳） | 连接手柄运行 | ⏳ 已实现，待真机验证 |
+| 碰撞边界情况有可重复的单元测试（贴墙、余量、高速不穿墙、1 Tile 通道、落地） | `ctest` | ✅ |
+| 跳跃手感：coyote time、跳跃缓冲、可变跳高、天花板角修正 | `ctest` + 实际游玩 | ✅（参数待手感调优） |
+| OpenGL 与 Vulkan 截图一致 | 见“后端一致性”，容差 0 | ✅ |

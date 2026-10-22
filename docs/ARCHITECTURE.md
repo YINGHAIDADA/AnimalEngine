@@ -5,7 +5,9 @@
 ## 1. 模块与依赖
 
 ```text
-game/            AnimalGame（M0 沙盒）         ─┐
+game/            AnimalGame（M1a 沙盒）        ─┐
+framework/       Tile 地图、像素级碰撞、实体、   │
+                 动作映射、平台跳跃控制器        │
 engine/                                         │ 只能向下依赖
   app/           主循环、固定时间步、调试覆盖层  │
   renderer/      Renderer2D、SpriteBatch、画布   │
@@ -85,6 +87,17 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | 颜色空间 | 目前全程 UNorm（不做 sRGB 转换）。M2 光照前需要重新评估。 |
 | 调试文字 | 内置 3×5 像素字体（不依赖资源文件），覆盖层缩放 = 画布缩放 / 2（至少 1）。 |
 
-## 6. 运行时数据路径
+## 6. 游戏框架（framework/，ADR-0006）
+
+| 模块 | 约定 |
+|---|---|
+| 坐标与单位 | 世界单位 = 像素；速度 px/s；模拟固定 60 Hz。房间 40×22 Tile（8 px），在画布中垂直居中，上下各留 2 px。 |
+| `TileMap` | Tile id 网格 + 每种 id 的“实心”属性表；地图之外视为空（留给出屏切换）。 |
+| `Body` / `moveX` / `moveY` | 整数像素位置 + 小数余量；每次移动 1 px 并检测碰撞，碰到即停（贴合、不穿墙）；先 X 后 Y。 |
+| `EntityWorld` | 代际 `EntityId` + 扁平 `Entity` 记录；销毁延迟到 `flushDestroyed()`。按需加字段，不做通用 ECS。 |
+| `ActionMap` | 游戏动作绑定到键盘键、手柄按键和摇杆方向；每帧在 `onFrame` 中采样，“按下”会锁存到被一个固定步消费（`endFixedStep()`），因此每次按下恰好被一个模拟步看到。 |
+| `stepPlatformer` | 跑动加减速（地面 / 空中不同）、重力（下落加重、顶点减轻）、coyote time、跳跃缓冲、可变跳高、天花板角修正（≤ 2 px）。参数全部在 `PlatformerParams`。 |
+
+## 7. 运行时数据路径
 
 开发期数据在可执行文件旁的 `data/`（`build/<preset>/bin/<Config>/data/`），由 CMake 生成 / 复制：`data/shaders/*.ashd` 来自 `shaders/`，`data/textures/*.png` 来自 `assets/source/textures/`。路径通过 `SDL_GetBasePath()` 计算，不依赖工作目录。M5 起改为 Asset Cooker 生成的资源包。
