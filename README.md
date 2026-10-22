@@ -2,7 +2,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**M1a 手感核心**（M0 已在 macOS 上完成；Windows 验证待做）。
+当前阶段：**V1 视觉样板**——像素光照已完成，接下来是可互动植被、粒子、流体烟雾、泛光调色（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 
@@ -57,6 +57,8 @@ cmake --build --preset windows-ninja-debug
 | Space / Z | A（Xbox）/ ×（PlayStation） | 跳跃（按住跳得更高） |
 | F1 | | 开关调试覆盖层 |
 | F2 | | 开关碰撞视图（实心 Tile 与角色碰撞框，绿色 = 着地） |
+| F3 | | 开关光照（关闭时显示原始颜色） |
+| F4 | | 切换光照量化：平滑 / 3 / 5 / 8 级 |
 | F12 | | 截图到 `screenshots/` |
 | Esc | | 退出 |
 
@@ -68,6 +70,7 @@ cmake --build --preset windows-ninja-debug
 | `--no-vsync` | 关闭垂直同步（自动化运行请始终加上，见 ADR-0005） |
 | `--hide-overlay` | 隐藏调试覆盖层（用于后端截图对比） |
 | `--resize-test` | 运行中多次改变窗口尺寸，验证交换链重建 |
+| `--deterministic` | 每帧恰好推进一个固定步，使动画与截图可复现（截图对比时使用） |
 | `--frames=N` | 渲染 N 帧后退出 |
 | `--screenshot=path.png` | 与 `--frames` 合用，在最后一帧截图（用于验收与渲染回归） |
 
@@ -81,8 +84,8 @@ ctest --preset macos-ninja-debug        # 或 windows-vs2022-debug / windows-nin
 
 ```bash
 B=build/macos-ninja-debug/bin/Debug/AnimalGame
-$B --backend=opengl --no-vsync --hide-overlay --frames=120 --screenshot=screenshots/gl.png
-$B --backend=vulkan --no-vsync --hide-overlay --frames=120 --screenshot=screenshots/vk.png
+$B --backend=opengl --no-vsync --deterministic --hide-overlay --frames=120 --screenshot=screenshots/gl.png
+$B --backend=vulkan --no-vsync --deterministic --hide-overlay --frames=120 --screenshot=screenshots/vk.png
 python3 tools/scripts/compare_images.py screenshots/gl.png screenshots/vk.png
 ```
 

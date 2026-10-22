@@ -23,13 +23,15 @@ shaders/         GLSL 450 着色器源码
 - RHI 公共头文件（`animal/rhi/*.h`）不暴露任何后端类型。
 - SDL 只出现在 `platform/`、`core/`（日志、文件）、RHI 后端（上下文 / Surface）和 `app/entry_point.h`。
 
-## 2. 帧流程
+## 2. 帧流程（光照细节见 ADR-0007）
 
 ```text
 platform::pollEvents → Input::update → 固定步长 onFixedUpdate（60 Hz，每帧最多 5 步，超出丢弃积压）
 Device::beginFrame（窗口最小化时返回 false，跳过渲染）
   Renderer2D::beginFrame
-    game.onRender:  beginWorld(camera) … drawSprite … endWorld        → 320×180 画布
+    game.onRender:  beginWorld(camera) … drawSprite / addLight … endWorld
+                    → 材质 pass（albedo / normal / emissive）→ 光照 pass（RGBA16F）→ 合成到 320×180 画布
+                    [beginWorldOverlay … 调试图形 … endWorldOverlay]（无光照，叠加在画布上）
     beginScreen:    画布按整数倍居中绘制到 swapchain，剩余留黑边
                     调试覆盖层（drawText / fillRect，窗口像素坐标）
     endScreen
@@ -58,7 +60,8 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 - **深度范围**：macOS 的 OpenGL 4.1 没有 `glClipControl`；由着色器工具（SPIRV-Cross `fixup_clipspace`）在顶点着色器末尾把 z 从 [0, 1] 转为 [-1, 1]。
 - **绑定槽**：GLSL 410 不能写 `binding`，着色器工具把资源重命名为 `ubo_s<set>_b<binding>` / `tex_s<set>_b<binding>`，后端链接程序后按名字把它们接到槽位 `set × 8 + binding`。
 - **顶点输入**：4.1 没有独立的顶点格式状态，切换管线或顶点缓冲后在下一次 draw 前重新指定属性。
-- **限制**：不支持 `firstInstance`、计算着色器、多颜色附件（M2 需要时补上 MRT）。
+- **多颜色附件**：单附件使用纹理自带的 framebuffer；多附件按附件组合缓存 framebuffer，任一纹理销毁时一并删除。
+- **限制**：不支持 `firstInstance`、计算着色器。
 
 ### 3.2 Vulkan 后端（验证版，见 ADR-0005）
 
@@ -83,7 +86,8 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | 呈现缩放 | 取能放下的最大整数倍，居中，其余留黑边；窗口小于画布时按 1 倍居中裁切。窗口坐标 → 画布坐标统一用 `windowToCanvas`。 |
 | 相机 | 整数像素相机：`Camera2D::center` 先四舍五入再构建视图矩阵。 |
 | 精灵位置 | 世界 pass 中 `drawSprite` 把位置四舍五入到整像素；模拟可以使用浮点位置。 |
-| Alpha | **预乘 Alpha**。纹理在加载时预乘；API 接收直通 Alpha 的 `Color`，写入顶点前预乘；混合为 `One, OneMinusSrcAlpha`。 |
+| Alpha | **预乘 Alpha**。颜色纹理在加载时预乘（法线、自发光等数据纹理不预乘）；API 接收直通 Alpha 的 `Color`，写入顶点前预乘；混合为 `One, OneMinusSrcAlpha`。 |
+| 光照 | 画布分辨率的延迟光照：材质 pass 写 albedo / normal / emissive（RGBA8），光照 pass 加色累积到 RGBA16F，合成 `albedo × (ambient + light) + emissive`，可选量化 + 有序抖动（ADR-0007）。 |
 | 颜色空间 | 目前全程 UNorm（不做 sRGB 转换）。M2 光照前需要重新评估。 |
 | 调试文字 | 内置 3×5 像素字体（不依赖资源文件），覆盖层缩放 = 画布缩放 / 2（至少 1）。 |
 

@@ -309,6 +309,7 @@ ctest --test-dir build/<preset> --output-on-failure
   - ADR-0004 依赖管理与着色器工具链：git 浅子模块固定 tag，单头文件依赖复制进 `external/`；`animal_shaderc` 从源码构建 glslang 与 SPIRV-Cross（Accepted）。
   - ADR-0005 Vulkan 技术验证结论：RHI 接口成立，两后端逐像素一致；确定 Vulkan 基线与虚拟交换链约定（Accepted）。
   - ADR-0006 房间尺寸、坐标单位与移动碰撞模型：40×22 Tile 单屏房间、像素单位、整数位置 + 小数余量逐像素移动（Accepted）。
+  - ADR-0007 像素光照管线：画布分辨率延迟光照（材质 / 光照 / 合成三个 pass），法线编码与美术规范（Accepted）。
 
 ## 13. 当前待确认项（不阻塞 M0）
 
