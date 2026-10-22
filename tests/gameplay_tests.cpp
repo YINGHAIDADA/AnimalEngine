@@ -1,5 +1,6 @@
-// Triggers, patrol movement and save data.
+// Triggers, patrol movement, save data and light animation.
 
+#include <animal/framework/light_animation.h>
 #include <animal/framework/patrol.h>
 #include <animal/framework/save.h>
 #include <animal/framework/tilemap.h>
@@ -7,6 +8,8 @@
 
 #include "test_harness.h"
 
+#include <algorithm>
+#include <cmath>
 #include <string>
 
 namespace {
@@ -112,6 +115,41 @@ TEST(save_rejects_foreign_old_and_malformed_data) {
     CHECK(!parseSave(R"({"format": "animal-save", "version": 1, "position": [0, 0], "flags": []})", &error));
     CHECK(error.find("malformed") != std::string::npos);
     CHECK(!parseSave("{ truncated", &error));
+}
+
+TEST(light_animation_stays_within_its_amount) {
+    const LightAnimation none;
+    CHECK(none.factor(3.7, 1.0f) == 1.0f);
+
+    for (const LightAnimation::Mode mode : {LightAnimation::Mode::Flicker, LightAnimation::Mode::Pulse}) {
+        const LightAnimation animation{mode, 1.3f, 0.2f};
+        float lowest = 2.0f;
+        float highest = 0.0f;
+        for (int i = 0; i < 600; ++i) {
+            const float f = animation.factor(i / 60.0, 0.5f);
+            lowest = std::min(lowest, f);
+            highest = std::max(highest, f);
+        }
+        CHECK(lowest >= 0.8f - 1e-5f && highest <= 1.2f + 1e-5f);
+        CHECK(highest - lowest > 0.2f); // it does move
+        CHECK(animation.factor(2.25, 0.5f) == animation.factor(2.25, 0.5f));
+        CHECK(animation.factor(2.25, 0.5f) != animation.factor(2.25, 2.0f)); // phase decorrelates lights
+    }
+
+    const LightAnimation pulse{LightAnimation::Mode::Pulse, 0.5f, 0.1f};
+    CHECK(std::fabs(pulse.factor(0.5, 0.0f) - 1.1f) < 1e-5f); // a quarter of a 2 s cycle: the peak
+    CHECK(std::fabs(pulse.factor(2.5, 0.0f) - 1.1f) < 1e-4f); // one cycle later
+
+    const LightAnimation strong{LightAnimation::Mode::Pulse, 1.0f, 3.0f};
+    CHECK(strong.factor(0.75, 0.0f) == 0.0f); // never negative
+}
+
+TEST(light_animation_names_parse) {
+    CHECK(parseLightAnimationMode("pulse") == LightAnimation::Mode::Pulse);
+    CHECK(parseLightAnimationMode("flicker") == LightAnimation::Mode::Flicker);
+    CHECK(parseLightAnimationMode("none") == LightAnimation::Mode::None);
+    CHECK(parseLightAnimationMode("") == LightAnimation::Mode::None);
+    CHECK(!parseLightAnimationMode("strobe"));
 }
 
 } // namespace
