@@ -27,6 +27,7 @@ enum class Key : uint8_t {
     F4,
     F5,
     F6,
+    F7,
     F8,
     F12,
     Count,

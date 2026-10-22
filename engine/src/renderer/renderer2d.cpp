@@ -202,6 +202,10 @@ void Renderer2D::resetFluid() {
     fluidPass_->reset();
 }
 
+void Renderer2D::setLightOccluders(std::span<const uint8_t> mask) {
+    lightingPass_->setOccluders(mask);
+}
+
 void Renderer2D::setFluidObstacles(std::span<const uint8_t> mask) {
     fluidPass_->setObstacles(mask);
 }
@@ -240,7 +244,7 @@ void Renderer2D::endWorld() {
 
     const LightingPass::SmokeLook smokeLook{fluidSettings_.smokeTint,
                                             fluidSettings_.enabled ? fluidSettings_.opacity : 0.0f};
-    lightingPass_->render(*commands_, worldViewProjection_, lights_, lightingSettings_, smokeLook, canvas_);
+    lightingPass_->render(*commands_, worldViewProjection_, worldOrigin_, lights_, lightingSettings_, smokeLook, canvas_);
 
     if (!glow_.empty()) {
         commands_->beginRenderPass(rhi::RenderPassDesc::single({canvas_, rhi::LoadOp::Load, rhi::StoreOp::Store, {}}));

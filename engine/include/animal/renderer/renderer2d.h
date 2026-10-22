@@ -60,6 +60,9 @@ public:
     // Smoke simulation (ADR-0008). Obstacles: kFluidGrid bytes, row 0 at the top, non-zero =
     // solid. The time step is the simulation time to advance this frame (0 = paused).
     void setFluidObstacles(std::span<const uint8_t> mask);
+    // Shadows (ADR-0012). Occluders: one byte per canvas pixel (kCanvasExtent), row 0 at the top,
+    // non-zero = blocks light. Canvas space, so re-upload when the camera moves.
+    void setLightOccluders(std::span<const uint8_t> mask);
     void setFluidTimeStep(float seconds) { fluidTimeStep_ = seconds; }
     void resetFluid(); // clears velocity and smoke (e.g. on room change)
     FluidSettings& fluid() { return fluidSettings_; }

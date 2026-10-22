@@ -38,10 +38,15 @@ public:
               rhi::Format outputFormat);
     void shutdown();
 
+    // Canvas-sized mask, row 0 at the top, non-zero = blocks light.
+    void setOccluders(std::span<const uint8_t> mask);
+
     void beginFrame();
     // Records the light pass into targets.light, then composites into `output`. Once per frame.
-    void render(rhi::CommandList& commands, const Mat4& viewProjection, std::span<const PointLight> lights,
-                const LightingSettings& settings, const SmokeLook& smoke, rhi::TextureHandle output);
+    // `canvasOrigin` is the world position of the canvas' top-left pixel (Camera2D::topLeft).
+    void render(rhi::CommandList& commands, const Mat4& viewProjection, Vec2 canvasOrigin,
+                std::span<const PointLight> lights, const LightingSettings& settings, const SmokeLook& smoke,
+                rhi::TextureHandle output);
     void endFrame();
 
     uint32_t lightCount() const { return lastFrameLights_; }
@@ -51,7 +56,13 @@ private:
         float x, y;
         float centerX, centerY;
         float r, g, b, a;
-        float radius, height;
+        float radius, height, shadows, unused;
+        float texelX, texelY; // canvas pixel of the light (whole numbers): exact shadow rays on every backend
+    };
+
+    struct LightView {
+        Mat4 viewProjection;
+        float params[4]; // xy: canvas size, z: shadows enabled, w: penetration
     };
 
     struct CompositeUniforms {
@@ -75,6 +86,7 @@ private:
     rhi::BufferHandle lightVertices_;
     rhi::BufferHandle lightIndices_;
     rhi::BufferHandle viewUniforms_;
+    rhi::TextureHandle occluders_;
     rhi::BindGroupHandle lightViewGroup_;
     rhi::BindGroupHandle lightInputGroup_;
 

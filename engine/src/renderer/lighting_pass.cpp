@@ -6,6 +6,7 @@
 #include <animal/rhi/command_list.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 
 namespace animal {
@@ -46,7 +47,8 @@ bool LightingPass::initLightPipeline(const std::string& shaderDirectory) {
         {0, 0, rhi::VertexFormat::Float2, offsetof(LightVertex, x)},
         {1, 0, rhi::VertexFormat::Float2, offsetof(LightVertex, centerX)},
         {2, 0, rhi::VertexFormat::Float4, offsetof(LightVertex, r)},
-        {3, 0, rhi::VertexFormat::Float2, offsetof(LightVertex, radius)},
+        {3, 0, rhi::VertexFormat::Float4, offsetof(LightVertex, radius)},
+        {4, 0, rhi::VertexFormat::Float2, offsetof(LightVertex, texelX)},
     };
     desc.colorTargets = {{rhi::Format::RGBA16_Float, kAdditive}};
     desc.debugName = "light";
@@ -66,7 +68,18 @@ bool LightingPass::initLightPipeline(const std::string& shaderDirectory) {
     }
     lightIndices_ = device_->createBuffer(
         {indices.size() * sizeof(uint16_t), rhi::BufferUsage::Index, "light indices"}, indices.data());
-    viewUniforms_ = device_->createBuffer({sizeof(Mat4), rhi::BufferUsage::Uniform, "light view"});
+    viewUniforms_ = device_->createBuffer({sizeof(LightView), rhi::BufferUsage::Uniform, "light view"});
+
+    rhi::TextureDesc occluderDesc;
+    occluderDesc.width = targets_.extent.width;
+    occluderDesc.height = targets_.extent.height;
+    occluderDesc.format = rhi::Format::R8_UNorm;
+    occluderDesc.debugName = "light occluders";
+    occluders_ = device_->createTexture(occluderDesc);
+    if (!occluders_) {
+        return false;
+    }
+    setOccluders(std::vector<uint8_t>(size_t{targets_.extent.width} * targets_.extent.height, 0));
 
     rhi::BindGroupDesc viewGroup;
     viewGroup.pipeline = lightPipeline_;
@@ -78,7 +91,8 @@ bool LightingPass::initLightPipeline(const std::string& shaderDirectory) {
     rhi::BindGroupDesc inputGroup;
     inputGroup.pipeline = lightPipeline_;
     inputGroup.set = 1;
-    inputGroup.entries = {rhi::BindGroupEntry::textureSampler(0, targets_.normal, sampler_)};
+    inputGroup.entries = {rhi::BindGroupEntry::textureSampler(0, targets_.normal, sampler_),
+                          rhi::BindGroupEntry::textureSampler(1, occluders_, sampler_)};
     inputGroup.debugName = "light inputs";
     lightInputGroup_ = device_->createBindGroup(inputGroup);
 
@@ -142,6 +156,7 @@ void LightingPass::shutdown() {
     for (rhi::BufferHandle buffer : {lightVertices_, lightIndices_, viewUniforms_, triangle_, compositeUniforms_}) {
         device_->destroy(buffer);
     }
+    device_->destroy(occluders_);
     device_->destroy(lightPipeline_);
     device_->destroy(compositePipeline_);
     for (rhi::ShaderHandle shader : {lightVertex_, lightFragment_, compositeVertex_, compositeFragment_}) {
@@ -152,13 +167,27 @@ void LightingPass::shutdown() {
     device_ = nullptr;
 }
 
+void LightingPass::setOccluders(std::span<const uint8_t> mask) {
+    const size_t expected = size_t{targets_.extent.width} * targets_.extent.height;
+    if (mask.size() != expected) {
+        log::error("LightingPass::setOccluders: expected {}x{} bytes, got {}", targets_.extent.width,
+                   targets_.extent.height, mask.size());
+        return;
+    }
+    std::vector<uint8_t> bytes(mask.size());
+    std::transform(mask.begin(), mask.end(), bytes.begin(), [](uint8_t v) { return v ? uint8_t{255} : uint8_t{0}; });
+    device_->writeTexture(occluders_, {0, 0, targets_.extent.width, targets_.extent.height}, bytes.data(),
+                          targets_.extent.width);
+}
+
 void LightingPass::beginFrame() {
     vertices_.clear();
     renderedThisFrame_ = false;
 }
 
-void LightingPass::render(rhi::CommandList& commands, const Mat4& viewProjection, std::span<const PointLight> lights,
-                          const LightingSettings& settings, const SmokeLook& smoke, rhi::TextureHandle output) {
+void LightingPass::render(rhi::CommandList& commands, const Mat4& viewProjection, Vec2 canvasOrigin,
+                          std::span<const PointLight> lights, const LightingSettings& settings, const SmokeLook& smoke,
+                          rhi::TextureHandle output) {
     ANIMAL_ASSERT(!renderedThisFrame_);
     renderedThisFrame_ = true;
 
@@ -174,13 +203,19 @@ void LightingPass::render(rhi::CommandList& commands, const Mat4& viewProjection
         const float y0 = light.position.y - r;
         const float x1 = light.position.x + r;
         const float y1 = light.position.y + r;
+        const float texelX = std::floor(light.position.x - canvasOrigin.x);
+        const float texelY = std::floor(light.position.y - canvasOrigin.y);
         for (const auto& [x, y] : {std::pair{x0, y0}, std::pair{x1, y0}, std::pair{x1, y1}, std::pair{x0, y1}}) {
-            vertices_.push_back({x, y, light.position.x, light.position.y, c.x, c.y, c.z, 1.0f, r, light.height});
+            vertices_.push_back({x, y, light.position.x, light.position.y, c.x, c.y, c.z, 1.0f, r, light.height,
+                                 light.castsShadows ? 1.0f : 0.0f, 0.0f, texelX, texelY});
         }
     }
     lastFrameLights_ = static_cast<uint32_t>(count);
 
-    device_->writeBuffer(viewUniforms_, 0, &viewProjection, sizeof(Mat4));
+    const LightView view = {viewProjection,
+                            {static_cast<float>(targets_.extent.width), static_cast<float>(targets_.extent.height),
+                             settings.shadows ? 1.0f : 0.0f, std::max(0.0f, settings.shadowPenetration)}};
+    device_->writeBuffer(viewUniforms_, 0, &view, sizeof(view));
     const CompositeUniforms uniforms = {
         {settings.ambient.x, settings.ambient.y, settings.ambient.z, 0.0f},
         {settings.enabled ? 1.0f : 0.0f, static_cast<float>(std::max(0, settings.bands)), settings.dither ? 1.0f : 0.0f,
