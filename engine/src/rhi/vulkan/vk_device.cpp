@@ -93,6 +93,8 @@ VkFormat toVk(Format format) {
         return VK_FORMAT_R8G8B8A8_UNORM;
     case Format::R8_UNorm:
         return VK_FORMAT_R8_UNORM;
+    case Format::RGBA16_Float:
+        return VK_FORMAT_R16G16B16A16_SFLOAT;
     case Format::Undefined:
         break;
     }

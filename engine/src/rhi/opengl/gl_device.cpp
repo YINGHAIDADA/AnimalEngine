@@ -17,9 +17,11 @@
 
 #include <SDL3/SDL_video.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <variant>
 #include <vector>
@@ -83,6 +85,8 @@ TextureFormatInfo textureFormatInfo(Format format) {
         return {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE};
     case Format::R8_UNorm:
         return {GL_R8, GL_RED, GL_UNSIGNED_BYTE};
+    case Format::RGBA16_Float:
+        return {GL_RGBA16F, GL_RGBA, GL_HALF_FLOAT};
     case Format::Undefined:
         break;
     }
@@ -246,8 +250,12 @@ public:
 
 private:
     class Executor;
+    using AttachmentIds = std::array<GLuint, kMaxColorAttachments>;
 
     bool createFramebuffer(GlTexture& texture);
+    // Single attachment: the texture's own framebuffer; several: a cached one per attachment set.
+    GLuint framebufferFor(const RenderPassDesc& desc, Extent2D& extent);
+    void forgetFramebuffersUsing(GLuint textureId);
     void resizeSwapchain(Extent2D extent);
 
     platform::Window* window_ = nullptr;
@@ -265,6 +273,7 @@ private:
     TextureHandle swapchain_;
     Extent2D swapchainExtent_;
     bool frameActive_ = false;
+    std::map<AttachmentIds, GLuint> multiTargetFramebuffers_;
 };
 
 // Translates one CommandList into GL calls. Lives only for the duration of submit().
@@ -273,40 +282,36 @@ public:
     explicit Executor(GlDevice& device) : device_(device) {}
 
     void operator()(const cmd::BeginRenderPass& c) {
-        skipPass_ = true;
         const RenderPassDesc& desc = c.desc;
-        if (desc.colorAttachmentCount != 1) {
-            log::error("OpenGL backend: multiple color attachments are not implemented yet");
+        pipeline_ = nullptr;
+        Extent2D extent;
+        const GLuint framebuffer = device_.framebufferFor(desc, extent);
+        skipPass_ = framebuffer == 0;
+        if (skipPass_) {
             return;
         }
-        const ColorAttachment& attachment = desc.colorAttachments[0];
-        GlTexture* texture = device_.textures_.get(attachment.texture);
-        if (!texture || !hasFlag(texture->usage, TextureUsage::RenderTarget) || !texture->framebuffer) {
-            log::error("OpenGL backend: render pass attachment is not a valid render target");
-            return;
-        }
-        skipPass_ = false;
 
-        glBindFramebuffer(GL_FRAMEBUFFER, texture->framebuffer);
-        glViewport(0, 0, static_cast<GLsizei>(texture->width), static_cast<GLsizei>(texture->height));
+        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+        glViewport(0, 0, static_cast<GLsizei>(extent.width), static_cast<GLsizei>(extent.height));
         glDepthRangef(0.0f, 1.0f);
         glDisable(GL_SCISSOR_TEST);
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
-        if (attachment.loadOp == LoadOp::Clear) {
-            const ClearColor& cc = attachment.clearColor;
-            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-            glClearColor(cc.r, cc.g, cc.b, cc.a);
-            glClear(GL_COLOR_BUFFER_BIT);
-        }
+        for (uint32_t i = 0; i < desc.colorAttachmentCount; ++i) {
+            const ColorAttachment& attachment = desc.colorAttachments[i];
+            if (attachment.loadOp == LoadOp::Clear) {
+                const ClearColor& cc = attachment.clearColor;
+                const GLfloat color[4] = {cc.r, cc.g, cc.b, cc.a};
+                glClearBufferfv(GL_COLOR, static_cast<GLint>(i), color);
+            }
 #if defined(ANIMAL_DEBUG)
-        else if (attachment.loadOp == LoadOp::DontCare) {
-            // Undefined contents in Vulkan; make accidental reliance on them visible.
-            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-            glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
-            glClear(GL_COLOR_BUFFER_BIT);
-        }
+            else if (attachment.loadOp == LoadOp::DontCare) {
+                // Undefined contents in Vulkan; make accidental reliance on them visible.
+                const GLfloat magenta[4] = {1.0f, 0.0f, 1.0f, 1.0f};
+                glClearBufferfv(GL_COLOR, static_cast<GLint>(i), magenta);
+            }
 #endif
-        pipeline_ = nullptr;
+        }
     }
 
     void operator()(const cmd::EndRenderPass&) { skipPass_ = false; }
@@ -502,6 +507,9 @@ GlDevice::~GlDevice() {
     if (!context_) {
         return;
     }
+    for (auto& [ids, framebuffer] : multiTargetFramebuffers_) {
+        glDeleteFramebuffers(1, &framebuffer);
+    }
     pipelines_.forEach([](GlPipeline& p) { glDeleteProgram(p.program); });
     shaders_.forEach([](GlShader& s) { glDeleteShader(s.id); });
     samplers_.forEach([](GlSampler& s) { glDeleteSamplers(1, &s.id); });
@@ -612,6 +620,60 @@ bool GlDevice::createFramebuffer(GlTexture& texture) {
         return false;
     }
     return true;
+}
+
+GLuint GlDevice::framebufferFor(const RenderPassDesc& desc, Extent2D& extent) {
+    AttachmentIds ids{};
+    extent = {UINT32_MAX, UINT32_MAX};
+    const GlTexture* first = nullptr;
+    for (uint32_t i = 0; i < desc.colorAttachmentCount; ++i) {
+        const GlTexture* texture = textures_.get(desc.colorAttachments[i].texture);
+        if (!texture || !hasFlag(texture->usage, TextureUsage::RenderTarget) || !texture->framebuffer) {
+            log::error("OpenGL backend: render pass attachment {} is not a valid render target", i);
+            return 0;
+        }
+        ids[i] = texture->id;
+        extent.width = std::min(extent.width, texture->width);
+        extent.height = std::min(extent.height, texture->height);
+        first = i == 0 ? texture : first;
+    }
+    if (desc.colorAttachmentCount == 1) {
+        return first->framebuffer;
+    }
+    if (const auto it = multiTargetFramebuffers_.find(ids); it != multiTargetFramebuffers_.end()) {
+        return it->second;
+    }
+
+    GLuint framebuffer = 0;
+    glGenFramebuffers(1, &framebuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    std::array<GLenum, kMaxColorAttachments> drawBuffers{};
+    for (uint32_t i = 0; i < desc.colorAttachmentCount; ++i) {
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, ids[i], 0);
+        drawBuffers[i] = GL_COLOR_ATTACHMENT0 + i;
+    }
+    glDrawBuffers(static_cast<GLsizei>(desc.colorAttachmentCount), drawBuffers.data());
+    const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        log::error("OpenGL backend: multi-target framebuffer incomplete (status 0x{:04X})",
+                   static_cast<unsigned>(status));
+        glDeleteFramebuffers(1, &framebuffer);
+        return 0;
+    }
+    multiTargetFramebuffers_.emplace(ids, framebuffer);
+    return framebuffer;
+}
+
+void GlDevice::forgetFramebuffersUsing(GLuint textureId) {
+    for (auto it = multiTargetFramebuffers_.begin(); it != multiTargetFramebuffers_.end();) {
+        if (std::find(it->first.begin(), it->first.end(), textureId) != it->first.end()) {
+            glDeleteFramebuffers(1, &it->second);
+            it = multiTargetFramebuffers_.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 TextureHandle GlDevice::createTexture(const TextureDesc& desc) {
@@ -841,6 +903,7 @@ void GlDevice::destroy(TextureHandle handle) {
         return;
     }
     if (auto texture = textures_.take(handle)) {
+        forgetFramebuffersUsing(texture->id);
         if (texture->framebuffer) {
             glDeleteFramebuffers(1, &texture->framebuffer);
         }

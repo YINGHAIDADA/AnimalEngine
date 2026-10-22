@@ -74,6 +74,8 @@
     X(PFNGLFRAMEBUFFERTEXTURE2DPROC, glFramebufferTexture2D)                        \
     X(PFNGLCHECKFRAMEBUFFERSTATUSPROC, glCheckFramebufferStatus)                    \
     X(PFNGLBLITFRAMEBUFFERPROC, glBlitFramebuffer)                                  \
+    X(PFNGLDRAWBUFFERSPROC, glDrawBuffers)                                          \
+    X(PFNGLCLEARBUFFERFVPROC, glClearBufferfv)                                      \
     X(PFNGLDRAWARRAYSINSTANCEDPROC, glDrawArraysInstanced)                          \
     X(PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXPROC, glDrawElementsInstancedBaseVertex)
 

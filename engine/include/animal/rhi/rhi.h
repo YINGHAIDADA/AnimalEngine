@@ -51,6 +51,7 @@ enum class Format : uint8_t {
     Undefined,
     RGBA8_UNorm,
     R8_UNorm,
+    RGBA16_Float,
 };
 
 uint32_t bytesPerPixel(Format format);
