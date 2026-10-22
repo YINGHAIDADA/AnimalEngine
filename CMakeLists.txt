@@ -16,6 +16,7 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 option(ANIMAL_BUILD_TESTS "Build unit tests" ON)
 option(ANIMAL_WARNINGS_AS_ERRORS "Treat compiler warnings as errors in project targets" OFF)
+option(ANIMAL_ENABLE_VULKAN "Build the Vulkan RHI backend" ON)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 include(AnimalCompileOptions)

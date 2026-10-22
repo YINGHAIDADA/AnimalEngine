@@ -55,6 +55,19 @@ set(SPIRV_CROSS_SKIP_INSTALL ON CACHE BOOL "" FORCE)
 add_subdirectory(SPIRV-Cross EXCLUDE_FROM_ALL)
 animal_set_folder(external/SPIRV-Cross spirv-cross-core spirv-cross-glsl)
 
+# --- Vulkan headers + volk (runtime loader; no Vulkan SDK needed to build) ----
+if(ANIMAL_ENABLE_VULKAN)
+    animal_require_submodule(Vulkan-Headers)
+    animal_require_submodule(volk)
+    add_subdirectory(Vulkan-Headers EXCLUDE_FROM_ALL)
+    # volk would otherwise take headers from $VULKAN_SDK / FindVulkan (a global install).
+    set(VOLK_PULL_IN_VULKAN OFF CACHE BOOL "" FORCE)
+    set(VOLK_INSTALL OFF CACHE BOOL "" FORCE)
+    add_subdirectory(volk EXCLUDE_FROM_ALL)
+    target_link_libraries(volk PUBLIC Vulkan::Headers)
+    animal_set_folder(external/vulkan volk)
+endif()
+
 # --- Header-only / single-file dependencies ----------------------------------
 add_library(animal_stb INTERFACE)
 target_include_directories(animal_stb SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/stb")
