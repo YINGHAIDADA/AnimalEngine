@@ -49,6 +49,13 @@ constexpr int kVineSegment = 3;      // px, matches VineSystem::Params::segmentL
 constexpr int kVineClearance = 3;    // px left between a vine tip and the ground
 constexpr int kMaxVineSegments = 50;
 
+constexpr size_t kDustCount = 70;
+constexpr size_t kFireflyCount = 14;
+constexpr float kEmbersPerSecond = 2.2f; // per candle
+constexpr animal::Color kDustColor = animal::Color::rgba(205, 195, 175, 170);
+constexpr animal::Color kFireflyColor = animal::Color::rgba(210, 255, 130, 255);
+constexpr animal::Vec3 kFireflyLight{0.75f, 1.0f, 0.45f};
+
 // Candles stand on platform tops: x in tiles, y = top row of the platform.
 constexpr struct {
     int tileX;
@@ -106,6 +113,13 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
         candles_.push_back({{static_cast<float>(spot.tileX * kTileSize), static_cast<float>((spot.surfaceRow - 1) * kTileSize)},
                             phase});
         phase += 1.7f;
+    }
+
+    for (size_t i = 0; i < kDustCount; ++i) {
+        spawnDust(true);
+    }
+    for (size_t i = 0; i < kFireflyCount; ++i) {
+        spawnFirefly();
     }
 
     player_ = entities_.create(animal::EntityKind::Player);
@@ -188,8 +202,114 @@ void SandboxGame::onFixedUpdate(animal::EngineContext&, double dt) {
     }
     grass_.step(static_cast<float>(dt), time_, influences, wind_);
     vines_.step(static_cast<float>(dt), time_, influences, wind_);
+    updateParticles(static_cast<float>(dt), influences);
     actions_.endFixedStep();
     entities_.flushDestroyed();
+}
+
+animal::Vec2 SandboxGame::randomOpenPosition() {
+    const animal::IntRect bounds = room_.pixelBounds();
+    animal::Vec2 p;
+    for (int attempt = 0; attempt < 20; ++attempt) {
+        p = {rng_.range(0.0f, static_cast<float>(bounds.width)), rng_.range(0.0f, static_cast<float>(bounds.height))};
+        if (!room_.isSolid(static_cast<int>(p.x) / kTileSize, static_cast<int>(p.y) / kTileSize)) {
+            break;
+        }
+    }
+    return p;
+}
+
+// Dust only shows where light falls (drawn in the lit pass): motes floating in candle light.
+void SandboxGame::spawnDust(bool midLife) {
+    animal::Particle p;
+    p.kind = Dust;
+    p.position = randomOpenPosition();
+    p.velocity = {rng_.range(-3.0f, 3.0f), rng_.range(-2.0f, 2.0f)};
+    p.acceleration = {0.0f, rng_.range(-1.5f, 1.5f)};
+    p.drag = 0.6f;
+    p.windResponse = 6.0f;
+    p.wander = 4.0f;
+    p.lifetime = rng_.range(8.0f, 16.0f);
+    p.age = midLife ? rng_.range(0.0f, p.lifetime * 0.8f) : 0.0f;
+    p.fade = 2.0f;
+    p.startColor = p.endColor = kDustColor;
+    p.seed = rng_.next();
+    particles_.emit(p);
+}
+
+void SandboxGame::spawnFirefly() {
+    animal::Particle p;
+    p.kind = Firefly;
+    p.position = randomOpenPosition();
+    p.drag = 1.6f;
+    p.wander = 45.0f;
+    p.pushResponse = 1.5f; // scatter when the player comes close
+    p.flicker = rng_.range(0.4f, 0.9f);
+    p.lifetime = 1.0e6f;   // until it drifts out of the room
+    p.fade = 1.0f;
+    p.startColor = p.endColor = kFireflyColor;
+    p.seed = rng_.next();
+    particles_.emit(p);
+}
+
+void SandboxGame::spawnEmber(const Candle& candle) {
+    animal::Particle p;
+    p.kind = Ember;
+    p.position = candle.position + animal::Vec2{3.5f + rng_.range(-0.5f, 0.5f), 1.0f};
+    p.velocity = {rng_.range(-8.0f, 8.0f), rng_.range(-28.0f, -16.0f)};
+    p.acceleration = {0.0f, -14.0f}; // buoyancy
+    p.drag = 0.9f;
+    p.windResponse = 18.0f;
+    p.wander = 10.0f;
+    p.pushResponse = 0.6f;
+    p.lifetime = rng_.range(0.7f, 1.5f);
+    p.fade = 0.1f;
+    p.startColor = animal::Color::rgba(255, 225, 140, 255);
+    p.endColor = animal::Color::rgba(210, 60, 20, 0); // cools and fades
+    p.dieOnSolid = true;
+    p.seed = rng_.next();
+    particles_.emit(p);
+}
+
+void SandboxGame::updateParticles(float dt, std::span<const animal::Influence> influences) {
+    for (Candle& candle : candles_) {
+        candle.emberBudget += kEmbersPerSecond * dt;
+        while (candle.emberBudget >= 1.0f) {
+            spawnEmber(candle);
+            candle.emberBudget -= 1.0f;
+        }
+    }
+    particles_.step(dt, time_, &room_, influences, wind_);
+    for (size_t n = particles_.countOf(Dust); n < kDustCount; ++n) {
+        spawnDust(false);
+    }
+    for (size_t n = particles_.countOf(Firefly); n < kFireflyCount; ++n) {
+        spawnFirefly();
+    }
+}
+
+void SandboxGame::drawParticles(animal::Renderer2D& renderer) const {
+    for (const animal::Particle& p : particles_.particles()) {
+        const animal::Color c = particles_.colorOf(p);
+        switch (p.kind) {
+        case Dust:
+            renderer.fillRect({std::round(p.position.x), std::round(p.position.y), 1.0f, 1.0f}, c);
+            break;
+        case Firefly: {
+            renderer.drawGlow(p.position, c);
+            const animal::Color halo{c.r, c.g, c.b, static_cast<uint8_t>(c.a * 0.3f)};
+            for (const animal::Vec2 d : {animal::Vec2{1, 0}, animal::Vec2{-1, 0}, animal::Vec2{0, 1}, animal::Vec2{0, -1}}) {
+                renderer.drawGlow(p.position + d, halo);
+            }
+            break;
+        }
+        case Ember:
+            renderer.drawGlow(p.position, c);
+            break;
+        default:
+            break;
+        }
+    }
 }
 
 void SandboxGame::addLights(animal::Renderer2D& renderer) {
@@ -215,6 +335,18 @@ void SandboxGame::addLights(animal::Renderer2D& renderer) {
                 light.height = 12.0f;
                 renderer.addLight(light);
             }
+        }
+    }
+
+    for (const animal::Particle& p : particles_.particles()) {
+        if (p.kind == Firefly) {
+            animal::PointLight light;
+            light.position = p.position;
+            light.radius = 18.0f;
+            light.color = kFireflyLight;
+            light.intensity = 0.7f * static_cast<float>(particles_.colorOf(p).a) / 255.0f;
+            light.height = 6.0f;
+            renderer.addLight(light);
         }
     }
 
@@ -255,6 +387,7 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
                             animal::Color::white(), facingLeft_);
     }
     drawGrass(renderer); // in front of the player: it wades through
+    drawParticles(renderer);
     addLights(renderer);
     renderer.endWorld();
 
@@ -303,7 +436,8 @@ void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::s
                                     s.jumpBufferTimer));
     }
     const animal::LightingSettings& lighting = context.renderer->lighting();
-    lines.push_back(std::format("GRASS {} BLADES  VINES {}", grass_.blades().size(), vines_.vines().size()));
+    lines.push_back(std::format("GRASS {} BLADES  VINES {}  PARTICLES {}", grass_.blades().size(),
+                                vines_.vines().size(), particles_.size()));
     lines.push_back(std::format("F3 LIGHTING {}  F4 BANDS {}", lighting.enabled ? "ON" : "OFF",
                                 lighting.bands == 0 ? std::string("SMOOTH") : std::to_string(lighting.bands)));
     lines.push_back(usingGamepad_ ? "GAMEPAD: STICK/DPAD MOVE  A JUMP" : "ARROWS/WASD MOVE  SPACE/Z JUMP");
