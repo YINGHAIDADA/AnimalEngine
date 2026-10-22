@@ -109,7 +109,7 @@ cmake --build --preset windows-ninja-debug
 ctest --preset macos-ninja-debug        # 或 windows-vs2022-debug / windows-ninja-debug / macos-xcode-debug
 ```
 
-渲染回归（在两个后端上跑 6 个固定场景，读回 320×180 最终画布：两后端必须逐像素相同，并与 `tests/golden/` 中的基准截图逐像素相同；Vulkan 验证层必须零报错）：
+渲染回归（在两个后端上跑 6 个固定游戏场景（读回 320×180 最终画布）和 RHI 功能一致性图（`AnimalRhiConformance`，逐项覆盖 RHI 功能，见 ADR-0025）：两后端必须逐像素相同，并与 `tests/golden/` 中的基准截图逐像素相同；Vulkan 验证层必须零报错）：
 
 ```bash
 python3 tools/scripts/render_regression.py            # 全部场景

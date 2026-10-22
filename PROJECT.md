@@ -327,6 +327,7 @@ ctest --test-dir build/<preset> --output-on-failure
   - ADR-0022 Vulkan 显存子分配、描述符池与暂存缓冲：VMA、可扩容的池列表与暂存缓冲（Accepted）。
   - ADR-0023 按用途推导的 Vulkan 屏障：精确阶段 / 访问 / 布局，补上相同布局连续写的依赖（Accepted）。
   - ADR-0024 Vulkan 管线缓存：用户数据目录、文件头校验、原子写回（Accepted）。
+  - ADR-0025 RHI 功能一致性测试：逐项覆盖 RHI 功能的离屏测试图，纳入渲染回归；条带图元重启统一（Accepted）。
 
 ## 13. 当前待确认项（不阻塞 M0）
 
