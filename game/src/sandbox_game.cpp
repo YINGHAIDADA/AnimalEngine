@@ -143,6 +143,17 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     fluid.smokeKeepPerSecond = 0.8f;
     fluid.velocityKeepPerSecond = 0.7f;
     fluid.buoyancy = 45.0f;
+
+    // Cave grade: cool shadows, warm highlights, soft vignette; bloom around the light sources.
+    animal::PostSettings& post = context.renderer->post();
+    post.bloomThreshold = 0.55f;
+    post.bloomIntensity = 1.0f;
+    post.exposure = 1.2f;   // the scene is dark; contrast below would otherwise crush it
+    post.contrast = 1.04f;
+    post.saturation = 1.12f;
+    post.shadowTint = {0.9f, 0.95f, 1.12f};
+    post.highlightTint = {1.08f, 1.0f, 0.9f};
+    post.vignette = 0.25f;
     return true;
 }
 
@@ -170,6 +181,9 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
     }
     if (input.pressed(Key::F5)) {
         context.renderer->fluid().enabled = !context.renderer->fluid().enabled;
+    }
+    if (input.pressed(Key::F6)) {
+        context.renderer->post().enabled = !context.renderer->post().enabled;
     }
     if (input.pressed(Key::F4)) {
         bandsPreset_ = (bandsPreset_ + 1) % std::size(kBandPresets);
@@ -500,6 +514,7 @@ void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::s
     lines.push_back(std::format("F3 LIGHTING {}  F4 BANDS {}  F5 SMOKE {}", lighting.enabled ? "ON" : "OFF",
                                 lighting.bands == 0 ? std::string("SMOOTH") : std::to_string(lighting.bands),
                                 context.renderer->fluid().enabled ? "ON" : "OFF"));
+    lines.push_back(std::format("F6 BLOOM + GRADE {}", context.renderer->post().enabled ? "ON" : "OFF"));
     lines.push_back(usingGamepad_ ? "GAMEPAD: STICK/DPAD MOVE  A JUMP" : "ARROWS/WASD MOVE  SPACE/Z JUMP");
     lines.push_back(std::format("F2 COLLISION VIEW ({})", showCollision_ ? "ON" : "OFF"));
 }
