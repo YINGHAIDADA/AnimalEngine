@@ -111,6 +111,9 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | `ParticleSystem` | 通用粒子：恒定加速度、阻力、风、平滑游走、亮度闪烁、颜色随寿命插值与淡入淡出、被 `Influence` 推开、碰到实心 Tile 消失；游戏用这些参数组合出萤火虫、火星、灰尘。随机数用 `animal::Random`（PCG32，跨平台一致）。 |
 | `stepClimb` | 藤蔓攀爬：按住上且碰撞框附近有藤蔓时抓住（`VineSystem::findGrip`）；沿弧长上下爬、左右输入与体重作为力施加到藤蔓上；角色以逐像素碰撞跟随抓握点；跳离时继承藤蔓速度并有再抓冷却；底端按下松手。在平台跳跃步之前调用，攀爬时跳过平台跳跃步。 |
 | `Animator` | 片段 = 帧序列 + 帧率 + 是否循环；`play` 对正在播放的片段无操作。状态机在游戏中：攀爬 → climb（仅移动时播放），落地 → land，地面 → run / idle，空中 → jump / fall。 |
+| `TriggerSet` | 矩形触发区域；`update(碰撞框)` 返回本步刚进入的触发器，离开后重新进入会再次触发，`once` 只触发一次（ADR-0011）。 |
+| `stepPatrol` | 地面巡逻：着地时前方脚下没有实心 Tile（可关闭）或撞墙就转身，悬空时按重力下落；逐像素碰撞同 `Body`。 |
+| `SaveData` / `readSave` / `writeSave` | 版本化 JSON 存档（房间、位置、标志集合）；原子写入（临时文件 + 重命名）；格式、版本、字段错误时拒绝并给出原因（ADR-0011）。 |
 | `level`（Tiled） | `loadWorld` / `loadRoom` 读取 `.world` / `.tmj` / `.tsj`；`Room` 含 `TileMap`（实心来自 Tile 属性）、按 Tile id 的属性、对象与地图属性；错误带文件名与字段（ADR-0010）。 |
 | `Influence` | 推动植被与粒子的对象（包围盒 + 速度 + 是否刚落地），由游戏每步提供；模拟与绘制分离，框架不依赖渲染器。 |
 

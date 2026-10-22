@@ -2,7 +2,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**M1b 游戏结构**——Tiled 关卡、多房间切换、藤蔓攀爬、动画状态机已完成，接下来是触发器 / 敌人 / 道具 / 存档（V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
+当前阶段：**M1b 游戏结构已完成**——Tiled 关卡、多房间切换、藤蔓攀爬、动画状态机、触发器提示、巡逻甲虫、可收集宝石与自动存档（V1 视觉样板已完成），接下来是 M2 / M3 产品化（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 
@@ -62,6 +62,7 @@ cmake --build --preset windows-ninja-debug
 | F4 | | 切换光照量化：平滑 / 3 / 5 / 8 级 |
 | F5 | | 开关流体烟雾 |
 | F6 | | 开关泛光与调色 |
+| F8 | | 删除存档，从起点重新开始 |
 | F12 | | 截图到 `screenshots/` |
 | Esc | | 退出 |
 
@@ -78,9 +79,11 @@ cmake --build --preset windows-ninja-debug
 | `--frames=N` | 渲染 N 帧后退出 |
 | `--screenshot=path.png` | 与 `--frames` 合用，在最后一帧截图（用于验收与渲染回归） |
 
+玩法：收集散落在三个房间中的 7 颗宝石（右上角计数）；紫色甲虫在地面巡逻，碰到会被弹开；走进提示区域时屏幕下方显示提示。拾取宝石、进入新房间后第一次站稳时自动保存，下次启动从该处继续（存档位置见 ADR-0011；`--demo` / `--deterministic` 不读写存档）。
+
 ## 编辑关卡（Tiled）
 
-关卡位于 `assets/source/world/`：用 [Tiled](https://www.mapeditor.org/) 打开 `test.world` 即可看到并编辑所有房间。约定（Tile 属性、对象类型、地图属性）见 [ADR-0010](docs/ADR/ADR-0010-tiled-levels.md)。保存后重新构建即可部署到 `data/world/`。目前这些文件由 `tools/scripts/make_test_world.py` 生成；开始在 Tiled 中手工编辑后请不要再运行该脚本。
+关卡位于 `assets/source/world/`：用 [Tiled](https://www.mapeditor.org/) 打开 `test.world` 即可看到并编辑所有房间。约定（Tile 属性、对象类型、地图属性）见 [ADR-0010](docs/ADR/ADR-0010-tiled-levels.md)，玩法对象（触发器、宝石、甲虫）见 [ADR-0011](docs/ADR/ADR-0011-gameplay-elements-and-save.md)。保存后重新构建即可部署到 `data/world/`。目前这些文件由 `tools/scripts/make_test_world.py` 生成；开始在 Tiled 中手工编辑后请不要再运行该脚本。
 
 ## 测试
 
@@ -134,3 +137,14 @@ python3 tools/scripts/compare_images.py screenshots/gl.png screenshots/vk.png
 | 碰撞边界情况有可重复的单元测试（贴墙、余量、高速不穿墙、1 Tile 通道、落地） | `ctest` | ✅ |
 | 跳跃手感：coyote time、跳跃缓冲、可变跳高、天花板角修正 | `ctest` + 实际游玩 | ✅（参数待手感调优） |
 | OpenGL 与 Vulkan 截图一致 | 见“后端一致性”，容差 0 | ✅ |
+
+## M1b 验收条件
+
+| 条件 | 验证方式 | 状态 |
+|---|---|---|
+| 可从入口走到出口的多房间关卡（Tiled） | `AnimalGame --demo`：入口 → 隧道 → 水晶长廊 → 烟雾深坑；从深坑跳回长廊见 ADR-0010 | ✅ |
+| 触发器、攀爬、动画状态机、简单敌人、道具 | 实际游玩；`ctest`（触发器 / 巡逻 / 存档 / 攀爬 / 动画测试） | ✅ |
+| 重启后持久状态正确（房间、位置、已收集宝石） | 收集宝石后退出再启动；F8 重置 | ✅ |
+| 房间边界与切换有可重复测试 | `ctest`（level 测试：世界查找、重叠检测）+ `--demo --deterministic` 回放 | ✅ |
+| 两平台行为一致 | Windows 上重复以上步骤 | ⏳ 待在 Windows 机器上验证 |
+| OpenGL 与 Vulkan 截图一致 | `--demo --deterministic` 截图逐像素对比，容差 0 | ✅ |
