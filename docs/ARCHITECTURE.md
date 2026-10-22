@@ -93,6 +93,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | 泛光与调色 | 后处理 pass：阈值提取亮部、160×90 两轮高斯模糊、按光照级数量化抖动后加回；曝光 / 分区色调 / 饱和度 / 对比度 / 暗角（ADR-0009）。 |
 | 烟雾 | 160×90 网格的 stable fluids（平流、浮力、涡量约束、Jacobi 压力投影），片元着色器实现；合成时被同一光照照亮（ADR-0008）。 |
 | 光照 | 画布分辨率的延迟光照：材质 pass 写 albedo / normal / emissive（RGBA8），光照 pass 加色累积到 RGBA16F，合成 `albedo × (ambient + light) + emissive`，可选量化 + 有序抖动（ADR-0007）。 |
+| 光源类型 | `PointLight`：点光源，或设置 `coneAngle` + `direction` 成为聚光灯（锥体外缘五分之一软过渡，再被光照分级切成色阶）；每个光源可关闭阴影（ADR-0013）。 |
 | 阴影 | 画布尺寸 R8 遮挡图（`setLightOccluders`，画布空间）；光照 pass 中每个像素沿整数 Bresenham 走向光源：穿出一块遮挡物即挡住，所在遮挡物内按深度衰减（`shadowPenetration`）（ADR-0012）。 |
 | 颜色空间 | 目前全程 UNorm（不做 sRGB 转换）。M2 光照前需要重新评估。 |
 | 调试文字 | 内置 3×5 像素字体（不依赖资源文件），覆盖层缩放 = 画布缩放 / 2（至少 1）。 |
@@ -112,6 +113,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | `ParticleSystem` | 通用粒子：恒定加速度、阻力、风、平滑游走、亮度闪烁、颜色随寿命插值与淡入淡出、被 `Influence` 推开、碰到实心 Tile 消失；游戏用这些参数组合出萤火虫、火星、灰尘。随机数用 `animal::Random`（PCG32，跨平台一致）。 |
 | `stepClimb` | 藤蔓攀爬：按住上且碰撞框附近有藤蔓时抓住（`VineSystem::findGrip`）；沿弧长上下爬、左右输入与体重作为力施加到藤蔓上；角色以逐像素碰撞跟随抓握点；跳离时继承藤蔓速度并有再抓冷却；底端按下松手。在平台跳跃步之前调用，攀爬时跳过平台跳跃步。 |
 | `Animator` | 片段 = 帧序列 + 帧率 + 是否循环；`play` 对正在播放的片段无操作。状态机在游戏中：攀爬 → climb（仅移动时播放），落地 → land，地面 → run / idle，空中 → jump / fall。 |
+| `LightAnimation` | 光源亮度动画（`none` / `flicker` / `pulse`）：只由时间和每个光源的相位计算出倍数，确定、无状态；倍数保持在 1 ± amount 之内（ADR-0013）。 |
 | `TriggerSet` | 矩形触发区域；`update(碰撞框)` 返回本步刚进入的触发器，离开后重新进入会再次触发，`once` 只触发一次（ADR-0011）。 |
 | `stepPatrol` | 地面巡逻：着地时前方脚下没有实心 Tile（可关闭）或撞墙就转身，悬空时按重力下落；逐像素碰撞同 `Body`。 |
 | `SaveData` / `readSave` / `writeSave` | 版本化 JSON 存档（房间、位置、标志集合）；原子写入（临时文件 + 重命名）；格式、版本、字段错误时拒绝并给出原因（ADR-0011）。 |

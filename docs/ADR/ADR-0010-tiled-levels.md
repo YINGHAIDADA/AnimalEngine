@@ -12,7 +12,7 @@
 |---|---|---|
 | `solid` | bool | 参与碰撞 |
 | `grass` | bool | 露出的顶部长草 |
-| `light`, `lightColor`, `lightRadius`, `lightIntensity`, `lightHeight` | bool / color / float | 该 Tile 是光源（如水晶） |
+| `light`, `lightColor`, `lightRadius`, `lightIntensity`, `lightHeight` | bool / color / float | 该 Tile 是光源（如水晶）；其余光源属性加 `light` 前缀，见 ADR-0013 |
 
   - **对象**（对象图层中的点对象，`class` / 旧版 `type` 字段为类型）：
 
@@ -22,7 +22,8 @@
 | `candle` | 道具底边中心（站在表面上） | — |
 | `vent` | 道具底边中心 | `rate`（烟 / 秒）、`force`（px/s²） |
 | `vine` | 锚点（顶端） | `segments`（可选，缺省自动垂到下方第一个实心 Tile 上方） |
-| `light` | 光源位置 | `color`、`radius`、`intensity`、`height` |
+| `light` | 光源位置 | `color`、`radius`、`intensity`、`height`，以及 ADR-0013 的聚光与动画属性 |
+| `lantern` | 灯具中心（链条自动挂到上方第一个实心 Tile） | 同 `light`，缺省为暖色闪烁光 |
 
   玩法对象 `trigger`、`gem`、`crawler` 见 ADR-0011。
 
