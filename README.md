@@ -2,7 +2,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**M3 模拟效果生产化**——流体休眠与提速已完成，接下来是效果预设、水、风场与植被、GPU 粒子（M2 光照生产化已在 macOS 上完成）（M1b 游戏结构与 V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
+当前阶段：**M3 模拟效果生产化**——流体休眠与提速、粒子效果预设与发射器已完成，接下来是水、风场与植被、GPU 粒子（M2 光照生产化已在 macOS 上完成）（M1b 游戏结构与 V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 
@@ -65,6 +65,7 @@ cmake --build --preset windows-ninja-debug
 | F7 | | 开关阴影 |
 | F8 | | 删除存档，从起点重新开始 |
 | F9 | | 重新读取观感预设（`data/world/looks/*.look.json`，可直接编辑后按 F9 查看） |
+| F10 | | 开关粒子效果（覆盖层显示各效果数量与 CPU 耗时） |
 | F12 | | 截图到 `screenshots/` |
 | Esc | | 退出 |
 
@@ -88,7 +89,7 @@ cmake --build --preset windows-ninja-debug
 
 ## 编辑关卡（Tiled）
 
-关卡位于 `assets/source/world/`：用 [Tiled](https://www.mapeditor.org/) 打开 `test.world` 即可看到并编辑所有房间。约定（Tile 属性、对象类型、地图属性）见 [ADR-0010](docs/ADR/ADR-0010-tiled-levels.md)，玩法对象（触发器、宝石、甲虫）见 [ADR-0011](docs/ADR/ADR-0011-gameplay-elements-and-save.md)，房间观感（`look` 预设与 `look.*` 覆盖，预设位于 `looks/`）见 [ADR-0015](docs/ADR/ADR-0015-looks.md)。保存后重新构建即可部署到 `data/world/`。目前这些文件由 `tools/scripts/make_test_world.py` 生成；开始在 Tiled 中手工编辑后请不要再运行该脚本。
+关卡位于 `assets/source/world/`：用 [Tiled](https://www.mapeditor.org/) 打开 `test.world` 即可看到并编辑所有房间。约定（Tile 属性、对象类型、地图属性）见 [ADR-0010](docs/ADR/ADR-0010-tiled-levels.md)，玩法对象（触发器、宝石、甲虫）见 [ADR-0011](docs/ADR/ADR-0011-gameplay-elements-and-save.md)，房间观感（`look` 预设与 `look.*` 覆盖，预设位于 `looks/`）见 [ADR-0015](docs/ADR/ADR-0015-looks.md)，粒子效果（`emitter` 对象，预设位于 `effects/`）见 [ADR-0017](docs/ADR/ADR-0017-effect-presets.md)。保存后重新构建即可部署到 `data/world/`。目前这些文件由 `tools/scripts/make_test_world.py` 生成；开始在 Tiled 中手工编辑后请不要再运行该脚本。
 
 ## 测试
 
