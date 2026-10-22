@@ -2,7 +2,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**V1 视觉样板已完成**（像素光照、可互动的草与藤蔓、粒子、流体烟雾、泛光与调色），下一步是 M1b 游戏结构（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
+当前阶段：**M1b 游戏结构**——Tiled 关卡与多房间切换已完成，接下来是攀爬、动画状态机、触发器 / 敌人 / 道具 / 存档（V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 
@@ -73,9 +73,13 @@ cmake --build --preset windows-ninja-debug
 | `--hide-overlay` | 隐藏调试覆盖层（用于后端截图对比） |
 | `--resize-test` | 运行中多次改变窗口尺寸，验证交换链重建 |
 | `--deterministic` | 每帧恰好推进一个固定步，使动画与截图可复现（截图对比时使用） |
-| `--demo` | 游戏用脚本输入自己操作（演示房间：穿过草丛与藤蔓并跳跃），配合 `--deterministic` 可复现交互截图 |
+| `--demo` | 游戏用脚本输入自己操作：穿过入口的草丛与藤蔓、经隧道进入水晶长廊、坠入烟雾深坑；配合 `--deterministic` 可复现交互截图 |
 | `--frames=N` | 渲染 N 帧后退出 |
 | `--screenshot=path.png` | 与 `--frames` 合用，在最后一帧截图（用于验收与渲染回归） |
+
+## 编辑关卡（Tiled）
+
+关卡位于 `assets/source/world/`：用 [Tiled](https://www.mapeditor.org/) 打开 `test.world` 即可看到并编辑所有房间。约定（Tile 属性、对象类型、地图属性）见 [ADR-0010](docs/ADR/ADR-0010-tiled-levels.md)。保存后重新构建即可部署到 `data/world/`。目前这些文件由 `tools/scripts/make_test_world.py` 生成；开始在 Tiled 中手工编辑后请不要再运行该脚本。
 
 ## 测试
 
