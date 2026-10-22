@@ -11,6 +11,9 @@ struct PointLight {
     float intensity = 1.0f;
     float height = 16.0f;     // pixels above the surface; lower = grazing light, stronger normal relief
     bool castsShadows = true; // blocked by the light occluders (Renderer2D::setLightOccluders)
+    // Spot light: full cone angle in radians around `direction` (unit, y down); 0 = all directions.
+    float coneAngle = 0.0f;
+    Vec2 direction{0.0f, 1.0f};
 };
 
 struct LightingSettings {

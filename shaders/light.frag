@@ -9,6 +9,7 @@ layout(location = 2) in vec4 vColor;
 layout(location = 3) in vec4 vParams;
 layout(location = 4) in vec2 vScreenUV;
 layout(location = 5) flat in ivec2 vLightTexel;
+layout(location = 6) flat in vec4 vSpot;
 
 layout(set = 0, binding = 0, std140) uniform View {
     mat4 viewProjection;
@@ -82,6 +83,14 @@ void main() {
     }
     float falloff = 1.0 - distance / radius;
     falloff *= falloff;
+    if (vSpot.z >= -1.0) {
+        float along = distance > 0.0 ? dot(-toLight / distance, vSpot.xy) : 1.0;
+        falloff *= smoothstep(vSpot.z, vSpot.w, along);
+        if (falloff <= 0.0) {
+            outLight = vec4(0.0);
+            return;
+        }
+    }
 
     vec3 n = texture(normalBuffer, vScreenUV).rgb * 2.0 - 1.0;
     n = dot(n, n) > 1e-6 ? normalize(n) : vec3(0.0, 0.0, 1.0);

@@ -49,6 +49,7 @@ bool LightingPass::initLightPipeline(const std::string& shaderDirectory) {
         {2, 0, rhi::VertexFormat::Float4, offsetof(LightVertex, r)},
         {3, 0, rhi::VertexFormat::Float4, offsetof(LightVertex, radius)},
         {4, 0, rhi::VertexFormat::Float2, offsetof(LightVertex, texelX)},
+        {5, 0, rhi::VertexFormat::Float4, offsetof(LightVertex, spotX)},
     };
     desc.colorTargets = {{rhi::Format::RGBA16_Float, kAdditive}};
     desc.debugName = "light";
@@ -205,9 +206,16 @@ void LightingPass::render(rhi::CommandList& commands, const Mat4& viewProjection
         const float y1 = light.position.y + r;
         const float texelX = std::floor(light.position.x - canvasOrigin.x);
         const float texelY = std::floor(light.position.y - canvasOrigin.y);
+        // The cone fades over its outer fifth (banded into steps by the composite).
+        const bool spot = light.coneAngle > 0.0f && light.coneAngle < 2.0f * kPi;
+        const float half = 0.5f * light.coneAngle;
+        const float spotOuter = spot ? std::cos(half) : -2.0f;
+        const float spotInner = spot ? std::cos(half * 0.8f) : -1.0f;
+        const Vec2 dir = spot ? normalize(light.direction) : Vec2{0.0f, 1.0f};
         for (const auto& [x, y] : {std::pair{x0, y0}, std::pair{x1, y0}, std::pair{x1, y1}, std::pair{x0, y1}}) {
             vertices_.push_back({x, y, light.position.x, light.position.y, c.x, c.y, c.z, 1.0f, r, light.height,
-                                 light.castsShadows ? 1.0f : 0.0f, 0.0f, texelX, texelY});
+                                 light.castsShadows ? 1.0f : 0.0f, 0.0f, texelX, texelY, dir.x, dir.y, spotOuter,
+                                 spotInner});
         }
     }
     lastFrameLights_ = static_cast<uint32_t>(count);

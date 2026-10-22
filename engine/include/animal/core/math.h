@@ -30,8 +30,16 @@ struct Vec3 {
     friend constexpr bool operator==(Vec3, Vec3) = default;
 };
 
+inline constexpr float kPi = 3.14159265358979f;
+
 inline float length(Vec2 v) {
     return std::sqrt(v.x * v.x + v.y * v.y);
+}
+
+// Zero for the zero vector.
+inline Vec2 normalize(Vec2 v) {
+    const float l = length(v);
+    return l > 0.0f ? v * (1.0f / l) : Vec2{};
 }
 
 inline Vec2 roundToPixel(Vec2 v) {

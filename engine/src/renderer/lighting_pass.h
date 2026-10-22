@@ -58,6 +58,7 @@ private:
         float r, g, b, a;
         float radius, height, shadows, unused;
         float texelX, texelY; // canvas pixel of the light (whole numbers): exact shadow rays on every backend
+        float spotX, spotY, spotOuter, spotInner; // cone direction and cosines of the edge; outer < -1: omni
     };
 
     struct LightView {
