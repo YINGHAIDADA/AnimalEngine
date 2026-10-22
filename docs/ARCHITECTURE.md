@@ -32,6 +32,7 @@ Device::beginFrame（窗口最小化时返回 false，跳过渲染）
     game.onRender:  beginWorld(camera) … drawSprite / drawGlow / addLight / addFluidSplat … endWorld
                     → 材质 pass（albedo / normal / emissive / 材质标志）→ 流体烟雾一步（ADR-0008）
                     → 光照 pass（光照 + 边缘光两个 RGBA16F，按遮挡图做硬边阴影）→ 合成到 320×180 画布（含被照亮的烟与边缘光）
+                    → [有水时] 合成改写到 lit，水 pass（折射、倒影、水色）读 lit 写画布（ADR-0018）
                     → 发光 pass（drawGlow 收集的像素，加色混合叠加到画布，不受光照影响）
                     → 后处理：泛光（亮部提取 → 半分辨率模糊 → 量化抖动加回）+ 调色 → 最终画布（ADR-0009）
                     [beginWorldOverlay … 调试图形 … endWorldOverlay]（无光照、不调色，叠加在最终画布上）
@@ -117,7 +118,9 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | rim light | 画布 | RGBA16F | 光照 pass（第二个附件），Clear = 0，加色 One/One | 合成（最近邻） |
 | 流体速度 ×2、烟 ×2、压力 ×2、散度、旋度 | 流体网格 | RGBA16F | 流体各 pass，DontCare，不透明（乒乓，跨帧保留；`resetFluid` 时 Clear） | 流体各 pass（平流的速度 / 来源 / 密度为线性，其余最近邻）；烟 [0] 由合成读取（线性） |
 | 流体障碍 | 流体网格 | R8 | CPU `setFluidObstacles` | 流体各 pass（最近邻） |
-| canvas | 画布 | RGBA8 | 合成，DontCare，不透明；发光 pass，Load，加色 One/One | 泛光亮部提取（线性）、调色（最近邻） |
+| lit（仅有水时） | 画布 | RGBA8 | 合成，DontCare，不透明 | 水 pass（`texelFetch`） |
+| 水列数据 | 画布宽 × 1 | RGBA8 | CPU 每帧 `writeTexture`（水面行、水底行、样式） | 水 pass（`texelFetch`） |
+| canvas | 画布 | RGBA8 | 合成（无水时）或水 pass，DontCare，不透明；发光 pass，Load，加色 One/One | 泛光亮部提取（线性）、调色（最近邻） |
 | bloom ×2 | 画布 / 2 | RGBA16F | 亮部提取 / 模糊，DontCare，不透明（首次使用前 Clear） | 模糊、调色（线性） |
 | final | 画布 | RGBA8 | 调色，DontCare，不透明；世界调试叠加，Load，预乘 over | 屏幕 pass（最近邻，整数倍放大） |
 | swapchain（虚拟） | 窗口 | RGBA8 | 屏幕 pass，Clear = 留边色，预乘 over（画布、HUD、调试覆盖层） | 呈现（最近邻 blit）、截图读回 |
@@ -147,6 +150,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | `stepClimb` | 藤蔓攀爬：按住上且碰撞框附近有藤蔓时抓住（`VineSystem::findGrip`）；沿弧长上下爬、左右输入与体重作为力施加到藤蔓上；角色以逐像素碰撞跟随抓握点；跳离时继承藤蔓速度并有再抓冷却；底端按下松手。在平台跳跃步之前调用，攀爬时跳过平台跳跃步。 |
 | `Animator` | 片段 = 帧序列 + 帧率 + 是否循环；`play` 对正在播放的片段无操作。状态机在游戏中：攀爬 → climb（仅移动时播放），落地 → land，地面 → run / idle，空中 → jump / fall。 |
 | `LightAnimation` | 光源亮度动画（`none` / `flicker` / `pulse`）：只由时间和每个光源的相位计算出倍数，确定、无状态；倍数保持在 1 ± amount 之内（ADR-0013）。 |
+| `WaterBody` / `swimmingParams` | 水域：每像素列的一维表面波（扰动、水面高度、淹没比例）；漂浮：按淹没比例改写平台跳跃参数（重力变浮力、减速）并施加水阻，够深时可起跳出水（ADR-0018）。 |
 | `EffectSystem` | 粒子效果：`*.effect.json` 预设（发射、运动、外观、随粒子的光，严格校验）+ 房间中的点 / 区域发射器；按发射器保持数量、按速率发射、一次性爆发；可整体开关，报告各效果数量与 CPU 耗时（ADR-0017）。 |
 | `Look` | 观感预设：光照、边缘光、泛光与调色、烟雾颜色的扁平字段表；`*.look.json` 可继承（`base`）、严格校验；房间用 Tiled `look` / `look.*` 引用与覆盖；`mixLooks` 用于房间切换过渡（ADR-0015）。 |
 | `TriggerSet` | 矩形触发区域；`update(碰撞框)` 返回本步刚进入的触发器，离开后重新进入会再次触发，`once` 只触发一次（ADR-0011）。 |

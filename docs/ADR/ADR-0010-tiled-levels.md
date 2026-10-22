@@ -25,7 +25,7 @@
 | `light` | 光源位置 | `color`、`radius`、`intensity`、`height`，以及 ADR-0013 的聚光与动画属性 |
 | `lantern` | 灯具中心（链条自动挂到上方第一个实心 Tile） | 同 `light`，缺省为暖色闪烁光 |
 
-  玩法对象 `trigger`、`gem`、`crawler` 见 ADR-0011；粒子发射器 `emitter` 见 ADR-0017。
+  玩法对象 `trigger`、`gem`、`crawler` 见 ADR-0011；粒子发射器 `emitter` 见 ADR-0017；水域 `water` 见 ADR-0018。
 
   - **地图属性**：观感（环境光、调色等）由 `look` 与 `look.*` 指定，见 ADR-0015（取代原先的 `ambient`）；粒子效果改为 `emitter` 对象，见 ADR-0017（取代原先的 `fireflies`、`dust`）。
   - **起点**：世界中带 `spawn` 对象的房间。
