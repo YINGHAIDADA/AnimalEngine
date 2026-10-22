@@ -100,7 +100,10 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | `Body` / `moveX` / `moveY` | 整数像素位置 + 小数余量；每次移动 1 px 并检测碰撞，碰到即停（贴合、不穿墙）；先 X 后 Y。 |
 | `EntityWorld` | 代际 `EntityId` + 扁平 `Entity` 记录；销毁延迟到 `flushDestroyed()`。按需加字段，不做通用 ECS。 |
 | `ActionMap` | 游戏动作绑定到键盘键、手柄按键和摇杆方向；每帧在 `onFrame` 中采样，“按下”会锁存到被一个固定步消费（`endFixedStep()`），因此每次按下恰好被一个模拟步看到。 |
-| `stepPlatformer` | 跑动加减速（地面 / 空中不同）、重力（下落加重、顶点减轻）、coyote time、跳跃缓冲、可变跳高、天花板角修正（≤ 2 px）。参数全部在 `PlatformerParams`。 |
+| `stepPlatformer` | 跑动加减速（地面 / 空中不同）、重力（下落加重、顶点减轻）、coyote time、跳跃缓冲、可变跳高、天花板角修正（≤ 2 px）。参数全部在 `PlatformerParams`；落地时记录 `landingSpeed`。 |
+| `GrassField` | 每根草叶是带阻尼的角度弹簧，按固定种子哈希生成在露出的草地 Tile 顶部。目标角度 = 风 + 影响者推开（远离其中心，含拖拽）；落地给附近草叶角速度冲量。逐像素绘制，叶尖按角度二次弯曲。 |
+| `VineSystem` | Verlet 链条，第 0 点固定在锚点；重力、风、阻尼、约束迭代，最后从锚点向外恢复精确段长。影响者把链节推出其包围盒并传递部分速度。暂不与 Tile 碰撞，游戏按下方第一个实心 Tile 计算藤蔓长度。 |
+| `FoliageInfluence` | 推动植被的对象（包围盒 + 速度 + 是否刚落地），由游戏每步提供；模拟与绘制分离，框架不依赖渲染器。 |
 
 ## 7. 运行时数据路径
 
