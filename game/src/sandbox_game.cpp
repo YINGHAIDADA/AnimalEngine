@@ -6,6 +6,7 @@
 #include <animal/renderer/renderer2d.h>
 #include <animal/rhi/rhi.h>
 
+#include <algorithm>
 #include <cmath>
 #include <format>
 #include <iterator>
@@ -34,6 +35,19 @@ constexpr animal::Vec3 kAmbient{0.07f, 0.07f, 0.11f};
 constexpr animal::Vec3 kCandleColor{1.0f, 0.62f, 0.28f};
 constexpr animal::Vec3 kCrystalColor{0.35f, 0.8f, 1.0f};
 constexpr animal::Vec3 kPlayerGlowColor{0.85f, 0.85f, 1.0f};
+
+// Grass colors per [shade][level] (base → tip); vine stem and leaf colors.
+constexpr animal::Color kGrassColors[3][3] = {
+    {animal::Color::rgba(46, 104, 52), animal::Color::rgba(76, 150, 70), animal::Color::rgba(136, 198, 92)},
+    {animal::Color::rgba(40, 92, 58), animal::Color::rgba(64, 136, 76), animal::Color::rgba(110, 182, 96)},
+    {animal::Color::rgba(56, 112, 46), animal::Color::rgba(96, 160, 64), animal::Color::rgba(160, 208, 96)},
+};
+constexpr animal::Color kVineStem = animal::Color::rgba(70, 140, 72);
+constexpr animal::Color kVineLeaf = animal::Color::rgba(120, 196, 96);
+constexpr uint32_t kFoliageSeed = 0xA11CE;
+constexpr int kVineSegment = 3;      // px, matches VineSystem::Params::segmentLength
+constexpr int kVineClearance = 3;    // px left between a vine tip and the ground
+constexpr int kMaxVineSegments = 50;
 
 // Candles stand on platform tops: x in tiles, y = top row of the platform.
 constexpr struct {
@@ -71,7 +85,18 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     if (!room || !tileset || !creature || !props) {
         return false;
     }
-    room_ = std::move(*room);
+    room_ = std::move(room->map);
+    grass_.generate(room_, [](animal::TileId id) { return id == TileGround; }, kFoliageSeed);
+    for (const animal::Vec2i cell : room->vineAnchors) {
+        // Hang down to just above the first solid tile below the anchor.
+        int floorRow = cell.y;
+        while (floorRow < room_.height() && !room_.isSolid(cell.x, floorRow)) {
+            ++floorRow;
+        }
+        const int drop = (floorRow - cell.y) * kTileSize - kVineClearance;
+        const int segments = std::clamp(drop / kVineSegment, 2, kMaxVineSegments);
+        vines_.addVine({cell.x * kTileSize + 4.0f, static_cast<float>(cell.y * kTileSize)}, segments);
+    }
     tileset_ = *tileset;
     creature_ = *creature;
     props_ = *props;
@@ -97,9 +122,21 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     return true;
 }
 
+// --demo: run right through the grass and two low vines, jump mid-run, then stop and let
+// everything settle. Driven by simulation time, so --deterministic captures are reproducible.
+void SandboxGame::applyDemoInput() {
+    actions_.applyStrength(MoveRight, time_ < 1.6 ? 1.0f : 0.0f);
+    actions_.applyStrength(MoveLeft, 0.0f);
+    actions_.applyStrength(Jump, time_ >= 0.9 && time_ < 1.2 ? 1.0f : 0.0f);
+}
+
 void SandboxGame::onFrame(animal::EngineContext& context) {
     const animal::platform::Input& input = *context.input;
-    actions_.update(input);
+    if (context.demo) {
+        applyDemoInput();
+    } else {
+        actions_.update(input);
+    }
     animal::LightingSettings& lighting = context.renderer->lighting();
     if (input.pressed(Key::F2)) {
         showCollision_ = !showCollision_;
@@ -139,6 +176,18 @@ void SandboxGame::onFixedUpdate(animal::EngineContext&, double dt) {
             playerState_ = {};
         }
     }
+
+    std::vector<animal::FoliageInfluence> influences;
+    if (player) {
+        animal::FoliageInfluence influence{player->body.worldCollider(), playerState_.velocity, false};
+        if (playerState_.landedThisStep) {
+            influence.landed = true;
+            influence.velocity.y = playerState_.landingSpeed;
+        }
+        influences.push_back(influence);
+    }
+    grass_.step(static_cast<float>(dt), time_, influences, wind_);
+    vines_.step(static_cast<float>(dt), time_, influences, wind_);
     actions_.endFixedStep();
     entities_.flushDestroyed();
 }
@@ -197,6 +246,7 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
     for (const Candle& candle : candles_) {
         renderer.drawSprite(props_, candle.position, {0.0f, 0.0f, size, size});
     }
+    drawVines(renderer);
 
     const animal::Entity* player = entities_.get(player_);
     if (player) {
@@ -204,6 +254,7 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
         renderer.drawSprite(creature_, {static_cast<float>(p.x), static_cast<float>(p.y)}, {0.0f, 0.0f, size, size},
                             animal::Color::white(), facingLeft_);
     }
+    drawGrass(renderer); // in front of the player: it wades through
     addLights(renderer);
     renderer.endWorld();
 
@@ -212,6 +263,18 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
         drawCollisionDebug(renderer, *player);
         renderer.endWorldOverlay();
     }
+}
+
+void SandboxGame::drawGrass(animal::Renderer2D& renderer) const {
+    grass_.forEachPixel([&](int x, int y, int level, uint8_t shade) {
+        renderer.fillRect({static_cast<float>(x), static_cast<float>(y), 1.0f, 1.0f}, kGrassColors[shade][level]);
+    });
+}
+
+void SandboxGame::drawVines(animal::Renderer2D& renderer) const {
+    vines_.forEachPixel([&](int x, int y, bool leaf) {
+        renderer.fillRect({static_cast<float>(x), static_cast<float>(y), 1.0f, 1.0f}, leaf ? kVineLeaf : kVineStem);
+    });
 }
 
 void SandboxGame::drawCollisionDebug(animal::Renderer2D& renderer, const animal::Entity& player) {
@@ -240,6 +303,7 @@ void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::s
                                     s.jumpBufferTimer));
     }
     const animal::LightingSettings& lighting = context.renderer->lighting();
+    lines.push_back(std::format("GRASS {} BLADES  VINES {}", grass_.blades().size(), vines_.vines().size()));
     lines.push_back(std::format("F3 LIGHTING {}  F4 BANDS {}", lighting.enabled ? "ON" : "OFF",
                                 lighting.bands == 0 ? std::string("SMOOTH") : std::to_string(lighting.bands)));
     lines.push_back(usingGamepad_ ? "GAMEPAD: STICK/DPAD MOVE  A JUMP" : "ARROWS/WASD MOVE  SPACE/Z JUMP");

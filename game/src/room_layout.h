@@ -1,8 +1,10 @@
 #pragma once
 
+#include <animal/framework/geometry.h>
 #include <animal/framework/tilemap.h>
 
 #include <optional>
+#include <vector>
 
 namespace game {
 
@@ -19,7 +21,12 @@ constexpr int kTileSize = 8;
 constexpr int kRoomWidth = 40;  // ADR-0006: 40 × 22 tiles = 320 × 176 px
 constexpr int kRoomHeight = 22;
 
-// M1a test room, built from an in-code layout. Replaced by Tiled rooms in M1b.
-std::optional<animal::TileMap> buildTestRoom();
+struct TestRoom {
+    animal::TileMap map;
+    std::vector<animal::Vec2i> vineAnchors; // tile cells whose top edge holds a vine
+};
+
+// Test room built from an in-code layout. Replaced by Tiled rooms in M1b.
+std::optional<TestRoom> buildTestRoom();
 
 } // namespace game

@@ -3,6 +3,7 @@
 #include <animal/app/application.h>
 #include <animal/framework/action_map.h>
 #include <animal/framework/entity.h>
+#include <animal/framework/foliage.h>
 #include <animal/framework/platformer.h>
 #include <animal/framework/tilemap.h>
 #include <animal/renderer/camera2d.h>
@@ -24,7 +25,8 @@ enum Action : animal::ActionId {
     Jump,
 };
 
-// M1a / V1 sandbox: one single-screen room, a platformer-controlled creature, pixel lighting.
+// V1 sandbox: one single-screen room, a platformer-controlled creature, pixel lighting and
+// interactive foliage.
 class SandboxGame final : public animal::Application {
 protected:
     animal::AppConfig configure() override;
@@ -42,11 +44,17 @@ private:
     };
 
     void bindActions();
+    void applyDemoInput();
     void addLights(animal::Renderer2D& renderer);
     void drawCollisionDebug(animal::Renderer2D& renderer, const animal::Entity& player);
+    void drawGrass(animal::Renderer2D& renderer) const;
+    void drawVines(animal::Renderer2D& renderer) const;
 
     animal::TileMap room_;
     std::vector<Candle> candles_;
+    animal::GrassField grass_;
+    animal::VineSystem vines_;
+    animal::WindParams wind_;
     animal::EntityWorld entities_;
     animal::EntityId player_;
     animal::PlatformerParams playerParams_;

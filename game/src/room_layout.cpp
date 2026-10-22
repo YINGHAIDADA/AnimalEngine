@@ -9,24 +9,25 @@ namespace game {
 
 namespace {
 
-// '#' wall, '=' grass-topped ground, '.' background wall, 'c' glowing crystal (non-solid), ' ' empty.
+// '#' wall, '=' grass-topped ground (grows grass), '.' background wall, 'c' glowing crystal,
+// 'v' background with a vine hanging from its top edge, ' ' empty. Only '#' and '=' are solid.
 // Platforms are 3 tiles apart vertically and 2 tiles horizontally (one comfortable jump);
 // the block on the lower right leaves a 1-tile-high tunnel underneath.
 constexpr std::string_view kLayout[] = {
     "########################################",
-    "#......................................#",
+    "#........v.....v.................v.....#",
     "#....c.................................#",
     "#......................................#",
     "#......................................#",
     "#.........................======.......#",
     "#.........................######.......#",
-    "#......................................#",
+    "#..........................v...........#",
     "#.................======...............#",
     "#.................######..........c....#",
-    "#......................................#",
+    "#..................v...................#",
     "#..........=====.......................#",
     "#..........#####.......................#",
-    "#......................................#",
+    "#............v.........................#",
     "#.................=====........=====...#",
     "#.................#####........#####...#",
     "#.....c................................#",
@@ -40,8 +41,10 @@ static_assert(std::size(kLayout) == kRoomHeight, "room height must be 22 tiles")
 
 } // namespace
 
-std::optional<animal::TileMap> buildTestRoom() {
-    animal::TileMap map(kRoomWidth, kRoomHeight, kTileSize);
+std::optional<TestRoom> buildTestRoom() {
+    TestRoom room;
+    room.map = animal::TileMap(kRoomWidth, kRoomHeight, kTileSize);
+    animal::TileMap& map = room.map;
     map.setSolid(TileWall, true);
     map.setSolid(TileGround, true);
 
@@ -66,6 +69,10 @@ std::optional<animal::TileMap> buildTestRoom() {
             case 'c':
                 tile = TileCrystal;
                 break;
+            case 'v':
+                tile = TileBackground;
+                room.vineAnchors.push_back({tx, ty});
+                break;
             case ' ':
                 break;
             default:
@@ -75,7 +82,7 @@ std::optional<animal::TileMap> buildTestRoom() {
             map.setTile(tx, ty, tile);
         }
     }
-    return map;
+    return room;
 }
 
 } // namespace game
