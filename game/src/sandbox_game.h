@@ -106,6 +106,7 @@ private:
     bool showCollision_ = false;
     bool usingGamepad_ = false;
     uint32_t stressLights_ = 0; // --stress-lights=N: extra moving shadow-casting lights
+    std::string startRoomName_; // --start-room=NAME: begin there (testing; progress is not saved)
     size_t bandsOverride_ = 0; // F4: index into kBandOverrides (0 = the room's look)
     bool shadowsEnabled_ = true; // F7
 

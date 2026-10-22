@@ -64,6 +64,11 @@ bool SandboxGame::onArgument(std::string_view argument) {
         stressLights_ = static_cast<uint32_t>(std::strtoul(std::string(argument.substr(kStress.size())).c_str(), nullptr, 10));
         return true;
     }
+    constexpr std::string_view kStartRoom = "--start-room=";
+    if (argument.starts_with(kStartRoom)) {
+        startRoomName_ = std::string(argument.substr(kStartRoom.size()));
+        return true;
+    }
     return false;
 }
 
@@ -173,11 +178,22 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     checkpointFeet_ = startFeet_;
     save_.room = roomName(startRoom_->path);
     save_.position = startFeet_;
-    if (!context.demo && !context.deterministic) {
+    if (!context.demo && !context.deterministic && startRoomName_.empty()) {
         if (const std::string dir = animal::platform::userDataDirectory("AnimalEngine", "Sandbox"); !dir.empty()) {
             savePath_ = dir + "save.json";
             loadProgress();
         }
+    }
+    if (!startRoomName_.empty()) {
+        const auto it = std::ranges::find_if(world_.rooms, [this](const animal::WorldRoom& r) {
+            return roomName(r.path) == startRoomName_;
+        });
+        if (it == world_.rooms.end()) {
+            animal::log::error("--start-room: no room named '{}'", startRoomName_);
+            return false;
+        }
+        checkpointRoom_ = &*it;
+        checkpointFeet_ = {4.0f * kTileSize + 4.0f, 20.0f * kTileSize}; // every test room has floor there
     }
 
     camera_.center = kCameraCenter;
@@ -573,7 +589,8 @@ void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::s
                                 renderer.lighting().enabled ? "ON" : "OFF",
                                 bands == 0 ? std::string("SMOOTH") : std::to_string(bands),
                                 kBandOverrides[bandsOverride_] < 0 ? " (LOOK)" : "",
-                                renderer.fluid().enabled ? "ON" : "OFF", renderer.post().enabled ? "ON" : "OFF",
+                                !renderer.fluid().enabled ? "OFF" : (renderer.fluidSleeping() ? "ASLEEP" : "ON"),
+                                renderer.post().enabled ? "ON" : "OFF",
                                 shadowsEnabled_ ? "ON" : "OFF"));
     lines.push_back(std::format("LOOK {}  F9 RELOAD LOOKS", lookName_));
     lines.push_back(usingGamepad_ ? "GAMEPAD: STICK MOVE  UP GRAB VINE  A JUMP"
