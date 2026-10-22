@@ -109,6 +109,10 @@ class Room:
         extra = {k: (("int" if isinstance(v, int) else "float"), v) for k, v in props.items()}
         self.area("emitter", tx, ty, tw, th, effect=("file", f"../effects/{effect}.effect.json"), **extra)
 
+    def water(self, tx, ty, tw, th, rgb=(40, 90, 120), opacity=0.45, reflection=0.35):
+        self.area("water", tx, ty, tw, th, color=("color", color(*rgb)), opacity=("float", opacity),
+                  reflection=("float", reflection))
+
     def gem(self, tx, ty):  # centred in a tile cell
         self.obj("gem", tx * TILE + 4, ty * TILE + 4)
 
@@ -240,6 +244,14 @@ def smoke_pit():
     room.trigger(18, 18, 3, 2, "CLIMB THE LEDGES TO GET BACK UP")
     room.emitter("dust", count=110)
     room.emitter("firefly", count=5)
+    # A pool in the floor under the staircase: banks two tiles high, 16 px of water.
+    for x in range(27, 37):
+        room.set(x, 20, "#")         # no grass under water
+    for x in (26, 37):
+        room.set(x, 18, "=")
+        room.set(x, 19, "#")
+    room.water(27, 18, 10, 2, rgb=(46, 84, 110), reflection=0.45)
+    room.lantern(33, 16)  # lights the pool so the surface and reflections read
     return room
 
 

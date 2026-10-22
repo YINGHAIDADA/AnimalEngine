@@ -127,6 +127,7 @@ bool SandboxGame::enterRoom(const animal::WorldRoom& worldRoom, animal::Renderer
     const bool firstRoom = currentRoom_ == nullptr;
     currentRoom_ = &worldRoom;
     checkpointPending_ = true;
+    submersion_ = 0.0f;
     climb_.climbing = false; // vine indices belong to the previous room
     renderer.resetFluid();
     const animal::Vec2 canvasOrigin = camera_.topLeft(animal::Renderer2D::kCanvasExtent);
@@ -406,6 +407,7 @@ void SandboxGame::showMessage(std::string text) {
 // Gems, crawler hits, triggers and checkpoints, after the player has moved this step.
 void SandboxGame::updateGameplay(animal::Entity& player) {
     const animal::IntRect collider = player.body.worldCollider();
+    submersion_ = cave_.updatePlayerInWater(collider, playerState_.velocity, submersion_);
     const std::vector<std::string> gems = cave_.collectGems(collider);
     save_.flags.insert(gems.begin(), gems.end());
     if (!gems.empty()) {
@@ -487,8 +489,10 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
             // A jump that let go of a vine is already used up.
             input.jumpPressed = jumpPressed && !wasClimbing;
             input.jumpHeld = control && actions_.down(Jump);
-            animal::stepPlatformer(player->body, playerState_, input, playerParams_, cave_.tiles(),
-                                   static_cast<float>(dt));
+            const float submersion = cave_.submersion(player->body.worldCollider());
+            animal::applyWater(playerState_, playerParams_, submersion, static_cast<float>(dt));
+            animal::stepPlatformer(player->body, playerState_, input, animal::swimmingParams(playerParams_, submersion),
+                                   cave_.tiles(), static_cast<float>(dt));
         }
         if (moveX < 0.0f) {
             facingLeft_ = true;
@@ -521,6 +525,7 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
     renderer.beginWorld(camera_, kBackdrop);
     cave_.drawBehindPlayer(renderer, assets_);
     cave_.drawGems(renderer, assets_, time_);
+    cave_.addWater(renderer, time_);
 
     const animal::Entity* player = entities_.get(player_);
     // While invulnerable after a hit the creature blinks.

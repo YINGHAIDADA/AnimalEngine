@@ -22,6 +22,8 @@ constexpr animal::Vec3 kSmokeColor{0.85f, 0.85f, 0.9f};
 // Effect presets used by props unless a "effect" property names another (relative to the room).
 constexpr const char* kCandleEffect = "../effects/ember.effect.json";
 constexpr const char* kGemPickupEffect = "../effects/spark.effect.json";
+constexpr const char* kSplashEffect = "../effects/splash.effect.json";
+constexpr animal::Color kWaterColor = animal::Color::rgba(40, 90, 120);
 constexpr animal::Vec3 kGemLight{0.3f, 0.95f, 0.8f};
 constexpr animal::IntRect kCrawlerCollider{0, 0, 7, 5}; // inside the 8×8 sprite, feet on row 7
 constexpr animal::IntRect kGemArea{-3, -3, 6, 6};       // around the gem centre
@@ -101,6 +103,7 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
     vents_.clear();
     lights_.clear();
     lanterns_.clear();
+    pools_.clear();
     vines_ = animal::VineSystem();
     sparkPreset_ = effectPreset(effects, room, kGemPickupEffect);
 
@@ -131,6 +134,21 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
             if (const auto preset = effectPreset(effects, room, object.properties.getString("effect", kCandleEffect))) {
                 effects_.addEmitter(*preset, candles_.back().position);
             }
+        } else if (object.type == "water") {
+            // A rectangle of water; its top edge is the surface at rest.
+            const animal::IntRect area{static_cast<int>(object.position.x), static_cast<int>(object.position.y),
+                                       static_cast<int>(object.size.x), static_cast<int>(object.size.y)};
+            if (object.point || area.width <= 0 || area.height <= 0) {
+                animal::log::warn("{}: water {} must be a rectangle", room.path, object.id);
+                continue;
+            }
+            animal::WaterSurface look;
+            look.color = object.properties.getColor("color", kWaterColor);
+            look.opacity = object.properties.getFloat("opacity", look.opacity);
+            look.reflection = object.properties.getFloat("reflection", look.reflection);
+            look.refraction = object.properties.getInt("refraction", look.refraction);
+            pools_.push_back({animal::WaterBody(area), look,
+                              effectPreset(effects, room, object.properties.getString("effect", kSplashEffect))});
         } else if (object.type == "emitter") {
             // A point emitter, or an area emitter for rectangles; "effect" names the preset file.
             const std::string file = object.properties.getString("effect");
@@ -258,7 +276,53 @@ std::vector<std::string> CaveRoom::enteredTriggers(const animal::IntRect& player
     return messages;
 }
 
+float CaveRoom::submersion(const animal::IntRect& box) const {
+    float deepest = 0.0f;
+    for (const Pool& pool : pools_) {
+        deepest = std::max(deepest, pool.body.submersion(box));
+    }
+    return deepest;
+}
+
+float CaveRoom::updatePlayerInWater(const animal::IntRect& player, animal::Vec2 velocity, float previous) {
+    float deepest = 0.0f;
+    const float x = static_cast<float>(player.x) + static_cast<float>(player.width) * 0.5f;
+    for (Pool& pool : pools_) {
+        const float s = pool.body.submersion(player);
+        const bool entered = previous <= 0.0f && s > 0.0f;
+        const bool left = previous > 0.0f && s <= 0.0f && velocity.y < 0.0f && pool.body.submersion(player.offset({0, 2})) > 0.0f;
+        if (entered || left) {
+            const float speed = std::min(std::fabs(velocity.y), 300.0f);
+            pool.body.disturb(x, entered ? 4.0f : 3.0f, entered ? speed * 0.6f : -speed * 0.3f);
+            if (pool.splash && speed > 40.0f) {
+                effects_.burst(*pool.splash, {x, pool.body.surfaceY(x) - 1.0f});
+            }
+        } else if (s > 0.0f && s < 0.95f && std::fabs(velocity.x) > 20.0f) {
+            // Wading along the surface pushes a small bow wave ahead.
+            pool.body.disturb(x + (velocity.x > 0.0f ? 4.0f : -4.0f), 2.0f, std::fabs(velocity.x) * 0.15f);
+        }
+        deepest = std::max(deepest, s);
+    }
+    return deepest;
+}
+
+void CaveRoom::addWater(animal::Renderer2D& renderer, double time) const {
+    for (const Pool& pool : pools_) {
+        animal::WaterSurface surface = pool.look;
+        const animal::IntRect& area = pool.body.area();
+        surface.topLeft = {static_cast<float>(area.x), static_cast<float>(area.y)};
+        surface.width = area.width;
+        surface.depth = area.height;
+        surface.offsets = pool.body.offsets();
+        surface.time = static_cast<float>(time);
+        renderer.addWater(surface);
+    }
+}
+
 void CaveRoom::step(float dt, double time, std::span<const animal::Influence> influences) {
+    for (Pool& pool : pools_) {
+        pool.body.step(dt);
+    }
     for (Crawler& crawler : crawlers_) {
         animal::stepPatrol(crawler.body, crawler.patrol, patrolParams_, tiles_, dt);
         crawler.walkTime += dt;

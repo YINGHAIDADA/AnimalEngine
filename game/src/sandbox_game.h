@@ -89,6 +89,7 @@ private:
     bool facingLeft_ = false;
     float invulnerable_ = 0.0f; // seconds left after a hit
     float stunned_ = 0.0f;      // seconds of knockback without control
+    float submersion_ = 0.0f;   // share of the player under water (last step)
 
     animal::SaveData save_;  // progress: checkpoint and collected gems
     std::string savePath_;   // empty: progress is not persisted (--demo, --deterministic)

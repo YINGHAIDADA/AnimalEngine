@@ -11,7 +11,7 @@
  "tilewidth": 8,
  "tileheight": 8,
  "nextlayerid": 3,
- "nextobjectid": 15,
+ "nextobjectid": 17,
  "properties": [
   {
    "name": "look",
@@ -788,6 +788,7 @@
     4,
     4,
     4,
+    3,
     4,
     4,
     4,
@@ -798,8 +799,7 @@
     4,
     4,
     4,
-    4,
-    4,
+    3,
     4,
     2,
     2,
@@ -828,6 +828,7 @@
     4,
     4,
     4,
+    2,
     4,
     4,
     4,
@@ -838,8 +839,7 @@
     4,
     4,
     4,
-    4,
-    4,
+    2,
     4,
     2,
     2,
@@ -869,16 +869,16 @@
     3,
     3,
     3,
-    3,
-    3,
-    3,
-    3,
-    3,
-    3,
-    3,
-    3,
-    3,
-    3,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
     3,
     3,
     2,
@@ -1158,6 +1158,46 @@
        "value": 5
       }
      ]
+    },
+    {
+     "id": 15,
+     "name": "",
+     "type": "water",
+     "rotation": 0,
+     "visible": true,
+     "x": 216,
+     "y": 144,
+     "width": 80,
+     "height": 16,
+     "properties": [
+      {
+       "name": "color",
+       "type": "color",
+       "value": "#ff2e546e"
+      },
+      {
+       "name": "opacity",
+       "type": "float",
+       "value": 0.45
+      },
+      {
+       "name": "reflection",
+       "type": "float",
+       "value": 0.45
+      }
+     ]
+    },
+    {
+     "id": 16,
+     "name": "",
+     "type": "lantern",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 268,
+     "y": 132,
+     "width": 0,
+     "height": 0
     }
    ]
   }

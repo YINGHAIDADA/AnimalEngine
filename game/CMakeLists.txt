@@ -48,6 +48,7 @@ animal_add_data_files(animal_game_world
         effects/dust.effect.json
         effects/firefly.effect.json
         effects/ember.effect.json
-        effects/spark.effect.json)
+        effects/spark.effect.json
+        effects/splash.effect.json)
 
 add_dependencies(animal_game animal_shaders animal_game_textures animal_game_world)
