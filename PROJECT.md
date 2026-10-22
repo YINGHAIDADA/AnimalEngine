@@ -325,6 +325,7 @@ ctest --test-dir build/<preset> --output-on-failure
   - ADR-0020 GPU 粒子：RGBA32F 状态纹理的片元着色器模拟、整数哈希随机、实例化绘制，`"gpu": true` 预设与瀑布示例（Accepted）。
   - ADR-0021 后端无关的 RHI 校验层：`ValidatingDevice` 装饰器，创建与提交时的统一检查（Accepted）。
   - ADR-0022 Vulkan 显存子分配、描述符池与暂存缓冲：VMA、可扩容的池列表与暂存缓冲（Accepted）。
+  - ADR-0023 按用途推导的 Vulkan 屏障：精确阶段 / 访问 / 布局，补上相同布局连续写的依赖（Accepted）。
 
 ## 13. 当前待确认项（不阻塞 M0）
 

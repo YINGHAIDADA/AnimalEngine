@@ -76,7 +76,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 
 - **文件**：`vk_device.h`（内部类型与 `VulkanDevice` 声明）、`vk_device.cpp`（实例 / 设备 / 帧槽位）、`vk_swapchain.cpp`（交换链与帧循环）、`vk_resources.cpp`（内存、上传、缓冲、纹理、采样器、延迟销毁）、`vk_pipelines.cpp`（着色器、管线、描述符布局与绑定组）、`vk_commands.cpp`（提交与命令翻译）、`vk_util.cpp`（枚举转换、错误检查）。
 - 基线：Vulkan 1.2 + `VK_KHR_dynamic_rendering` + `VK_KHR_synchronization2`（MoltenVK 上加 `VK_KHR_portability_subset`）；同时在途 2 帧。
-- **布局转换**：每个纹理记录当前布局。提交时预扫描每个渲染通道，把附件与被采样纹理需要的转换统一放在 `vkCmdBeginRenderingKHR` 之前。
+- **屏障**：每个纹理记录上一次的用途（附件、采样、拷贝、呈现），按“上一次用途的写 → 下一次用途的读写”推导精确的阶段 / 访问 / 布局；连续只读不发屏障。提交时预扫描每个渲染通道，把附件与被采样纹理需要的屏障统一放在 `vkCmdBeginRenderingKHR` 之前（ADR-0023）。
 - **数据写入**：帧内写入复制到每帧的暂存缓冲，并录制进上传命令缓冲，提交时排在帧命令之前；帧外写入立即执行并等待完成。
 - **绑定**：由着色器包中的绑定表生成 descriptor set layout（按签名缓存，stage 统一为 VS | FS），`BindGroup` 对应一个 descriptor set。
 - **交换链**：渲染到 RGBA8 离屏图像，`endFrame()` 时 blit 到真实交换链图像再呈现。
