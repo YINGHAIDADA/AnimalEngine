@@ -20,7 +20,8 @@ class LightingPass;
 
 // Frame structure (ADR-0007):
 //   beginFrame
-//   beginWorld .. drawSprite / addLight .. endWorld     material pass -> lights -> composite into canvas
+//   beginWorld .. drawSprite / drawGlow / addLight .. endWorld
+//                                                       material pass -> lights -> composite -> glow
 //   [beginWorldOverlay .. fillRect / strokeRect .. endWorldOverlay]   unlit, over the lit canvas
 //   beginScreen .. drawText / fillRect .. endScreen     canvas scaled into the window + overlays
 //   endFrame                                            uploads batched data; call before Device::submit
@@ -45,6 +46,8 @@ public:
                     Color tint = Color::white(), bool flipX = false);
     void drawSprite(const LoadedTexture& texture, Vec2 position, const RectF& source, Color tint = Color::white(),
                     bool flipX = false);
+    // Unlit additive pixel (fireflies, embers) in world pixels; drawn over the lit result.
+    void drawGlow(Vec2 position, Color color, float size = 1.0f);
     void addLight(const PointLight& light);
     void endWorld();
 
@@ -88,6 +91,13 @@ private:
 
     SpriteBatch batch_;    // unlit: overlays and the screen pass
     SpriteBatch litBatch_; // material pass into the G-buffer
+    SpriteBatch glowBatch_; // additive glow over the composited canvas
+
+    struct GlowQuad {
+        RectF rect;
+        Color color;
+    };
+    std::vector<GlowQuad> glow_;
     std::unique_ptr<DebugFont> font_;
     std::unique_ptr<LightingPass> lightingPass_;
     LightingSettings lightingSettings_;

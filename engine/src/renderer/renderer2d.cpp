@@ -66,7 +66,14 @@ bool Renderer2D::init(rhi::Device& device, const std::string& dataDirectory) {
     lit.texturesPerSprite = 3;
     lit.debugName = "sprite lit";
 
-    if (!batch_.init(device, shaders, unlit) || !litBatch_.init(device, shaders, lit)) {
+    SpriteBatchDesc glow;
+    glow.colorTargets = {{rhi::Format::RGBA8_UNorm,
+                          {true, rhi::BlendFactor::One, rhi::BlendFactor::One, rhi::BlendOp::Add, rhi::BlendFactor::One,
+                           rhi::BlendFactor::One, rhi::BlendOp::Add}}};
+    glow.debugName = "sprite glow";
+
+    if (!batch_.init(device, shaders, unlit) || !litBatch_.init(device, shaders, lit) ||
+        !glowBatch_.init(device, shaders, glow)) {
         log::error("Renderer2D: sprite batch initialization failed (is '{}' deployed?)", dataDirectory);
         return false;
     }
@@ -94,6 +101,7 @@ void Renderer2D::shutdown() {
         return;
     }
     lightingPass_->shutdown();
+    glowBatch_.shutdown();
     litBatch_.shutdown();
     batch_.shutdown();
     font_->shutdown(*device_);
@@ -107,6 +115,7 @@ void Renderer2D::beginFrame(rhi::CommandList& commands) {
     commands_ = &commands;
     batch_.beginFrame();
     litBatch_.beginFrame();
+    glowBatch_.beginFrame();
     lightingPass_->beginFrame();
 }
 
@@ -115,6 +124,7 @@ void Renderer2D::beginWorld(const Camera2D& camera, Color clearColor) {
     phase_ = Phase::World;
     worldViewProjection_ = camera.viewProjection(kCanvasExtent);
     lights_.clear();
+    glow_.clear();
 
     rhi::RenderPassDesc pass;
     pass.colorAttachments[0] = {albedo_, rhi::LoadOp::Clear, rhi::StoreOp::Store, toClearColor(clearColor)};
@@ -156,6 +166,12 @@ void Renderer2D::drawSprite(const LoadedTexture& texture, Vec2 position, const R
     drawSprite(material, position, source, tint, flipX);
 }
 
+void Renderer2D::drawGlow(Vec2 position, Color color, float size) {
+    ANIMAL_ASSERT(phase_ == Phase::World);
+    const Vec2 p = roundToPixel(position);
+    glow_.push_back({{p.x, p.y, size, size}, color});
+}
+
 void Renderer2D::addLight(const PointLight& light) {
     ANIMAL_ASSERT(phase_ == Phase::World);
     lights_.push_back(light);
@@ -166,6 +182,16 @@ void Renderer2D::endWorld() {
     litBatch_.end();
     commands_->endRenderPass();
     lightingPass_->render(*commands_, worldViewProjection_, lights_, lightingSettings_, canvas_);
+
+    if (!glow_.empty()) {
+        commands_->beginRenderPass(rhi::RenderPassDesc::single({canvas_, rhi::LoadOp::Load, rhi::StoreOp::Store, {}}));
+        glowBatch_.begin(*commands_, worldViewProjection_);
+        for (const GlowQuad& quad : glow_) {
+            glowBatch_.draw(font_->texture(), quad.rect, font_->solidUV(), quad.color);
+        }
+        glowBatch_.end();
+        commands_->endRenderPass();
+    }
     phase_ = Phase::Idle;
 }
 
@@ -254,6 +280,7 @@ void Renderer2D::endFrame() {
     ANIMAL_ASSERT(phase_ == Phase::Idle);
     batch_.endFrame();
     litBatch_.endFrame();
+    glowBatch_.endFrame();
     lightingPass_->endFrame();
     commands_ = nullptr;
 }
@@ -261,7 +288,8 @@ void Renderer2D::endFrame() {
 SpriteBatchStats Renderer2D::stats() const {
     const SpriteBatchStats a = batch_.stats();
     const SpriteBatchStats b = litBatch_.stats();
-    return {a.quads + b.quads, a.drawCalls + b.drawCalls};
+    const SpriteBatchStats c = glowBatch_.stats();
+    return {a.quads + b.quads + c.quads, a.drawCalls + b.drawCalls + c.drawCalls};
 }
 
 uint32_t Renderer2D::lightCount() const {
