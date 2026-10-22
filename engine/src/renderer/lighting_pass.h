@@ -24,7 +24,9 @@ public:
         rhi::TextureHandle albedo;
         rhi::TextureHandle normal;
         rhi::TextureHandle emissive;
+        rhi::TextureHandle flags; // material flags: r = rim strength
         rhi::TextureHandle light;
+        rhi::TextureHandle rim;   // rim light accumulation, same format as `light`
         rhi::TextureHandle smoke; // fluid smoke field (any size; sampled with linear filtering)
         rhi::Extent2D extent;
     };
@@ -64,6 +66,7 @@ private:
     struct LightView {
         Mat4 viewProjection;
         float params[4]; // xy: canvas size, z: shadows enabled, w: penetration
+        float rim[4];    // x: rim intensity
     };
 
     struct CompositeUniforms {
@@ -71,6 +74,7 @@ private:
         float params[4];
         float canvasSize[4];
         float smoke[4];
+        float rimAmbient[4];
     };
 
     bool initLightPipeline(const std::string& shaderDirectory);

@@ -14,12 +14,31 @@ layout(location = 6) flat in vec4 vSpot;
 layout(set = 0, binding = 0, std140) uniform View {
     mat4 viewProjection;
     vec4 params; // xy: canvas size, z: shadows enabled, w: penetration in pixels
+    vec4 rim;    // x: rim intensity
 } view;
 
 layout(set = 1, binding = 0) uniform sampler2D normalBuffer;
 layout(set = 1, binding = 1) uniform sampler2D occluders;
+layout(set = 1, binding = 2) uniform sampler2D materialFlags; // r: rim strength
 
 layout(location = 0) out vec4 outLight;
+layout(location = 1) out vec4 outRim;
+
+float rimMask(ivec2 texel, ivec2 size) {
+    if (any(lessThan(texel, ivec2(0))) || any(greaterThanEqual(texel, size))) {
+        return 0.0;
+    }
+    return texelFetch(materialFlags, texel, 0).r;
+}
+
+// The neighbour of `pixel` in the direction of `light`, by integer comparisons only (identical on
+// every backend): diagonal unless the direction is within ~27° of an axis.
+ivec2 towards(ivec2 pixel, ivec2 light) {
+    ivec2 d = light - pixel;
+    ivec2 a = abs(d);
+    ivec2 step = ivec2(sign(vec2(d)));
+    return pixel + ivec2(a.x * 2 > a.y ? step.x : 0, a.y * 2 > a.x ? step.y : 0);
+}
 
 bool occluded(ivec2 texel, ivec2 size) {
     if (any(lessThan(texel, ivec2(0))) || any(greaterThanEqual(texel, size))) {
@@ -66,18 +85,20 @@ float transmittance(ivec2 from, ivec2 to, float penetration) {
 }
 
 void main() {
+    outLight = vec4(0.0);
+    outRim = vec4(0.0);
     vec2 toLight = vCenter - vWorld;
     float radius = vParams.x;
     float distance = length(toLight);
     if (distance >= radius) {
-        outLight = vec4(0.0);
         return;
     }
+    ivec2 size = ivec2(view.params.xy);
+    ivec2 pixel = ivec2(floor(vScreenUV * view.params.xy));
     float visible = 1.0;
     if (view.params.z > 0.5 && vParams.z > 0.5) {
-        visible = transmittance(vLightTexel, ivec2(floor(vScreenUV * view.params.xy)), view.params.w);
+        visible = transmittance(vLightTexel, pixel, view.params.w);
         if (visible <= 0.0) {
-            outLight = vec4(0.0);
             return;
         }
     }
@@ -87,7 +108,6 @@ void main() {
         float along = distance > 0.0 ? dot(-toLight / distance, vSpot.xy) : 1.0;
         falloff *= smoothstep(vSpot.z, vSpot.w, along);
         if (falloff <= 0.0) {
-            outLight = vec4(0.0);
             return;
         }
     }
@@ -96,6 +116,12 @@ void main() {
     n = dot(n, n) > 1e-6 ? normalize(n) : vec3(0.0, 0.0, 1.0);
     vec3 l = normalize(vec3(toLight, vParams.y));
     float diffuse = max(dot(n, l), 0.0);
-
     outLight = vec4(vColor.rgb * (diffuse * falloff * visible), 0.0);
+
+    // Rim: a rim sprite's pixel whose neighbour towards the light is not part of a rim sprite is on
+    // the silhouette facing the light.
+    float rim = rimMask(pixel, size);
+    if (rim > 0.0 && pixel != vLightTexel && rimMask(towards(pixel, vLightTexel), size) <= 0.0) {
+        outRim = vec4(vColor.rgb * (rim * view.rim.x * falloff * visible), 0.0);
+    }
 }

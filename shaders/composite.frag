@@ -10,12 +10,15 @@ layout(set = 0, binding = 0, std140) uniform Composite {
     vec4 params;     // x: lighting enabled, y: light bands (0 = smooth), z: ordered dither
     vec4 canvasSize; // xy in pixels
     vec4 smoke;      // rgb: tint, a: opacity scale
+    vec4 rimAmbient; // rgb
 } settings;
 
 layout(set = 1, binding = 0) uniform sampler2D albedoBuffer;
 layout(set = 1, binding = 1) uniform sampler2D lightBuffer;
 layout(set = 1, binding = 2) uniform sampler2D emissiveBuffer;
 layout(set = 1, binding = 3) uniform sampler2D smokeField; // linear; rgb = color × density, a = density
+layout(set = 1, binding = 4) uniform sampler2D rimBuffer;  // rim light from the light pass
+layout(set = 1, binding = 5) uniform sampler2D materialFlags; // r: rim strength
 
 layout(location = 0) out vec4 outColor;
 
@@ -42,6 +45,23 @@ void main() {
         light *= quantized / level;
     }
     vec3 lit = albedo.rgb * light + emissive;
+
+    // Rim light is added regardless of albedo: the dark outline of a sprite is what catches it.
+    // Ambient rim: top and side silhouette edges (not the bottom, which usually stands on something).
+    if (settings.params.x > 0.5) {
+        ivec2 p = ivec2(vUV * settings.canvasSize.xy);
+        ivec2 size = ivec2(settings.canvasSize.xy);
+        float rim = texelFetch(materialFlags, p, 0).r;
+        if (rim > 0.0) {
+            float up = p.y > 0 ? texelFetch(materialFlags, p + ivec2(0, -1), 0).r : 0.0;
+            float left = p.x > 0 ? texelFetch(materialFlags, p + ivec2(-1, 0), 0).r : 0.0;
+            float right = p.x + 1 < size.x ? texelFetch(materialFlags, p + ivec2(1, 0), 0).r : 0.0;
+            if (min(up, min(left, right)) <= 0.0) {
+                lit += settings.rimAmbient.rgb * rim;
+            }
+        }
+        lit += texture(rimBuffer, vUV).rgb;
+    }
 
     vec4 dye = texture(smokeField, vUV);
     float density = clamp(dye.a * settings.smoke.a, 0.0, 1.0);

@@ -68,6 +68,7 @@ bool Renderer2D::init(rhi::Device& device, const std::string& dataDirectory) {
         {rhi::Format::RGBA8_UNorm, rhi::BlendState::premultipliedAlpha()}, // albedo
         {rhi::Format::RGBA8_UNorm, rhi::BlendState::premultipliedAlpha()}, // normal
         {rhi::Format::RGBA8_UNorm, rhi::BlendState::premultipliedAlpha()}, // emissive
+        {rhi::Format::RGBA8_UNorm, rhi::BlendState::premultipliedAlpha()}, // material flags (r: rim)
     };
     lit.texturesPerSprite = 3;
     lit.debugName = "sprite lit";
@@ -92,17 +93,20 @@ bool Renderer2D::init(rhi::Device& device, const std::string& dataDirectory) {
     albedo_ = createTarget(rhi::Format::RGBA8_UNorm, "g-buffer albedo");
     normal_ = createTarget(rhi::Format::RGBA8_UNorm, "g-buffer normal");
     emissive_ = createTarget(rhi::Format::RGBA8_UNorm, "g-buffer emissive");
+    flags_ = createTarget(rhi::Format::RGBA8_UNorm, "g-buffer material flags");
     light_ = createTarget(rhi::Format::RGBA16_Float, "light accumulation");
+    rimLight_ = createTarget(rhi::Format::RGBA16_Float, "rim light accumulation");
     flatNormal_ = createSolidTexture(Color::rgba(128, 128, 255), "flat normal");
     noEmission_ = createSolidTexture(Color::rgba(0, 0, 0), "no emission");
-    if (!canvas_ || !final_ || !albedo_ || !normal_ || !emissive_ || !light_ || !flatNormal_ || !noEmission_) {
+    if (!canvas_ || !final_ || !albedo_ || !normal_ || !emissive_ || !flags_ || !light_ || !rimLight_ || !flatNormal_ || !noEmission_) {
         return false;
     }
 
     if (!fluidPass_->init(device, shaders)) {
         return false;
     }
-    LightingPass::Targets targets{albedo_, normal_, emissive_, light_, fluidPass_->smokeTexture(), kCanvasExtent};
+    LightingPass::Targets targets{albedo_, normal_, emissive_, flags_, light_, rimLight_, fluidPass_->smokeTexture(),
+                                  kCanvasExtent};
     return lightingPass_->init(device, shaders, targets, rhi::Format::RGBA8_UNorm) &&
            postPass_->init(device, shaders, canvas_, final_, kCanvasExtent);
 }
@@ -118,7 +122,7 @@ void Renderer2D::shutdown() {
     litBatch_.shutdown();
     batch_.shutdown();
     font_->shutdown(*device_);
-    for (rhi::TextureHandle texture : {canvas_, final_, albedo_, normal_, emissive_, light_, flatNormal_, noEmission_}) {
+    for (rhi::TextureHandle texture : {canvas_, final_, albedo_, normal_, emissive_, flags_, light_, rimLight_, flatNormal_, noEmission_}) {
         device_->destroy(texture);
     }
     device_ = nullptr;
@@ -146,7 +150,8 @@ void Renderer2D::beginWorld(const Camera2D& camera, Color clearColor) {
     pass.colorAttachments[0] = {albedo_, rhi::LoadOp::Clear, rhi::StoreOp::Store, toClearColor(clearColor)};
     pass.colorAttachments[1] = {normal_, rhi::LoadOp::Clear, rhi::StoreOp::Store, kFlatNormalClear};
     pass.colorAttachments[2] = {emissive_, rhi::LoadOp::Clear, rhi::StoreOp::Store, kNoEmissionClear};
-    pass.colorAttachmentCount = 3;
+    pass.colorAttachments[3] = {flags_, rhi::LoadOp::Clear, rhi::StoreOp::Store, {0.0f, 0.0f, 0.0f, 0.0f}};
+    pass.colorAttachmentCount = 4;
     commands_->beginRenderPass(pass);
     litBatch_.begin(*commands_, worldViewProjection_);
 }
@@ -169,7 +174,7 @@ void Renderer2D::drawSprite(const SpriteMaterial& material, Vec2 position, const
     if (phase_ == Phase::World) {
         litBatch_.draw({texture.handle, material.normal ? material.normal : flatNormal_,
                         material.emissive ? material.emissive : noEmission_},
-                       dst, uv, tint);
+                       dst, uv, tint, material.rim);
     } else {
         batch_.draw(texture.handle, dst, uv, tint);
     }

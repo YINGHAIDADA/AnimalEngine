@@ -23,6 +23,11 @@ struct LightingSettings {
     bool dither = true;       // ordered dither between bands
     bool shadows = true;
     float shadowPenetration = 16.0f; // light reaching into an occluder fades out over this many pixels
+    // Rim light on sprites with SpriteMaterial::rim > 0, added regardless of albedo (ADR-0014):
+    // silhouette pixels whose neighbour towards a light is empty catch that light...
+    float rimIntensity = 1.0f;
+    // ...and the top and side edges always get this, so characters read in the dark.
+    Vec3 rimAmbient{0.10f, 0.10f, 0.14f};
 };
 
 } // namespace animal

@@ -5,6 +5,7 @@
 #include <animal/rhi/command_list.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 
 namespace animal {
@@ -26,6 +27,7 @@ bool SpriteBatch::init(rhi::Device& device, const std::string& shaderDirectory, 
         {0, 0, rhi::VertexFormat::Float2, offsetof(Vertex, x)},
         {1, 0, rhi::VertexFormat::Float2, offsetof(Vertex, u)},
         {2, 0, rhi::VertexFormat::UNorm8x4, offsetof(Vertex, color)},
+        {3, 0, rhi::VertexFormat::UNorm8x4, offsetof(Vertex, params)},
     };
     pipelineDesc.colorTargets = desc.colorTargets;
     pipelineDesc.debugName = desc.debugName;
@@ -119,7 +121,7 @@ void SpriteBatch::begin(rhi::CommandList& commands, const Mat4& viewProjection) 
     runStart_ = quadCount();
 }
 
-void SpriteBatch::draw(const SpriteTextures& textures, const RectF& dst, const RectF& uv, Color color) {
+void SpriteBatch::draw(const SpriteTextures& textures, const RectF& dst, const RectF& uv, Color color, float rim) {
     if (!commands_) {
         return;
     }
@@ -144,10 +146,11 @@ void SpriteBatch::draw(const SpriteTextures& textures, const RectF& dst, const R
     const float v0 = uv.y;
     const float u1 = uv.x + uv.width;
     const float v1 = uv.y + uv.height;
-    vertices_.push_back({x0, y0, u0, v0, c});
-    vertices_.push_back({x1, y0, u1, v0, c});
-    vertices_.push_back({x1, y1, u1, v1, c});
-    vertices_.push_back({x0, y1, u0, v1, c});
+    const auto r = static_cast<uint8_t>(std::lround(std::clamp(rim, 0.0f, 1.0f) * 255.0f));
+    vertices_.push_back({x0, y0, u0, v0, c, {r, 0, 0, 0}});
+    vertices_.push_back({x1, y0, u1, v0, c, {r, 0, 0, 0}});
+    vertices_.push_back({x1, y1, u1, v1, c, {r, 0, 0, 0}});
+    vertices_.push_back({x0, y1, u0, v1, c, {r, 0, 0, 0}});
 }
 
 void SpriteBatch::flush() {

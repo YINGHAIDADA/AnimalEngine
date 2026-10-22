@@ -51,7 +51,7 @@ bool LightingPass::initLightPipeline(const std::string& shaderDirectory) {
         {4, 0, rhi::VertexFormat::Float2, offsetof(LightVertex, texelX)},
         {5, 0, rhi::VertexFormat::Float4, offsetof(LightVertex, spotX)},
     };
-    desc.colorTargets = {{rhi::Format::RGBA16_Float, kAdditive}};
+    desc.colorTargets = {{rhi::Format::RGBA16_Float, kAdditive}, {rhi::Format::RGBA16_Float, kAdditive}};
     desc.debugName = "light";
     lightPipeline_ = device_->createGraphicsPipeline(desc);
     if (!lightPipeline_) {
@@ -93,7 +93,8 @@ bool LightingPass::initLightPipeline(const std::string& shaderDirectory) {
     inputGroup.pipeline = lightPipeline_;
     inputGroup.set = 1;
     inputGroup.entries = {rhi::BindGroupEntry::textureSampler(0, targets_.normal, sampler_),
-                          rhi::BindGroupEntry::textureSampler(1, occluders_, sampler_)};
+                          rhi::BindGroupEntry::textureSampler(1, occluders_, sampler_),
+                          rhi::BindGroupEntry::textureSampler(2, targets_.flags, sampler_)};
     inputGroup.debugName = "light inputs";
     lightInputGroup_ = device_->createBindGroup(inputGroup);
 
@@ -140,6 +141,8 @@ bool LightingPass::initCompositePipeline(const std::string& shaderDirectory, rhi
         rhi::BindGroupEntry::textureSampler(1, targets_.light, sampler_),
         rhi::BindGroupEntry::textureSampler(2, targets_.emissive, sampler_),
         rhi::BindGroupEntry::textureSampler(3, targets_.smoke, linearSampler_),
+        rhi::BindGroupEntry::textureSampler(4, targets_.rim, sampler_),
+        rhi::BindGroupEntry::textureSampler(5, targets_.flags, sampler_),
     };
     inputGroup.debugName = "composite inputs";
     compositeInputGroup_ = device_->createBindGroup(inputGroup);
@@ -222,7 +225,8 @@ void LightingPass::render(rhi::CommandList& commands, const Mat4& viewProjection
 
     const LightView view = {viewProjection,
                             {static_cast<float>(targets_.extent.width), static_cast<float>(targets_.extent.height),
-                             settings.shadows ? 1.0f : 0.0f, std::max(0.0f, settings.shadowPenetration)}};
+                             settings.shadows ? 1.0f : 0.0f, std::max(0.0f, settings.shadowPenetration)},
+                            {std::max(0.0f, settings.rimIntensity), 0.0f, 0.0f, 0.0f}};
     device_->writeBuffer(viewUniforms_, 0, &view, sizeof(view));
     const CompositeUniforms uniforms = {
         {settings.ambient.x, settings.ambient.y, settings.ambient.z, 0.0f},
@@ -230,11 +234,15 @@ void LightingPass::render(rhi::CommandList& commands, const Mat4& viewProjection
          0.0f},
         {static_cast<float>(targets_.extent.width), static_cast<float>(targets_.extent.height), 0.0f, 0.0f},
         {smoke.tint.x, smoke.tint.y, smoke.tint.z, smoke.opacity},
+        {settings.rimAmbient.x, settings.rimAmbient.y, settings.rimAmbient.z, 0.0f},
     };
     device_->writeBuffer(compositeUniforms_, 0, &uniforms, sizeof(uniforms));
 
-    commands.beginRenderPass(rhi::RenderPassDesc::single({targets_.light, rhi::LoadOp::Clear, rhi::StoreOp::Store,
-                                                          {0.0f, 0.0f, 0.0f, 0.0f}}));
+    rhi::RenderPassDesc lightPass;
+    lightPass.colorAttachments[0] = {targets_.light, rhi::LoadOp::Clear, rhi::StoreOp::Store, {0.0f, 0.0f, 0.0f, 0.0f}};
+    lightPass.colorAttachments[1] = {targets_.rim, rhi::LoadOp::Clear, rhi::StoreOp::Store, {0.0f, 0.0f, 0.0f, 0.0f}};
+    lightPass.colorAttachmentCount = 2;
+    commands.beginRenderPass(lightPass);
     if (count > 0) {
         commands.setPipeline(lightPipeline_);
         commands.setVertexBuffer(0, lightVertices_);

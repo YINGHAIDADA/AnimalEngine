@@ -41,6 +41,7 @@ struct SpriteMaterial {
     LoadedTexture albedo;
     rhi::TextureHandle normal;   // invalid: flat
     rhi::TextureHandle emissive; // invalid: none
+    float rim = 0.0f;            // 0..1: silhouette catches rim light (LightingSettings::rim*)
 };
 
 // `basePath` excludes the extension. Missing companions are allowed; a missing albedo fails.

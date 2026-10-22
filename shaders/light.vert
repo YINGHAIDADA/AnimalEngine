@@ -12,6 +12,7 @@ layout(location = 5) in vec4 inSpot;   // xy: cone direction, z / w: cosine of t
 layout(set = 0, binding = 0, std140) uniform View {
     mat4 viewProjection;
     vec4 params; // xy: canvas size, z: shadows enabled, w: penetration in pixels
+    vec4 rim;    // x: rim intensity
 } view;
 
 layout(location = 0) out vec2 vWorld;

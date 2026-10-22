@@ -135,6 +135,8 @@ private:
     rhi::TextureHandle normal_;
     rhi::TextureHandle emissive_;
     rhi::TextureHandle light_;
+    rhi::TextureHandle rimLight_;
+    rhi::TextureHandle flags_; // material flags: r = rim strength
     rhi::TextureHandle flatNormal_;
     rhi::TextureHandle noEmission_;
     PresentLayout presentLayout_;
