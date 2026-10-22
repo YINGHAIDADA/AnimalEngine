@@ -15,3 +15,6 @@ CMakeUserPresets.json
 .idea/
 *.user
 .DS_Store
+
+# Python bytecode (tools/scripts)
+__pycache__/
