@@ -2,7 +2,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**M2 光照生产化已完成**（macOS）——硬边像素阴影、聚光灯 / 光源动画 / 灯具、边缘光、观感预设（按房间配置光照与调色）、GPU 计时与帧预算；接下来按计划是 M3 模拟效果生产化（M1b 游戏结构与 V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
+当前阶段：**M3 模拟效果生产化**——流体休眠与提速已完成，接下来是效果预设、水、风场与植被、GPU 粒子（M2 光照生产化已在 macOS 上完成）（M1b 游戏结构与 V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 
@@ -82,6 +82,7 @@ cmake --build --preset windows-ninja-debug
 | `--screenshot=path.png` | 与 `--frames` 合用，在最后一帧截图（用于验收与渲染回归） |
 | `--profile` | 退出时打印帧时间与各渲染 pass 的 GPU 耗时（平均 / 最大，跳过 60 帧预热；见 ADR-0016） |
 | `--stress-lights=N` | （示例游戏）额外加入 N 盏游走的阴影光源，用于性能测试 |
+| `--start-room=NAME` | （示例游戏）从指定房间开始（如 `smoke_pit`），用于测试；不读写存档 |
 
 玩法：收集散落在三个房间中的 7 颗宝石（右上角计数）；紫色甲虫在地面巡逻，碰到会被弹开；走进提示区域时屏幕下方显示提示。拾取宝石、进入新房间后第一次站稳时自动保存，下次启动从该处继续（存档位置见 ADR-0011；`--demo` / `--deterministic` 不读写存档）。
 
