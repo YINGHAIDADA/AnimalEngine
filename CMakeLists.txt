@@ -35,6 +35,7 @@ add_subdirectory(shaders)
 add_subdirectory(engine)
 add_subdirectory(framework)
 add_subdirectory(game)
+add_subdirectory(tools/rhi_conformance)
 
 if(ANIMAL_BUILD_TESTS)
     enable_testing()

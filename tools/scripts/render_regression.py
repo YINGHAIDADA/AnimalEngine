@@ -34,7 +34,9 @@ SCENES = [
     ("pit_waterfall", 300, ["--start-room=smoke_pit"]),
     ("gallery_idle", 120, ["--start-room=crystal_gallery"]),
     ("stress_lights", 200, ["--demo", "--stress-lights=256"]),
+    ("rhi_conformance", 0, []),                      # every RHI feature, incl. ones the game never uses
 ]
+CONFORMANCE = "rhi_conformance"
 
 
 def default_binary():
@@ -43,10 +45,18 @@ def default_binary():
     return ROOT / "build" / "macos-ninja-debug" / "bin" / "Debug" / "AnimalGame"
 
 
+def conformance_binary(game):
+    name = "AnimalRhiConformance.exe" if game.suffix == ".exe" else "AnimalRhiConformance"
+    return game.parent / name
+
+
 def run_scene(binary, backend, name, frames, extra, out_dir):
     out = out_dir / f"{name}_{backend}.png"
-    command = [str(binary), f"--backend={backend}", "--deterministic", "--no-vsync", "--hide-overlay",
-               f"--frames={frames}", f"--canvas-screenshot={out}", *extra]
+    if name == CONFORMANCE:
+        command = [str(conformance_binary(binary)), f"--backend={backend}", f"--out={out}"]
+    else:
+        command = [str(binary), f"--backend={backend}", "--deterministic", "--no-vsync", "--hide-overlay",
+                   f"--frames={frames}", f"--canvas-screenshot={out}", *extra]
     result = subprocess.run(command, capture_output=True, text=True, timeout=300)
     log = result.stdout + result.stderr
     errors = 0

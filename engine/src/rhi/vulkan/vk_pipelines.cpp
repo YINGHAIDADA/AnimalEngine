@@ -137,6 +137,9 @@ PipelineHandle VulkanDevice::createGraphicsPipeline(const GraphicsPipelineDesc& 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     inputAssembly.topology = toVk(desc.topology);
+    // Metal (MoltenVK) cannot turn primitive restart off for strips; enable it so every backend
+    // behaves the same: indexed strips must not use the maximum index value.
+    inputAssembly.primitiveRestartEnable = desc.topology == PrimitiveTopology::TriangleStrip ? VK_TRUE : VK_FALSE;
 
     VkPipelineViewportStateCreateInfo viewportState{};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;

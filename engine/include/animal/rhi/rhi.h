@@ -163,7 +163,7 @@ struct VertexAttribute {
 
 enum class PrimitiveTopology : uint8_t {
     TriangleList,
-    TriangleStrip,
+    TriangleStrip, // indexed strips must not use the maximum index value (restart on some backends)
     LineList,
 };
 
