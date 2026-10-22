@@ -2,7 +2,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**M2.5 Vulkan 后端完善**——渲染回归脚本与基准截图、后端无关的 RHI 校验层已完成，接下来是拆分 Vulkan 后端、VMA、精细屏障、管线缓存（M3 模拟效果生产化已在 macOS 上完成）（M1b 游戏结构与 V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
+当前阶段：**M2.5 Vulkan 后端完善已完成**（macOS；Windows 原生驱动验证待做）——渲染回归与基准截图、后端无关的 RHI 校验层、Vulkan 后端拆分、VMA 显存子分配、按用途推导的屏障、管线缓存、RHI 功能一致性测试（M3 模拟效果生产化、M2 光照生产化已在 macOS 上完成）（M1b 游戏结构与 V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 
@@ -206,3 +206,17 @@ $R --backend=vulkan --demo --deterministic --no-vsync --hide-overlay --profile -
 | OpenGL 4.1 下有片元着色器实现路径 | 烟雾、水、GPU 粒子都只用片元着色器，OpenGL 4.1 为主开发后端 | ✅ |
 | 性能预算 | Vulkan、Release、Apple M2：三个房间 GPU 整帧 1.2–2.2 ms，各效果均在 ADR-0016 的预算内 | ✅（Apple M2） |
 | Windows 上的表现与一致性 | Windows 上重复以上步骤 | ⏳ 待在 Windows 机器上验证 |
+
+## M2.5 验收条件
+
+| 条件 | 验证方式 | 状态 |
+|---|---|---|
+| 补齐只在 OpenGL 实现的 RHI 功能 | 审计：没有缺失；`AnimalRhiConformance` 逐项执行全部 RHI 功能（含游戏未用到的），两后端逐像素一致（ADR-0025） | ✅ |
+| 两后端共用的参数校验 | Debug 构建的 `ValidatingDevice`，创建与提交时统一检查，单元测试覆盖（ADR-0021） | ✅ |
+| 拆分 `vk_device.cpp` | 7 个文件（设备、交换链、资源、管线、命令、工具、内部头文件），纯移动、回归不变 | ✅ |
+| 细化屏障、内存子分配与管线缓存 | 按用途推导的屏障（ADR-0023）、VMA 与可扩容的描述符池 / 暂存缓冲（ADR-0022）、管线缓存（ADR-0024，19 个管线 21 ms → 3 ms） | ✅ |
+| M0–M2（及 M3）全部测试场景两后端输出一致 | `render_regression.py`：6 个游戏场景 + RHI 一致性图，Debug 与 Release 构建都与基准逐像素相同 | ✅（macOS / MoltenVK） |
+| 可通过启动参数切换后端 | `--backend=opengl|vulkan` | ✅ |
+| 验证层无报错 | Vulkan 验证层（含同步验证）与 RHI 校验在全部回归场景、`--resize-test` 下零报错 | ✅ |
+| 上层代码无需修改 | M2.5 期间 framework / game 未因后端改动而修改（校验层是透明的装饰器） | ✅ |
+| Windows 原生驱动验证 | Windows 上构建、跑测试、渲染回归与 `--profile` | ⏳ 待在 Windows 机器上验证 |
