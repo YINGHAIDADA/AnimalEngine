@@ -2,7 +2,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**V1 视觉样板**——像素光照、可互动的草与藤蔓、粒子（萤火虫 / 火星 / 灰尘）、流体烟雾已完成，接下来是泛光与调色（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
+当前阶段：**V1 视觉样板已完成**（像素光照、可互动的草与藤蔓、粒子、流体烟雾、泛光与调色），下一步是 M1b 游戏结构（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 
@@ -60,6 +60,7 @@ cmake --build --preset windows-ninja-debug
 | F3 | | 开关光照（关闭时显示原始颜色） |
 | F4 | | 切换光照量化：平滑 / 3 / 5 / 8 级 |
 | F5 | | 开关流体烟雾 |
+| F6 | | 开关泛光与调色 |
 | F12 | | 截图到 `screenshots/` |
 | Esc | | 退出 |
 
@@ -106,6 +107,18 @@ python3 tools/scripts/compare_images.py screenshots/gl.png screenshots/vk.png
 | 两个平台的验收截图 | `AnimalGame --frames=60 --screenshot=screenshots/m0_<platform>.png` | macOS ✅ / Windows ⏳ |
 
 全部通过后打 tag `milestone/m0-runtime`。
+
+## V1 验收条件
+
+| 条件 | 验证方式 | 状态 |
+|---|---|---|
+| 光源照亮法线贴图场景，自发光与像素化明暗过渡 | 运行 `AnimalGame`，F3 / F4 对比 | ✅ |
+| 草被角色拨开、藤蔓被撞动并随风摆动 | `AnimalGame --demo` | ✅ |
+| 萤火虫 / 火星 / 灰尘粒子，萤火虫照亮周围 | 运行 `AnimalGame` | ✅ |
+| 通风口烟雾被光照亮、被角色搅动 | 运行 `AnimalGame`，F5 对比 | ✅ |
+| 泛光与调色 | 运行 `AnimalGame`，F6 对比 | ✅ |
+| 各效果可单独开关，覆盖层显示数量与帧时间 | F1 覆盖层 | ✅ |
+| 两后端截图一致，模拟可复现 | `--demo --deterministic` 截图逐像素对比，容差 0 | ✅ |
 
 ## M1a 验收条件
 

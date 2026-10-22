@@ -33,8 +33,9 @@ Device::beginFrame（窗口最小化时返回 false，跳过渲染）
                     → 材质 pass（albedo / normal / emissive）→ 流体烟雾一步（ADR-0008）
                     → 光照 pass（RGBA16F）→ 合成到 320×180 画布（含被照亮的烟）
                     → 发光 pass（drawGlow 收集的像素，加色混合叠加到画布，不受光照影响）
-                    [beginWorldOverlay … 调试图形 … endWorldOverlay]（无光照，叠加在画布上）
-    beginScreen:    画布按整数倍居中绘制到 swapchain，剩余留黑边
+                    → 后处理：泛光（亮部提取 → 半分辨率模糊 → 量化抖动加回）+ 调色 → 最终画布（ADR-0009）
+                    [beginWorldOverlay … 调试图形 … endWorldOverlay]（无光照、不调色，叠加在最终画布上）
+    beginScreen:    最终画布按整数倍居中绘制到 swapchain，剩余留黑边
                     调试覆盖层（drawText / fillRect，窗口像素坐标）
     endScreen
   Renderer2D::endFrame   → 一次性上传本帧所有精灵顶点
@@ -89,6 +90,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | 相机 | 整数像素相机：`Camera2D::center` 先四舍五入再构建视图矩阵。 |
 | 精灵位置 | 世界 pass 中 `drawSprite` 把位置四舍五入到整像素；模拟可以使用浮点位置。 |
 | Alpha | **预乘 Alpha**。颜色纹理在加载时预乘（法线、自发光等数据纹理不预乘）；API 接收直通 Alpha 的 `Color`，写入顶点前预乘；混合为 `One, OneMinusSrcAlpha`。 |
+| 泛光与调色 | 后处理 pass：阈值提取亮部、160×90 两轮高斯模糊、按光照级数量化抖动后加回；曝光 / 分区色调 / 饱和度 / 对比度 / 暗角（ADR-0009）。 |
 | 烟雾 | 160×90 网格的 stable fluids（平流、浮力、涡量约束、Jacobi 压力投影），片元着色器实现；合成时被同一光照照亮（ADR-0008）。 |
 | 光照 | 画布分辨率的延迟光照：材质 pass 写 albedo / normal / emissive（RGBA8），光照 pass 加色累积到 RGBA16F，合成 `albedo × (ambient + light) + emissive`，可选量化 + 有序抖动（ADR-0007）。 |
 | 颜色空间 | 目前全程 UNorm（不做 sRGB 转换）。M2 光照前需要重新评估。 |

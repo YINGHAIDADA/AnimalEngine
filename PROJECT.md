@@ -311,6 +311,7 @@ ctest --test-dir build/<preset> --output-on-failure
   - ADR-0006 房间尺寸、坐标单位与移动碰撞模型：40×22 Tile 单屏房间、像素单位、整数位置 + 小数余量逐像素移动（Accepted）。
   - ADR-0007 像素光照管线：画布分辨率延迟光照（材质 / 光照 / 合成三个 pass），法线编码与美术规范（Accepted）。
   - ADR-0008 低分辨率流体烟雾：160×90 网格、片元着色器 stable fluids、与光照融合（Accepted）。
+  - ADR-0009 泛光与调色：阈值提取 + 半分辨率模糊 + 量化抖动的像素泛光，集中调色（Accepted）。
 
 ## 13. 当前待确认项（不阻塞 M0）
 
