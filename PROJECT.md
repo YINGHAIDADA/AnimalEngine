@@ -318,6 +318,7 @@ ctest --test-dir build/<preset> --output-on-failure
   - ADR-0013 光源类型、动画与灯具：聚光灯、数据驱动的闪烁 / 脉动、Tiled 光源属性与灯具对象（Accepted）。
   - ADR-0014 像素边缘光：材质标志附件、朝向光源的轮廓像素受光、环境轮廓（Accepted）。
   - ADR-0015 观感预设与房间光照配置：可继承的 `*.look.json`、Tiled 引用与单项覆盖、房间切换过渡（Accepted）。
+  - ADR-0016 GPU 计时与帧预算：RHI 计时域、两后端实现、`--profile` / 压力测试与预算表（Accepted）。
 
 ## 13. 当前待确认项（不阻塞 M0）
 

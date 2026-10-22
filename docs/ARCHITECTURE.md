@@ -55,6 +55,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | 帧 | `beginFrame → submit → endFrame`。`DeviceCaps::framesInFlight` 表示同时在途帧数（OpenGL 为 1，Vulkan 为 2）。销毁的资源可能仍被在途帧引用，由后端延迟释放。每帧的数据写入必须发生在 `beginFrame` 与 `submit` 之间；帧外写入走同步慢路径，只适合加载阶段。 |
 | 交换链 | `swapchainTexture()` 是后端持有的 RGBA8 离屏图像，`endFrame` 时复制到窗口；所有后端的 `swapchainFormat()` 都是 RGBA8。 |
 | 读回 | `readTexture` 阻塞等待 GPU，只用于截图和渲染测试。 |
+| GPU 计时 | `CommandList::beginTimer` / `endTimer`（渲染通道之外，可嵌套）；`Device::gpuTimings()` 返回最近一个结果就绪帧的各计时域，晚几帧（ADR-0016）。 |
 
 ### 3.1 OpenGL 4.1 后端如何模拟这些约定
 
@@ -64,6 +65,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 - **绑定槽**：GLSL 410 不能写 `binding`，着色器工具把资源重命名为 `ubo_s<set>_b<binding>` / `tex_s<set>_b<binding>`，后端链接程序后按名字把它们接到槽位 `set × 8 + binding`。
 - **顶点输入**：4.1 没有独立的顶点格式状态，切换管线或顶点缓冲后在下一次 draw 前重新指定属性。
 - **多颜色附件**：单附件使用纹理自带的 framebuffer；多附件按附件组合缓存 framebuffer，任一纹理销毁时一并删除。
+- **GPU 计时**：有 `GL_TIMESTAMP` 时用时间戳查询，否则（macOS）用 `GL_TIME_ELAPSED` 链合成时间戳；macOS 上分 pass 的数值不可信（ADR-0016）。
 - **限制**：不支持 `firstInstance`、计算着色器。
 
 ### 3.2 Vulkan 后端（验证版，见 ADR-0005）
@@ -74,6 +76,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 - **绑定**：由着色器包中的绑定表生成 descriptor set layout（按签名缓存，stage 统一为 VS | FS），`BindGroup` 对应一个 descriptor set。
 - **交换链**：渲染到 RGBA8 离屏图像，`endFrame()` 时 blit 到真实交换链图像再呈现。
 - **销毁**：放入当前帧槽位的删除队列，等该槽位的 fence 完成后释放。
+- **GPU 计时**：每个在途帧一个时间戳查询池，fence 完成后读回。
 - **调试**：Debug 构建开启验证层与同步验证；退出时打印验证错误总数。
 - **加载器**：macOS 开发期由平台层在 `$VULKAN_SDK` 等位置查找；发行版需随包携带加载器与 MoltenVK。
 
