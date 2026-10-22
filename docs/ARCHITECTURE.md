@@ -115,6 +115,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | `stepClimb` | 藤蔓攀爬：按住上且碰撞框附近有藤蔓时抓住（`VineSystem::findGrip`）；沿弧长上下爬、左右输入与体重作为力施加到藤蔓上；角色以逐像素碰撞跟随抓握点；跳离时继承藤蔓速度并有再抓冷却；底端按下松手。在平台跳跃步之前调用，攀爬时跳过平台跳跃步。 |
 | `Animator` | 片段 = 帧序列 + 帧率 + 是否循环；`play` 对正在播放的片段无操作。状态机在游戏中：攀爬 → climb（仅移动时播放），落地 → land，地面 → run / idle，空中 → jump / fall。 |
 | `LightAnimation` | 光源亮度动画（`none` / `flicker` / `pulse`）：只由时间和每个光源的相位计算出倍数，确定、无状态；倍数保持在 1 ± amount 之内（ADR-0013）。 |
+| `Look` | 观感预设：光照、边缘光、泛光与调色、烟雾颜色的扁平字段表；`*.look.json` 可继承（`base`）、严格校验；房间用 Tiled `look` / `look.*` 引用与覆盖；`mixLooks` 用于房间切换过渡（ADR-0015）。 |
 | `TriggerSet` | 矩形触发区域；`update(碰撞框)` 返回本步刚进入的触发器，离开后重新进入会再次触发，`once` 只触发一次（ADR-0011）。 |
 | `stepPatrol` | 地面巡逻：着地时前方脚下没有实心 Tile（可关闭）或撞墙就转身，悬空时按重力下落；逐像素碰撞同 `Body`。 |
 | `SaveData` / `readSave` / `writeSave` | 版本化 JSON 存档（房间、位置、标志集合）；原子写入（临时文件 + 重命名）；格式、版本、字段错误时拒绝并给出原因（ADR-0011）。 |
