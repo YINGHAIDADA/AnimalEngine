@@ -2,7 +2,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**M3 模拟效果生产化已完成**（macOS）——流体休眠与提速、粒子效果预设与发射器、水、风场与植物种类、GPU 粒子（瀑布）；按计划接下来是 M2.5 Vulkan 后端完善（M2 光照生产化已在 macOS 上完成）（M1b 游戏结构与 V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
+当前阶段：**M2.5 Vulkan 后端完善**——渲染回归脚本与基准截图、后端无关的 RHI 校验层已完成，接下来是拆分 Vulkan 后端、VMA、精细屏障、管线缓存（M3 模拟效果生产化已在 macOS 上完成）（M1b 游戏结构与 V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 

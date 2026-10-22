@@ -57,6 +57,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | 帧 | `beginFrame → submit → endFrame`。`DeviceCaps::framesInFlight` 表示同时在途帧数（OpenGL 为 1，Vulkan 为 2）。销毁的资源可能仍被在途帧引用，由后端延迟释放。每帧的数据写入必须发生在 `beginFrame` 与 `submit` 之间；帧外写入走同步慢路径，只适合加载阶段。 |
 | 交换链 | `swapchainTexture()` 是后端持有的 RGBA8 离屏图像，`endFrame` 时复制到窗口；所有后端的 `swapchainFormat()` 都是 RGBA8。 |
 | 读回 | `readTexture` 阻塞等待 GPU，只用于截图和渲染测试。 |
+| 校验 | Debug 构建中 `createDevice` 返回 `ValidatingDevice`：后端无关地检查资源描述与提交的命令列表，两后端报同样的错误（ADR-0021）。 |
 | GPU 计时 | `CommandList::beginTimer` / `endTimer`（渲染通道之外，可嵌套）；`Device::gpuTimings()` 返回最近一个结果就绪帧的各计时域，晚几帧（ADR-0016）。 |
 
 ### 3.1 OpenGL 4.1 后端如何模拟这些约定
