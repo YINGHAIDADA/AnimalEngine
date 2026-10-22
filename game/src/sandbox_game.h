@@ -17,6 +17,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace animal {
@@ -38,6 +39,7 @@ enum Action : animal::ActionId {
 class SandboxGame final : public animal::Application {
 protected:
     animal::AppConfig configure() override;
+    bool onArgument(std::string_view argument) override;
     bool onInit(animal::EngineContext& context) override;
     void onFrame(animal::EngineContext& context) override;
     void onFixedUpdate(animal::EngineContext& context, double dt) override;
@@ -62,6 +64,7 @@ private:
     animal::Look roomLook(const animal::WorldRoom& worldRoom);
     animal::Look currentLook() const;
     void applyCurrentLook(animal::Renderer2D& renderer) const;
+    void addStressLights(animal::Renderer2D& renderer) const;
     void setupAnimations();
     void updateAnimation(float dt);
 
@@ -102,6 +105,7 @@ private:
     animal::ActionMap actions_;
     bool showCollision_ = false;
     bool usingGamepad_ = false;
+    uint32_t stressLights_ = 0; // --stress-lights=N: extra moving shadow-casting lights
     size_t bandsOverride_ = 0; // F4: index into kBandOverrides (0 = the room's look)
     bool shadowsEnabled_ = true; // F7
 

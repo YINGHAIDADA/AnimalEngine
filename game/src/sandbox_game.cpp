@@ -2,6 +2,7 @@
 
 #include <animal/core/file.h>
 #include <animal/core/log.h>
+#include <animal/core/random.h>
 #include <animal/platform/input.h>
 #include <animal/platform/platform.h>
 #include <animal/renderer/renderer2d.h>
@@ -9,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
 #include <format>
 #include <iterator>
@@ -54,6 +56,32 @@ animal::AppConfig SandboxGame::configure() {
     animal::AppConfig config;
     config.title = "Animal Engine · M1b Sandbox";
     return config;
+}
+
+bool SandboxGame::onArgument(std::string_view argument) {
+    constexpr std::string_view kStress = "--stress-lights=";
+    if (argument.starts_with(kStress)) {
+        stressLights_ = static_cast<uint32_t>(std::strtoul(std::string(argument.substr(kStress.size())).c_str(), nullptr, 10));
+        return true;
+    }
+    return false;
+}
+
+// Performance testing: lights wandering over the whole room on fixed pseudo-random orbits.
+void SandboxGame::addStressLights(animal::Renderer2D& renderer) const {
+    for (uint32_t i = 0; i < stressLights_; ++i) {
+        animal::Random rng(0x5EED0000u + i);
+        const animal::Vec2 center{rng.range(16.0f, 304.0f), rng.range(16.0f, 160.0f)};
+        const float orbit = rng.range(8.0f, 40.0f);
+        const float speed = rng.range(0.3f, 1.2f) * (i % 2 == 0 ? 1.0f : -1.0f);
+        const auto angle = static_cast<float>(time_) * speed + rng.range(0.0f, 2.0f * animal::kPi);
+        animal::PointLight light;
+        light.position = center + animal::Vec2{std::cos(angle), std::sin(angle)} * orbit;
+        light.radius = rng.range(40.0f, 90.0f);
+        light.color = {rng.range(0.3f, 1.0f), rng.range(0.3f, 1.0f), rng.range(0.3f, 1.0f)};
+        light.intensity = 0.25f;
+        renderer.addLight(light);
+    }
 }
 
 void SandboxGame::bindActions() {
@@ -185,6 +213,9 @@ animal::Look SandboxGame::roomLook(const animal::WorldRoom& worldRoom) {
         }
         look = it->second;
         lookName_ = roomName(path);
+        if (lookName_.ends_with(".look")) {
+            lookName_.resize(lookName_.size() - 5);
+        }
     } else {
         lookName_ = "DEFAULT";
     }
@@ -486,6 +517,7 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
     }
     cave_.drawInFrontOfPlayer(renderer); // grass in front: the player wades through it
     cave_.addLights(renderer, time_);
+    addStressLights(renderer);
     renderer.setFluidTimeStep(fluidTime_);
     fluidTime_ = 0.0f;
     cave_.addFluidSources(renderer, time_);
