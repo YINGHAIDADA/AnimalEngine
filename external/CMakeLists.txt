@@ -1,0 +1,63 @@
+# Third-party dependencies. Versions are pinned by git submodules; see external/README.md.
+
+function(animal_require_submodule dir)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${dir}/CMakeLists.txt")
+        message(FATAL_ERROR
+            "Missing submodule external/${dir}. Run: git submodule update --init --depth 1")
+    endif()
+endfunction()
+
+function(animal_set_folder folder)
+    foreach(target IN LISTS ARGN)
+        if(TARGET ${target})
+            set_target_properties(${target} PROPERTIES FOLDER "${folder}")
+        endif()
+    endforeach()
+endfunction()
+
+# --- SDL3 (static) -----------------------------------------------------------
+animal_require_submodule(SDL)
+set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+set(SDL_STATIC ON CACHE BOOL "" FORCE)
+set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
+# Native HID backends are used on macOS / Windows; never pick up a system libusb.
+set(SDL_HIDAPI_LIBUSB OFF CACHE BOOL "" FORCE)
+add_subdirectory(SDL EXCLUDE_FROM_ALL)
+animal_set_folder(external/SDL SDL3-static SDL_uclibc)
+
+# --- glslang (build-time shader compiler only) -------------------------------
+animal_require_submodule(glslang)
+set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "" FORCE)
+set(ENABLE_HLSL OFF CACHE BOOL "" FORCE)
+set(ENABLE_OPT OFF CACHE BOOL "" FORCE)
+set(ENABLE_PCH OFF CACHE BOOL "" FORCE)
+set(GLSLANG_TESTS OFF CACHE BOOL "" FORCE)
+set(GLSLANG_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+set(BUILD_EXTERNAL OFF CACHE BOOL "" FORCE)
+add_subdirectory(glslang EXCLUDE_FROM_ALL)
+animal_set_folder(external/glslang
+    glslang glslang-default-resource-limits SPIRV GenericCodeGen MachineIndependent OSDependent)
+
+# --- SPIRV-Cross (build-time shader cross-compiler only) ---------------------
+animal_require_submodule(SPIRV-Cross)
+set(SPIRV_CROSS_CLI OFF CACHE BOOL "" FORCE)
+set(SPIRV_CROSS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+set(SPIRV_CROSS_ENABLE_HLSL OFF CACHE BOOL "" FORCE)
+set(SPIRV_CROSS_ENABLE_MSL OFF CACHE BOOL "" FORCE)
+set(SPIRV_CROSS_ENABLE_CPP OFF CACHE BOOL "" FORCE)
+set(SPIRV_CROSS_ENABLE_REFLECT OFF CACHE BOOL "" FORCE)
+set(SPIRV_CROSS_ENABLE_C_API OFF CACHE BOOL "" FORCE)
+set(SPIRV_CROSS_ENABLE_UTIL OFF CACHE BOOL "" FORCE)
+set(SPIRV_CROSS_SKIP_INSTALL ON CACHE BOOL "" FORCE)
+add_subdirectory(SPIRV-Cross EXCLUDE_FROM_ALL)
+animal_set_folder(external/SPIRV-Cross spirv-cross-core spirv-cross-glsl)
+
+# --- Header-only / single-file dependencies ----------------------------------
+add_library(animal_stb INTERFACE)
+target_include_directories(animal_stb SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/stb")
+
+add_library(animal_gl_headers INTERFACE)
+target_include_directories(animal_gl_headers SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/gl/include")

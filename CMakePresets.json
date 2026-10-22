@@ -1,0 +1,100 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}"
+    },
+    {
+      "name": "macos-base",
+      "hidden": true,
+      "inherits": "base",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin" },
+      "cacheVariables": {
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "13.3"
+      }
+    },
+    {
+      "name": "macos-ninja-base",
+      "hidden": true,
+      "inherits": "macos-base",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "/usr/bin/clang",
+        "CMAKE_CXX_COMPILER": "/usr/bin/clang++"
+      }
+    },
+    {
+      "name": "macos-ninja-debug",
+      "displayName": "macOS · Ninja · Debug",
+      "inherits": "macos-ninja-base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "macos-ninja-release",
+      "displayName": "macOS · Ninja · Release",
+      "inherits": "macos-ninja-base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "macos-xcode",
+      "displayName": "macOS · Xcode",
+      "inherits": "macos-base",
+      "generator": "Xcode"
+    },
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "inherits": "base",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "windows-vs2022",
+      "displayName": "Windows · Visual Studio 2022",
+      "inherits": "windows-base",
+      "generator": "Visual Studio 17 2022",
+      "architecture": { "value": "x64", "strategy": "set" }
+    },
+    {
+      "name": "windows-ninja-base",
+      "hidden": true,
+      "inherits": "windows-base",
+      "generator": "Ninja",
+      "architecture": { "value": "x64", "strategy": "external" },
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl"
+      }
+    },
+    {
+      "name": "windows-ninja-debug",
+      "displayName": "Windows · Ninja · Debug (VS Developer prompt)",
+      "inherits": "windows-ninja-base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "windows-ninja-release",
+      "displayName": "Windows · Ninja · Release (VS Developer prompt)",
+      "inherits": "windows-ninja-base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "macos-ninja-debug", "configurePreset": "macos-ninja-debug" },
+    { "name": "macos-ninja-release", "configurePreset": "macos-ninja-release" },
+    { "name": "macos-xcode-debug", "configurePreset": "macos-xcode", "configuration": "Debug" },
+    { "name": "macos-xcode-release", "configurePreset": "macos-xcode", "configuration": "Release" },
+    { "name": "windows-vs2022-debug", "configurePreset": "windows-vs2022", "configuration": "Debug" },
+    { "name": "windows-vs2022-release", "configurePreset": "windows-vs2022", "configuration": "Release" },
+    { "name": "windows-ninja-debug", "configurePreset": "windows-ninja-debug" },
+    { "name": "windows-ninja-release", "configurePreset": "windows-ninja-release" }
+  ],
+  "testPresets": [
+    { "name": "macos-ninja-debug", "configurePreset": "macos-ninja-debug", "output": { "outputOnFailure": true } },
+    { "name": "macos-xcode-debug", "configurePreset": "macos-xcode", "configuration": "Debug", "output": { "outputOnFailure": true } },
+    { "name": "windows-vs2022-debug", "configurePreset": "windows-vs2022", "configuration": "Debug", "output": { "outputOnFailure": true } },
+    { "name": "windows-ninja-debug", "configurePreset": "windows-ninja-debug", "output": { "outputOnFailure": true } }
+  ]
+}
