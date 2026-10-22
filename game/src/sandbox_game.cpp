@@ -115,6 +115,8 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     }
     assets_ = {*tileset, *props, *crawler};
     creature_ = *creature;
+    creature_.rim = 1.0f; // creatures catch rim light so they read against the dark
+    assets_.crawler.rim = 1.0f;
     world_ = std::move(*world);
 
     // Start in the room that has a spawn point.
