@@ -17,7 +17,7 @@ struct Emitter {
 
 layout(set = 0, binding = 0, std140) uniform Draw {
     mat4 viewProjection;
-    vec4 params; // x: state texture width, y: style drawn (0 lit, 1 glow)
+    vec4 params; // x: state texture width, y: style drawn (0 lit, 1 glow), z: last step's dt
     Emitter emitters[4];
 } draw;
 
@@ -47,6 +47,12 @@ void main() {
         c.a *= clamp(min(age / fade, (lifetime - age) / fade), 0.0, 1.0);
     }
     vColor = vec4(c.rgb * c.a, c.a);
-    vec2 pixel = floor(a.xy) + inCorner;
-    gl_Position = draw.viewProjection * vec4(pixel, 0.0, 1.0);
+    // A streak from last step's position: fast particles (falling water) stay continuous.
+    vec2 now = floor(a.xy);
+    vec2 before = floor(a.xy - a.zw * draw.params.z);
+    vec2 lo = min(now, before);
+    vec2 hi = max(now, before) + 1.0;
+    lo.x = now.x; // one pixel wide, at the current column
+    hi.x = now.x + 1.0;
+    gl_Position = draw.viewProjection * vec4(mix(lo, hi, inCorner), 0.0, 1.0);
 }

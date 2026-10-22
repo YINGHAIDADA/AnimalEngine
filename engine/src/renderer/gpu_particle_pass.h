@@ -83,6 +83,7 @@ private:
     size_t current_ = 0; // side holding the latest state
     bool restart_ = false;
     uint32_t frame_ = 0;
+    float lastStep_ = 0.0f; // dt of the latest update (streak length)
 };
 
 } // namespace animal

@@ -217,6 +217,7 @@ void GpuParticlePass::update(rhi::CommandList& commands, float dt, Vec2 wind, Ve
     commands.endRenderPass();
     current_ = next;
     restart_ = false;
+    lastStep_ = dt;
     ++frame_;
 }
 
@@ -227,7 +228,7 @@ void GpuParticlePass::draw(rhi::CommandList& commands, const Mat4& viewProjectio
     const size_t s = style == GpuEmitter::Style::Glow ? 1 : 0;
     DrawUniforms u{};
     u.viewProjection = viewProjection;
-    store(u.params, static_cast<float>(kStateWidth), static_cast<float>(s), 0.0f, 0.0f);
+    store(u.params, static_cast<float>(kStateWidth), static_cast<float>(s), lastStep_, 0.0f);
     std::copy(emitters_.begin(), emitters_.end(), u.emitters);
     device_->writeBuffer(drawUniforms_[s], 0, &u, sizeof(u));
 

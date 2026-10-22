@@ -25,7 +25,7 @@ layout(set = 0, binding = 0, std140) uniform Simulation {
 } sim;
 
 layout(set = 1, binding = 0) uniform sampler2D stateA; // position xy, velocity xy
-layout(set = 1, binding = 1) uniform sampler2D stateB; // age, lifetime, seed, emitter
+layout(set = 1, binding = 1) uniform sampler2D stateB; // age, lifetime, flags (< 0: landed on the floor), emitter
 layout(set = 1, binding = 2) uniform sampler2D occluders;
 
 layout(location = 0) out vec4 outA;
@@ -80,13 +80,13 @@ void main() {
         outB = vec4(age, lifetime, b.z, float(e));
         return;
     }
-    if (age >= lifetime) {
+    if (age >= lifetime || b.z < 0.0) {
         vec2 position = em.area.xy + vec2(random(slot, 2u), random(slot, 3u)) * em.area.zw;
         vec2 velocity = vec2(mix(em.velocity.x, em.velocity.y, random(slot, 4u)),
                              mix(em.velocity.z, em.velocity.w, random(slot, 5u)));
         lifetime = mix(em.life.x, em.life.y, random(slot, 6u));
         outA = vec4(position, velocity);
-        outB = vec4(0.0, lifetime, random(slot, 7u), float(e));
+        outB = vec4(0.0, lifetime, 0.0, float(e));
         return;
     }
 
@@ -99,9 +99,14 @@ void main() {
     bool outside = any(lessThan(pixel, ivec2(-16))) || any(greaterThanEqual(pixel, size + 16));
     bool solid = em.slots.z > 0.5 && all(greaterThanEqual(pixel, ivec2(0))) && all(lessThan(pixel, size)) &&
                  texelFetch(occluders, pixel, 0).r > 0.5;
-    if (outside || solid || position.y >= em.life.w) {
+    float flags = b.z;
+    if (outside || solid) {
         age = lifetime; // respawns next step
+    } else if (position.y >= em.life.w) {
+        // Reached the floor (a water surface): drawn there this frame, respawns next step.
+        position.y = em.life.w - 0.5;
+        flags = -1.0;
     }
     outA = vec4(position, velocity);
-    outB = vec4(age, lifetime, b.z, float(e));
+    outB = vec4(age, lifetime, flags, float(e));
 }
