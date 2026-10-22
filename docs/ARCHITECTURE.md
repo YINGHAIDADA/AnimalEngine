@@ -29,8 +29,9 @@ shaders/         GLSL 450 着色器源码
 platform::pollEvents → Input::update → 固定步长 onFixedUpdate（60 Hz，每帧最多 5 步，超出丢弃积压）
 Device::beginFrame（窗口最小化时返回 false，跳过渲染）
   Renderer2D::beginFrame
-    game.onRender:  beginWorld(camera) … drawSprite / addLight … endWorld
+    game.onRender:  beginWorld(camera) … drawSprite / drawGlow / addLight … endWorld
                     → 材质 pass（albedo / normal / emissive）→ 光照 pass（RGBA16F）→ 合成到 320×180 画布
+                    → 发光 pass（drawGlow 收集的像素，加色混合叠加到画布，不受光照影响）
                     [beginWorldOverlay … 调试图形 … endWorldOverlay]（无光照，叠加在画布上）
     beginScreen:    画布按整数倍居中绘制到 swapchain，剩余留黑边
                     调试覆盖层（drawText / fillRect，窗口像素坐标）
@@ -103,7 +104,8 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | `stepPlatformer` | 跑动加减速（地面 / 空中不同）、重力（下落加重、顶点减轻）、coyote time、跳跃缓冲、可变跳高、天花板角修正（≤ 2 px）。参数全部在 `PlatformerParams`；落地时记录 `landingSpeed`。 |
 | `GrassField` | 每根草叶是带阻尼的角度弹簧，按固定种子哈希生成在露出的草地 Tile 顶部。目标角度 = 风 + 影响者推开（远离其中心，含拖拽）；落地给附近草叶角速度冲量。逐像素绘制，叶尖按角度二次弯曲。 |
 | `VineSystem` | Verlet 链条，第 0 点固定在锚点。每个固定步拆成 4 个子步，每个子步做正向 + 反向交替的距离约束迭代，使任意位置的推动沿整根藤蔓双向传播（整体摆动，而不是只有末端甩动），且不被重力拉长。风对整根藤蔓施加均匀的力（取锚点处的风值）。影响者把链节推出其包围盒并传递部分速度。暂不与 Tile 碰撞，游戏按下方第一个实心 Tile 计算藤蔓长度。 |
-| `FoliageInfluence` | 推动植被的对象（包围盒 + 速度 + 是否刚落地），由游戏每步提供；模拟与绘制分离，框架不依赖渲染器。 |
+| `ParticleSystem` | 通用粒子：恒定加速度、阻力、风、平滑游走、亮度闪烁、颜色随寿命插值与淡入淡出、被 `Influence` 推开、碰到实心 Tile 消失；游戏用这些参数组合出萤火虫、火星、灰尘。随机数用 `animal::Random`（PCG32，跨平台一致）。 |
+| `Influence` | 推动植被与粒子的对象（包围盒 + 速度 + 是否刚落地），由游戏每步提供；模拟与绘制分离，框架不依赖渲染器。 |
 
 ## 7. 运行时数据路径
 
