@@ -1,13 +1,13 @@
 set(ANIMAL_GAME_SOURCES
     src/main.cpp
+    src/room_layout.cpp
+    src/room_layout.h
     src/sandbox_game.cpp
-    src/sandbox_game.h
-    src/test_room.cpp
-    src/test_room.h)
+    src/sandbox_game.h)
 
 add_executable(animal_game ${ANIMAL_GAME_SOURCES})
 animal_set_compile_options(animal_game)
-target_link_libraries(animal_game PRIVATE animal::engine)
+target_link_libraries(animal_game PRIVATE animal::framework)
 
 set_target_properties(animal_game PROPERTIES
     OUTPUT_NAME AnimalGame

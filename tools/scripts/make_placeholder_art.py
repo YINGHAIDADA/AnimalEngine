@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates the M0 placeholder textures in assets/source/textures/.
+"""Generates the placeholder textures in assets/source/textures/.
 
 Pure standard library (zlib + struct) so it runs anywhere Python 3 does.
 Re-run after editing; the PNGs are committed as source assets.
@@ -53,14 +53,16 @@ def to_rgba_rows(char_rows):
     return rows
 
 
-def brick_tile():
+TILE = 8
+
+
+def wall_tile():
     tile = []
-    for y in range(16):
+    for y in range(TILE):
         line = ""
-        for x in range(16):
-            band = y // 4
-            seam_x = 0 if band % 2 == 0 else 8
-            if y % 4 == 3 or x % 16 == seam_x or (x - seam_x) % 16 == 0:
+        for x in range(TILE):
+            seam_x = 0 if y < 4 else 4
+            if y % 4 == 3 or x == seam_x:
                 line += "m"
             elif y % 4 == 0:
                 line += "B"
@@ -70,67 +72,61 @@ def brick_tile():
     return tile
 
 
-def grass_tile():
+def ground_tile():
     tile = []
-    for y in range(16):
+    for y in range(TILE):
         line = ""
-        for x in range(16):
+        for x in range(TILE):
             if y == 0:
-                line += "G" if x % 5 != 2 else "g"
-            elif y < 3:
+                line += "G" if x % 3 != 1 else "g"
+            elif y == 1:
                 line += "g"
-            elif y == 3:
-                line += "g" if x % 4 in (0, 1) else "d"
+            elif y == 2:
+                line += "g" if x % 3 == 0 else "d"
             else:
-                line += "D" if (x * 7 + y * 13) % 11 == 0 else "d"
+                line += "D" if (x * 5 + y * 3) % 7 == 0 else "d"
         tile.append(line)
     return tile
 
 
 def background_tile():
     tile = []
-    for y in range(16):
+    for y in range(TILE):
         line = ""
-        for x in range(16):
-            seam = y % 8 == 7 or (x + (4 if (y // 8) % 2 else 0)) % 8 == 7
-            line += "S" if seam else "s"
+        for x in range(TILE):
+            seam_x = 7 if y < 4 else 3
+            line += "S" if y % 4 == 3 or x == seam_x else "s"
         tile.append(line)
     return tile
 
 
 def empty_tile():
-    return ["." * 16 for _ in range(16)]
+    return ["." * TILE for _ in range(TILE)]
 
 
+# Faces right; the game mirrors it when moving left.
 CREATURE = [
-    "................",
-    "....kk....kk....",
-    "...kwwk..kwwk...",
-    "...kwwwkkwwwk...",
-    "..kwwwwwwwwwwk..",
-    ".kwwwwwwwwwwwwk.",
-    ".kwwwkwwwwkwwwk.",
-    ".kwwwkwwwwkwwwk.",
-    ".kwpwwwwwwwwpwk.",
-    ".kwwwwwkkwwwwwk.",
-    ".kwwwwwwwwwwwwk.",
-    "..kwwwwwwwwwwk..",
-    "..kwwwwwwwwwwk..",
-    "...kwwkkkkwwk...",
-    "...kwk....kwk...",
-    "....k......k....",
+    ".k....k.",
+    "kwk..kwk",
+    "kwwkkwwk",
+    "kwwwkwkk",
+    "kwwwwwwk",
+    "kwpwwwpk",
+    ".kwwwwk.",
+    ".kk..kk.",
 ]
 
 
 def main():
-    tiles = [empty_tile(), brick_tile(), grass_tile(), background_tile()]
+    # Tile ids match the game: 0 empty, 1 wall, 2 grass-topped ground, 3 background.
+    tiles = [empty_tile(), wall_tile(), ground_tile(), background_tile()]
     for tile in tiles:
-        assert len(tile) == 16 and all(len(row) == 16 for row in tile)
-    tileset_rows = ["".join(tile[y] for tile in tiles) for y in range(16)]
-    write_png(OUT_DIR / "tileset.png", 16 * len(tiles), 16, to_rgba_rows(tileset_rows))
+        assert len(tile) == TILE and all(len(row) == TILE for row in tile)
+    tileset_rows = ["".join(tile[y] for tile in tiles) for y in range(TILE)]
+    write_png(OUT_DIR / "tileset.png", TILE * len(tiles), TILE, to_rgba_rows(tileset_rows))
 
-    assert len(CREATURE) == 16 and all(len(row) == 16 for row in CREATURE)
-    write_png(OUT_DIR / "creature.png", 16, 16, to_rgba_rows(CREATURE))
+    assert len(CREATURE) == TILE and all(len(row) == TILE for row in CREATURE)
+    write_png(OUT_DIR / "creature.png", TILE, TILE, to_rgba_rows(CREATURE))
     print(f"wrote textures to {OUT_DIR}")
 
 
