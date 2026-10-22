@@ -22,6 +22,8 @@ namespace {
 struct CommandLine {
     std::optional<rhi::Backend> backend;
     bool noVsync = false;
+    bool hideOverlay = false;
+    bool resizeTest = false;
     uint64_t exitAfterFrames = 0;
     std::string screenshotPath;
 };
@@ -36,6 +38,10 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv) {
             cl.backend = rhi::Backend::Vulkan;
         } else if (arg == "--no-vsync") {
             cl.noVsync = true;
+        } else if (arg == "--hide-overlay") {
+            cl.hideOverlay = true;
+        } else if (arg == "--resize-test") {
+            cl.resizeTest = true;
         } else if (arg.starts_with("--frames=")) {
             cl.exitAfterFrames = std::strtoull(std::string(arg.substr(9)).c_str(), nullptr, 10);
         } else if (arg.starts_with("--screenshot=")) {
@@ -43,8 +49,8 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv) {
         } else if (arg.starts_with("-psn_")) {
             // Added by macOS when launched from Finder.
         } else {
-            log::error("Unknown argument '{}'. Options: --backend=opengl|vulkan --no-vsync --frames=N "
-                       "--screenshot=path.png",
+            log::error("Unknown argument '{}'. Options: --backend=opengl|vulkan --no-vsync --hide-overlay "
+                       "--resize-test --frames=N --screenshot=path.png",
                        arg);
             return std::nullopt;
         }
@@ -136,8 +142,7 @@ int Application::run(int argc, char** argv) {
         config.vsync = false;
     }
     if (!rhi::isBackendImplemented(config.backend)) {
-        log::error("The {} backend is not implemented yet (planned for milestone M2.5)",
-                   rhi::backendName(config.backend));
+        log::error("The {} backend is not available in this build", rhi::backendName(config.backend));
         return 1;
     }
 
@@ -178,7 +183,7 @@ int Application::run(int argc, char** argv) {
             window->show();
             rhi::CommandList commands;
             FrameTimer timer;
-            bool overlayVisible = kDebugBuild;
+            bool overlayVisible = kDebugBuild && !commandLine->hideOverlay;
             uint64_t lastTime = platform::nowNanoseconds();
             double accumulator = 0.0;
             uint64_t framesRendered = 0;
@@ -194,6 +199,16 @@ int Application::run(int argc, char** argv) {
                 }
                 if (input.pressed(platform::Key::F1)) {
                     overlayVisible = !overlayVisible;
+                }
+                if (commandLine->resizeTest && framesRendered % 30 == 29) {
+                    // Exercises swapchain recreation; ends on the configured size.
+                    static constexpr int kSizes[][2] = {{800, 450}, {1000, 700}, {333, 222}};
+                    const uint64_t step = framesRendered / 30;
+                    if (step < std::size(kSizes)) {
+                        window->setSize(kSizes[step][0], kSizes[step][1]);
+                    } else {
+                        window->setSize(config.windowWidth, config.windowHeight);
+                    }
                 }
 
                 const uint64_t now = platform::nowNanoseconds();

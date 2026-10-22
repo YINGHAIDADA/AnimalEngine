@@ -4,6 +4,9 @@
 namespace animal::rhi {
 
 std::unique_ptr<Device> createOpenGLDevice(const DeviceDesc& desc);
+#if defined(ANIMAL_RHI_VULKAN)
+std::unique_ptr<Device> createVulkanDevice(const DeviceDesc& desc);
+#endif
 
 const char* backendName(Backend backend) {
     switch (backend) {
@@ -16,7 +19,17 @@ const char* backendName(Backend backend) {
 }
 
 bool isBackendImplemented(Backend backend) {
-    return backend == Backend::OpenGL;
+    switch (backend) {
+    case Backend::OpenGL:
+        return true;
+    case Backend::Vulkan:
+#if defined(ANIMAL_RHI_VULKAN)
+        return true;
+#else
+        return false;
+#endif
+    }
+    return false;
 }
 
 uint32_t bytesPerPixel(Format format) {
@@ -37,9 +50,14 @@ std::unique_ptr<Device> createDevice(const DeviceDesc& desc) {
         return nullptr;
     }
     if (!isBackendImplemented(desc.backend)) {
-        log::error("The {} backend is not implemented yet (planned for milestone M2.5)", backendName(desc.backend));
+        log::error("The {} backend is not available in this build", backendName(desc.backend));
         return nullptr;
     }
+#if defined(ANIMAL_RHI_VULKAN)
+    if (desc.backend == Backend::Vulkan) {
+        return createVulkanDevice(desc);
+    }
+#endif
     return createOpenGLDevice(desc);
 }
 

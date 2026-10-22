@@ -49,5 +49,13 @@ target_link_libraries(animal_engine
     PUBLIC SDL3::SDL3-static
     PRIVATE animal_stb animal_gl_headers)
 
+if(ANIMAL_ENABLE_VULKAN)
+    set(ANIMAL_VULKAN_SOURCES src/rhi/vulkan/vk_device.cpp)
+    target_sources(animal_engine PRIVATE ${ANIMAL_VULKAN_SOURCES})
+    target_link_libraries(animal_engine PRIVATE volk)
+    target_compile_definitions(animal_engine PRIVATE ANIMAL_RHI_VULKAN=1)
+    source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${ANIMAL_VULKAN_SOURCES})
+endif()
+
 set_target_properties(animal_engine PROPERTIES FOLDER engine)
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${ANIMAL_ENGINE_HEADERS} ${ANIMAL_ENGINE_SOURCES})

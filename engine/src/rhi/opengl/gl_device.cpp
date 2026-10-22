@@ -940,6 +940,7 @@ void GlDevice::resizeSwapchain(Extent2D extent) {
     texture->width = extent.width;
     texture->height = extent.height;
     swapchainExtent_ = extent;
+    log::debug("OpenGL swapchain resized: {}x{}", extent.width, extent.height);
     checkErrors("resizeSwapchain");
 }
 

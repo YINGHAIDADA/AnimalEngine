@@ -37,6 +37,7 @@ public:
     PixelSize pixelSize() const;
     GraphicsApi api() const { return api_; }
     void show();
+    void setSize(int width, int height); // in points
 
     // For RHI backends only (surface / context creation).
     SDL_Window* sdlWindow() const { return window_; }
