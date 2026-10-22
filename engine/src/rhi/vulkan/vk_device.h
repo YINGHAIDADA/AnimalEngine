@@ -55,6 +55,46 @@ VkCullModeFlags toVk(CullMode mode);
 VkAttachmentLoadOp toVk(LoadOp op);
 VkDescriptorType toVk(BindingKind kind);
 
+// How an image is used next; the barrier between two uses is derived from them (ADR-0023).
+enum class ImageUse : uint8_t {
+    None,       // contents undefined (new image, or about to be fully overwritten)
+    Attachment, // color attachment of a render pass (loads, blends and stores)
+    Sampled,    // read by vertex or fragment shaders
+    CopyDst,
+    CopySrc,
+    Present,
+};
+
+struct UseScope {
+    VkPipelineStageFlags2KHR stages;
+    VkAccessFlags2KHR access; // reads and writes made by this use
+    VkAccessFlags2KHR writes; // the subset that must be made available to the next use
+    VkImageLayout layout;
+};
+
+inline UseScope scopeOf(ImageUse use) {
+    switch (use) {
+    case ImageUse::None:
+        return {VK_PIPELINE_STAGE_2_NONE_KHR, 0, 0, VK_IMAGE_LAYOUT_UNDEFINED};
+    case ImageUse::Attachment:
+        return {VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
+                VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT_KHR | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
+                VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+    case ImageUse::Sampled:
+        return {VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT_KHR | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                VK_ACCESS_2_SHADER_SAMPLED_READ_BIT_KHR, 0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    case ImageUse::CopyDst:
+        return {VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR, VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+                VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL};
+    case ImageUse::CopySrc:
+        return {VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR, VK_ACCESS_2_TRANSFER_READ_BIT_KHR, 0,
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL};
+    case ImageUse::Present:
+        return {VK_PIPELINE_STAGE_2_NONE_KHR, 0, 0, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR};
+    }
+    return {};
+}
+
 struct Buffer {
     VkBuffer buffer = VK_NULL_HANDLE;
     VmaAllocation allocation = VK_NULL_HANDLE;
@@ -70,7 +110,7 @@ struct Texture {
     uint32_t height = 0;
     Format format = Format::RGBA8_UNorm;
     TextureUsage usage = TextureUsage::Sampled;
-    VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    ImageUse use = ImageUse::None; // tracked across command buffers in submission order
 };
 
 struct Sampler {
@@ -121,25 +161,34 @@ struct Frame {
 };
 
 
+// Collects image barriers and issues them in one vkCmdPipelineBarrier2.
 class ImageBarriers {
 public:
-    void add(Texture& texture, VkImageLayout newLayout, bool discardContents = false) {
-        if (texture.layout == newLayout) {
+    // Moves a tracked texture to its next use. Consecutive reads need nothing; anything after a
+    // write (and any layout change) waits for the earlier use. `discard`: old contents are not needed.
+    void use(Texture& texture, ImageUse next, bool discard = false) {
+        const ImageUse previous = texture.use;
+        if (previous == next && scopeOf(next).writes == 0) {
             return;
         }
-        add(texture.image, discardContents ? VK_IMAGE_LAYOUT_UNDEFINED : texture.layout, newLayout);
-        texture.layout = newLayout;
+        add(texture.image, previous, next, discard);
+        texture.use = next;
     }
 
-    void add(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout) {
+    // An untracked image (the swapchain's). `srcStages` overrides the previous use's stages, e.g.
+    // with the stage a semaphore wait unblocks.
+    void add(VkImage image, ImageUse previous, ImageUse next, bool discard = false,
+             VkPipelineStageFlags2KHR srcStages = 0) {
+        const UseScope from = scopeOf(previous);
+        const UseScope to = scopeOf(next);
         VkImageMemoryBarrier2KHR barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR;
-        barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR;
-        barrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR;
-        barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR;
-        barrier.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR;
-        barrier.oldLayout = oldLayout;
-        barrier.newLayout = newLayout;
+        barrier.srcStageMask = srcStages ? srcStages : from.stages;
+        barrier.srcAccessMask = from.writes;
+        barrier.dstStageMask = to.stages;
+        barrier.dstAccessMask = to.access;
+        barrier.oldLayout = discard ? VK_IMAGE_LAYOUT_UNDEFINED : from.layout;
+        barrier.newLayout = to.layout;
         barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.image = image;
@@ -163,14 +212,26 @@ private:
     std::vector<VkImageMemoryBarrier2KHR> barriers_;
 };
 
-// Coarse full memory barrier; enough for upload ordering against earlier submissions.
-inline void memoryBarrier(VkCommandBuffer cmd) {
+// Buffer uploads (copies into vertex, index and uniform buffers) are recorded into their own
+// command buffer, submitted before the frame. Before the copies: earlier reads of those buffers
+// must have finished; after them: the copied data must be visible to vertex input and shaders.
+inline void bufferBarrier(VkCommandBuffer cmd, bool beforeCopies) {
+    constexpr VkPipelineStageFlags2KHR kReaders = VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT_KHR |
+                                                  VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT_KHR |
+                                                  VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR;
     VkMemoryBarrier2KHR barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2_KHR;
-    barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR;
-    barrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT_KHR;
-    barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR;
-    barrier.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR;
+    if (beforeCopies) {
+        barrier.srcStageMask = kReaders;
+        barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
+        barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
+    } else {
+        barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
+        barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
+        barrier.dstStageMask = kReaders;
+        barrier.dstAccessMask = VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT_KHR | VK_ACCESS_2_INDEX_READ_BIT_KHR |
+                                VK_ACCESS_2_UNIFORM_READ_BIT_KHR | VK_ACCESS_2_SHADER_SAMPLED_READ_BIT_KHR;
+    }
     VkDependencyInfoKHR dependency{};
     dependency.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR;
     dependency.memoryBarrierCount = 1;

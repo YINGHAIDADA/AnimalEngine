@@ -117,7 +117,7 @@ bool VulkanDevice::recreateSwapchain() {
     destroyImageResources(*texture);
     texture->width = swapchainExtent_.width;
     texture->height = swapchainExtent_.height;
-    texture->layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    texture->use = ImageUse::None;
     log::debug("Vulkan swapchain recreated: {}x{}", swapchainExtent_.width, swapchainExtent_.height);
     return createImageResources(*texture);
 }
@@ -201,8 +201,9 @@ void VulkanDevice::endFrame() {
     Texture* source = textures_.get(virtualSwapchain_);
     const VkImage target = swapchainImages_[imageIndex_];
     ImageBarriers barriers;
-    barriers.add(*source, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    barriers.add(target, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    barriers.use(*source, ImageUse::CopySrc);
+    // After the acquire semaphore (waited on at the transfer stage below).
+    barriers.add(target, ImageUse::None, ImageUse::CopyDst, true, VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR);
     barriers.flush(cmd);
 
     VkImageBlit blit{};
@@ -214,7 +215,7 @@ void VulkanDevice::endFrame() {
     vkCmdBlitImage(cmd, source->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, target,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_NEAREST);
 
-    barriers.add(target, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    barriers.add(target, ImageUse::CopyDst, ImageUse::Present);
     barriers.flush(cmd);
     vkEndCommandBuffer(cmd);
     buffers.push_back(cmd);

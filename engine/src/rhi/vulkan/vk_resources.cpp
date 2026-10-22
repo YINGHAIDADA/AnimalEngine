@@ -72,7 +72,7 @@ VkCommandBuffer VulkanDevice::acquireCommandBuffer() {
 VkCommandBuffer VulkanDevice::uploadCommands() {
     if (!pendingUpload_) {
         pendingUpload_ = acquireCommandBuffer();
-        memoryBarrier(pendingUpload_);
+        bufferBarrier(pendingUpload_, true);
     }
     return pendingUpload_;
 }
@@ -80,7 +80,7 @@ VkCommandBuffer VulkanDevice::uploadCommands() {
 VkCommandBuffer VulkanDevice::finishPendingUpload() {
     VkCommandBuffer cmd = pendingUpload_;
     if (cmd) {
-        memoryBarrier(cmd);
+        bufferBarrier(cmd, false);
         vkEndCommandBuffer(cmd);
         pendingUpload_ = VK_NULL_HANDLE;
     }
@@ -121,9 +121,9 @@ void VulkanDevice::immediate(const std::function<void(VkCommandBuffer)>& record)
     begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vkBeginCommandBuffer(cmd, &begin);
-    memoryBarrier(cmd);
+    bufferBarrier(cmd, true);
     record(cmd);
-    memoryBarrier(cmd);
+    bufferBarrier(cmd, false);
     vkEndCommandBuffer(cmd);
 
     VkSubmitInfo submit{};
@@ -140,7 +140,7 @@ void VulkanDevice::recordTextureCopy(VkCommandBuffer cmd, Texture& texture, VkBu
     ImageBarriers barriers;
     const bool whole = region.x == 0 && region.y == 0 && region.width == texture.width &&
                        region.height == texture.height;
-    barriers.add(texture, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, whole);
+    barriers.use(texture, ImageUse::CopyDst, whole);
     barriers.flush(cmd);
 
     VkBufferImageCopy copy{};
@@ -152,7 +152,7 @@ void VulkanDevice::recordTextureCopy(VkCommandBuffer cmd, Texture& texture, VkBu
     vkCmdCopyBufferToImage(cmd, source, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
 
     if (hasFlag(texture.usage, TextureUsage::Sampled)) {
-        barriers.add(texture, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        barriers.use(texture, ImageUse::Sampled);
         barriers.flush(cmd);
     }
 }
@@ -241,18 +241,13 @@ std::vector<uint8_t> VulkanDevice::readTexture(TextureHandle handle) {
         return {};
     }
     immediate([&](VkCommandBuffer cmd) {
-        const VkImageLayout previous = texture->layout;
         ImageBarriers barriers;
-        barriers.add(*texture, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        barriers.use(*texture, ImageUse::CopySrc); // the next use transitions it back
         barriers.flush(cmd);
         VkBufferImageCopy copy{};
         copy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
         copy.imageExtent = {texture->width, texture->height, 1};
         vkCmdCopyImageToBuffer(cmd, texture->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, temp.buffer, 1, &copy);
-        if (previous != VK_IMAGE_LAYOUT_UNDEFINED) {
-            barriers.add(*texture, previous);
-            barriers.flush(cmd);
-        }
     });
     std::vector<uint8_t> pixels(size);
     std::memcpy(pixels.data(), temp.mapped, size);
@@ -329,7 +324,7 @@ bool VulkanDevice::createImageResources(Texture& texture) {
         destroyImageResources(texture);
         return false;
     }
-    texture.layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    texture.use = ImageUse::None;
     return true;
 }
 

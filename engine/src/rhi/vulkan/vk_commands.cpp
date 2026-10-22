@@ -58,7 +58,7 @@ void VulkanDevice::translate(const CommandList& commandList, VkCommandBuffer cmd
                     if (const BindGroup* group = bindGroups_.get(setGroup->group)) {
                         for (TextureHandle sampled : group->sampledTextures) {
                             if (Texture* texture = textures_.get(sampled)) {
-                                barriers.add(*texture, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                                barriers.use(*texture, ImageUse::Sampled);
                             }
                         }
                     }
@@ -76,7 +76,7 @@ void VulkanDevice::translate(const CommandList& commandList, VkCommandBuffer cmd
                     skipPass = true;
                     break;
                 }
-                barriers.add(*texture, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, color.loadOp != LoadOp::Load);
+                barriers.use(*texture, ImageUse::Attachment, color.loadOp != LoadOp::Load);
                 attachments[a].sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
                 attachments[a].imageView = texture->view;
                 attachments[a].imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
