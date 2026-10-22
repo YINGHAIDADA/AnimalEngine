@@ -621,6 +621,53 @@ TEST(climber_weight_bends_the_vine) {
     CHECK(points.back().x > 52.0f);
 }
 
+TEST(climber_hangs_still_without_flicker) {
+    ClimbRig rig;
+    rig.step({0.0f, -1.0f, false});
+    for (int i = 0; i < 60; ++i) {
+        rig.step({0.0f, 0.0f, false});
+    }
+    int moves = 0;
+    int last = rig.body.position.x;
+    for (int i = 0; i < 120; ++i) {
+        rig.step({0.0f, 0.0f, false});
+        moves += rig.body.position.x != last ? 1 : 0;
+        last = rig.body.position.x;
+    }
+    CHECK(moves <= 2); // the vine is at rest: the climber must not flicker between pixels
+}
+
+TEST(climber_can_pump_a_swing_up) {
+    // A longer vine than the rig's, held part-way down: the rope below must not soak up the swing.
+    TileMap map = emptyMap(30, 30);
+    VineSystem vines;
+    vines.addVine({100.0f, 8.0f}, 40);
+    Body body = playerBody(97, 50);
+    PlatformerState platformer;
+    ClimbState climb;
+    const ClimbParams params;
+    stepClimb(body, platformer, climb, {0.0f, -1.0f, false}, params, vines, map, kDt);
+    CHECK(climb.climbing);
+    auto swing = [&](int seconds) {
+        int lo = 1 << 20;
+        int hi = -(1 << 20);
+        for (int i = 0; i < seconds * 60; ++i) {
+            // Push in the direction the upper part of the vine is moving (pumping in rhythm).
+            const float v = vines.velocityAt({climb.grip.vine, climb.grip.distance * 0.5f}, kDt).x;
+            stepClimb(body, platformer, climb, {v >= 0.0f ? 1.0f : -1.0f, 0.0f, false}, params, vines, map, kDt);
+            vines.step(kDt, i * kDt, {}, WindParams{0.0f, 0.5f});
+            lo = std::min(lo, body.position.x);
+            hi = std::max(hi, body.position.x);
+        }
+        return hi - lo;
+    };
+    const int early = swing(2); // seconds 0-2
+    swing(4);
+    const int later = swing(2); // seconds 6-8
+    CHECK(later > early + 15); // keeps building with rhythm
+    CHECK(later > 60);         // a real swing, not a wobble
+}
+
 TEST(animator_advances_loops_and_holds) {
     Animator animator;
     const auto run = animator.add({{2, 3, 4, 5}, 10.0f, true});

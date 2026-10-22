@@ -387,6 +387,11 @@ void VineSystem::applyForce(const Grip& grip, Vec2 acceleration) {
     vine.forces[i + 1] += acceleration * f;
 }
 
+void VineSystem::hold(const Grip& grip) {
+    Vine& vine = vines_[grip.vine];
+    vine.heldPoint = std::max<size_t>(1, locate(grip.distance, params_.segmentLength, vine.points.size()).first);
+}
+
 std::optional<VineSystem::Grip> VineSystem::findGrip(const IntRect& rect) const {
     const Vec2 center{static_cast<float>(rect.x) + static_cast<float>(rect.width) * 0.5f,
                       static_cast<float>(rect.y) + static_cast<float>(rect.height) * 0.5f};
@@ -409,18 +414,23 @@ std::optional<VineSystem::Grip> VineSystem::findGrip(const IntRect& rect) const 
     return best;
 }
 
-void VineSystem::satisfyConstraint(Vine& vine, size_t i) const {
+void VineSystem::satisfyConstraint(Vine& vine, size_t i, size_t heldPoint) const {
     Vec2& a = vine.points[i - 1];
     Vec2& b = vine.points[i];
     const Vec2 delta = b - a;
     const float distance = std::max(animal::length(delta), 1e-4f);
     const float error = (distance - params_.segmentLength) / distance;
-    if (i == 1) {
-        b = b - delta * error; // a is the pinned anchor
-    } else {
-        a = a + delta * (error * 0.5f);
-        b = b - delta * (error * 0.5f);
-    }
+    // Inverse masses: the anchor is pinned, the climber's points are heavy.
+    auto weight = [&](size_t point) {
+        if (point == 0) {
+            return 0.0f;
+        }
+        return heldPoint > 0 && (point == heldPoint || point == heldPoint + 1) ? params_.climberInverseMass : 1.0f;
+    };
+    const float wa = weight(i - 1);
+    const float wb = weight(i);
+    a = a + delta * (error * wa / (wa + wb));
+    b = b - delta * (error * wb / (wa + wb));
 }
 
 void VineSystem::step(float dt, double time, std::span<const Influence> influences, const WindParams& wind) {
@@ -428,10 +438,14 @@ void VineSystem::step(float dt, double time, std::span<const Influence> influenc
     // push anywhere propagates both up and down the chain (the whole vine swings together).
     const int substeps = std::max(1, params_.substeps);
     const float h = dt / static_cast<float>(substeps);
-    const float damping = std::pow(params_.damping, 1.0f / static_cast<float>(substeps));
+    const float freeDamping = std::pow(params_.damping, 1.0f / static_cast<float>(substeps));
+    const float heldDamping = std::pow(params_.heldDamping, 1.0f / static_cast<float>(substeps));
 
     for (Vine& vine : vines_) {
         const size_t count = vine.points.size();
+        const size_t heldPoint = vine.heldPoint;
+        const float damping = heldPoint > 0 ? heldDamping : freeDamping;
+        vine.heldPoint = 0;
         // Wind sampled per point once per step (drafts push only the part of the vine inside them).
         std::vector<Vec2> windForce(count);
         for (size_t i = 0; i < count; ++i) {
@@ -449,6 +463,9 @@ void VineSystem::step(float dt, double time, std::span<const Influence> influenc
 
             // Influences push points out sideways and drag them along.
             for (const Influence& influence : influences) {
+                if (!influence.pushesVines) {
+                    continue;
+                }
                 const IntRect& r = influence.bounds;
                 const float left = static_cast<float>(r.x) - 1.0f;
                 const float right = static_cast<float>(r.right()) + 1.0f;
@@ -476,10 +493,10 @@ void VineSystem::step(float dt, double time, std::span<const Influence> influenc
             // Alternate sweep directions so corrections travel both ways along the chain.
             for (int iteration = 0; iteration < params_.iterations; ++iteration) {
                 for (size_t i = 1; i < count; ++i) {
-                    satisfyConstraint(vine, i);
+                    satisfyConstraint(vine, i, heldPoint);
                 }
                 for (size_t i = count - 1; i >= 1; --i) {
-                    satisfyConstraint(vine, i);
+                    satisfyConstraint(vine, i, heldPoint);
                 }
             }
         }

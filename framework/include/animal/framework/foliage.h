@@ -173,6 +173,10 @@ public:
         float segmentLength = 3.0f;
         float gravity = 420.0f;   // px/s²
         float damping = 0.96f;    // velocity kept per fixed step (heavier vines settle in ~2 s)
+        float heldDamping = 0.995f; // while someone hangs on it: swings carry on, so they can be pumped up
+        // A climber is much heavier than the vine: the points it holds get this inverse mass in the
+        // constraints, so the rope below trails it instead of soaking up its swing.
+        float climberInverseMass = 0.05f;
         float windForce = 35.0f;  // px/s², applied uniformly along the vine (≈ 5° lean at full wind)
         int substeps = 4;
         int iterations = 4;       // forward + backward constraint sweeps per substep
@@ -189,6 +193,7 @@ public:
         std::vector<Vec2> points;
         std::vector<Vec2> previous;
         std::vector<Vec2> forces; // external accelerations for the next step (cleared after it)
+        size_t heldPoint = 0;     // hold() since the last step: the grip lies between points heldPoint and heldPoint + 1 (0: not held)
     };
 
     // A position along a vine: index into vines() and arc length from the anchor (px).
@@ -207,6 +212,9 @@ public:
     // Adds an acceleration (px/s²) at the grip for the next step, split between the two
     // neighbouring points (a climber's weight, a swing).
     void applyForce(const Grip& grip, Vec2 acceleration);
+    // Someone hangs at the grip during the next step: lighter damping and a heavy point there
+    // (Params::heldDamping, climberInverseMass).
+    void hold(const Grip& grip);
     // Closest point on any vine inside `rect`, if one passes through it.
     std::optional<Grip> findGrip(const IntRect& rect) const;
 
@@ -229,7 +237,7 @@ public:
     Params& params() { return params_; }
 
 private:
-    void satisfyConstraint(Vine& vine, size_t i) const;
+    void satisfyConstraint(Vine& vine, size_t i, size_t heldPoint) const;
 
     template <typename F>
     static void rasterizeLine(Vec2 a, Vec2 b, F&& plot) {

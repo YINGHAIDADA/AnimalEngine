@@ -8,10 +8,12 @@ namespace animal {
 
 namespace {
 
+// Exact (sub-pixel) centre: following the grip from the integer position would add the same
+// fraction to the remainder every step and make the climber flicker between two pixels.
 Vec2 colliderCenter(const Body& body) {
-    const IntRect c = body.worldCollider();
-    return {static_cast<float>(c.x) + static_cast<float>(c.width) * 0.5f,
-            static_cast<float>(c.y) + static_cast<float>(c.height) * 0.5f};
+    const Vec2 p = body.exactPosition();
+    return {p.x + static_cast<float>(body.collider.x) + static_cast<float>(body.collider.width) * 0.5f,
+            p.y + static_cast<float>(body.collider.y) + static_cast<float>(body.collider.height) * 0.5f};
 }
 
 } // namespace
@@ -70,6 +72,7 @@ bool stepClimb(Body& body, PlatformerState& platformer, ClimbState& climb, const
     climb.movedThisStep = std::fabs(climb.grip.distance - before) > 1e-4f;
 
     vines.applyForce(climb.grip, {input.moveX * params.swingForce, params.weight});
+    vines.hold(climb.grip);
 
     // Follow the grip point (centre of the collider on the vine), colliding with tiles.
     const Vec2 delta = vines.pointAt(climb.grip) - colliderCenter(body);

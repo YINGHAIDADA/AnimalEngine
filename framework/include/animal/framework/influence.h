@@ -11,6 +11,7 @@ struct Influence {
     IntRect bounds; // world pixels
     Vec2 velocity;  // px/s
     bool landed = false;
+    bool pushesVines = true; // false for a climber: it hangs on a vine instead of pushing it
 };
 
 } // namespace animal
