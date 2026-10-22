@@ -2,7 +2,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**M1b 游戏结构**——Tiled 关卡与多房间切换已完成，接下来是攀爬、动画状态机、触发器 / 敌人 / 道具 / 存档（V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
+当前阶段：**M1b 游戏结构**——Tiled 关卡、多房间切换、藤蔓攀爬、动画状态机已完成，接下来是触发器 / 敌人 / 道具 / 存档（V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 
@@ -53,8 +53,9 @@ cmake --build --preset windows-ninja-debug
 
 | 键盘 | 手柄 | 作用 |
 |---|---|---|
-| 方向键 / A D | 左摇杆 / 十字键 | 跑动 |
-| Space / Z | A（Xbox）/ ×（PlayStation） | 跳跃（按住跳得更高） |
+| 方向键 / A D | 左摇杆 / 十字键 | 跑动；在藤蔓上荡动藤蔓 |
+| ↑ / W（靠近藤蔓） | 摇杆上 / 十字键上 | 抓住藤蔓；在藤蔓上 ↑↓ 爬，底端按 ↓ 松手 |
+| Space / Z | A（Xbox）/ ×（PlayStation） | 跳跃（按住跳得更高）；在藤蔓上跳离，可带方向 |
 | F1 | | 开关调试覆盖层 |
 | F2 | | 开关碰撞视图（实心 Tile 与角色碰撞框，绿色 = 着地） |
 | F3 | | 开关光照（关闭时显示原始颜色） |
@@ -73,7 +74,7 @@ cmake --build --preset windows-ninja-debug
 | `--hide-overlay` | 隐藏调试覆盖层（用于后端截图对比） |
 | `--resize-test` | 运行中多次改变窗口尺寸，验证交换链重建 |
 | `--deterministic` | 每帧恰好推进一个固定步，使动画与截图可复现（截图对比时使用） |
-| `--demo` | 游戏用脚本输入自己操作：穿过入口的草丛与藤蔓、经隧道进入水晶长廊、坠入烟雾深坑；配合 `--deterministic` 可复现交互截图 |
+| `--demo` | 游戏用脚本输入自己操作：抓住入口的长藤蔓爬升并荡动、跳离，经隧道进入水晶长廊、坠入烟雾深坑；配合 `--deterministic` 可复现交互截图 |
 | `--frames=N` | 渲染 N 帧后退出 |
 | `--screenshot=path.png` | 与 `--frames` 合用，在最后一帧截图（用于验收与渲染回归） |
 
