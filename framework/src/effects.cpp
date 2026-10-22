@@ -100,6 +100,7 @@ FieldReader colour(Color EffectPreset::*member) {
 
 const std::map<std::string, FieldReader>& fieldReaders() {
     static const std::map<std::string, FieldReader> readers = {
+        {"gpu", flag(&EffectPreset::gpu)},
         {"count", whole(&EffectPreset::count)},
         {"rate", number(&EffectPreset::rate)},
         {"burst", whole(&EffectPreset::burst)},

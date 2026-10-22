@@ -34,6 +34,10 @@ struct EffectPreset {
     };
 
     std::string name; // file name without ".effect.json"
+    // Simulated on the GPU (ADR-0020): a fixed population of `count`; rate, burst, prewarm, offset,
+    // spread, speed / angle, wander, push, flicker, halo and lights are not supported there, and
+    // acceleration ranges use their midpoint.
+    bool gpu = false;
 
     // Emission. An emitter keeps `count` particles alive, adds `rate` per second, and a burst
     // spawns `burst` at once; any combination. Area emitters spawn at random open positions in

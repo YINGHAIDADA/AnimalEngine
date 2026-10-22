@@ -46,6 +46,9 @@ TEST(effect_parses_fields_and_name) {
     CHECK(e->style == EffectPreset::Style::Lit);
     CHECK((e->offset == Vec2{1.0f, 2.0f}));
     CHECK(std::fabs(e->lightColor.x - 1.0f) < 1e-6f);
+    CHECK(!e->gpu);
+    const auto gpu = parse(R"({"format": "animal-effect", "version": 1, "gpu": true, "count": 2000})");
+    CHECK(gpu && gpu->gpu && gpu->count == 2000);
 }
 
 TEST(effect_rejects_bad_files) {
