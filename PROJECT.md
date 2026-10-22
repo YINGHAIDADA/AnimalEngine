@@ -4,7 +4,7 @@
 
 C++ 专用 2D 探索游戏引擎 · Project Charter & Technical Roadmap
 
-版本：v1.2    |    日期：2026-10-22    |    状态：项目基线
+版本：v1.3    |    日期：2026-10-22    |    状态：项目基线
 
 **本文件是项目的单一事实参考（Single Source of Truth）。后续实施、技术取舍、里程碑验收和范围变更均以此为基准；若决定变更，必须更新本文件的版本与决策记录**。
 
@@ -33,7 +33,7 @@ C++ 专用 2D 探索游戏引擎 · Project Charter & Technical Roadmap
 ### 1.2 非目标（早期明确不做）
 
 - 不做通用 2D/3D 引擎，不追求 Unity/Unreal 的功能覆盖。
-- 不在 OpenGL 后端稳定（M2 验收）之前并行开发完整的 Vulkan 后端；但 RHI 接口必须从一开始就按两套后端设计。
+- OpenGL 是主开发后端。Vulkan 后端（ADR-0005 验证版）已在主线中，但在 M2.5 之前只维护“可编译 + 与 OpenGL 输出一致”，不做优化或 Vulkan 独有功能。
 - RHI 只抽象本项目实际用到的能力，不追求覆盖所有图形 API 特性。
 - 不一开始构建大型通用 ECS、复杂反射系统、通用渲染图或插件框架。RHI 是资源、管线与命令录制的薄抽象，不是渲染图。
 - 不先做独立、完整的编辑器再做游戏；先做运行时调试工具和内嵌编辑模式。
@@ -51,7 +51,7 @@ C++ 专用 2D 探索游戏引擎 · Project Charter & Technical Roadmap
 | 目标平台 | macOS（arm64；x86_64 待定）、Windows x64 | 两个平台都是一等平台，主分支必须同时可编译、可运行。 |
 | 平台层 | SDL3 | 窗口、输入、控制器、音频基础、文件路径与图形 Surface 创建。 |
 | 渲染抽象 | 自研 RHI，按 Vulkan 显式模型设计 | Device / Buffer / Texture / Sampler / Shader / Pipeline / CommandList / RenderPass / BindGroup / Swapchain；Renderer 与上层只依赖 RHI。 |
-| 图形后端 | 第一个：OpenGL 4.1 Core；后续：Vulkan | OpenGL 4.1 是 macOS 的上限，保证两平台行为一致；Vulkan 在 macOS 上经 MoltenVK 运行。Vulkan 后端排期见 §4（M2.5）。 |
+| 图形后端 | 主开发：OpenGL 4.1 Core；同步维护：Vulkan 1.2 | OpenGL 4.1 是 macOS 的上限，保证两平台行为一致；Vulkan 基线为 1.2 + dynamic rendering + synchronization2，macOS 上经 MoltenVK 运行（ADR-0005）。Vulkan 完善见 §4（M2.5）。 |
 | 着色器 | 单一源码：GLSL 450（Vulkan 风格）→ SPIR-V → SPIRV-Cross 生成 GLSL 410 | 构建期离线编译，运行时不解析着色器源码；后续可经 SPIRV-Cross 输出 MSL / HLSL。 |
 | 依赖管理 | 源码方式固定版本（`external/` 子模块或 CMake FetchContent 固定 tag） | 不依赖 Homebrew 或系统包；具体机制在首次提交时通过 ADR 确定。 |
 | 逻辑画布 | 320×180 | 作为默认基线；窗口缩放优先整数倍，剩余区域留黑边或按明确策略处理。 |
@@ -125,7 +125,7 @@ AnimalEngine/
 | M0 | 基础运行时与像素画布 | SDL3、CMake（Xcode / VS / Ninja 预设）、日志、计时、输入、RHI 最小接口与 OpenGL 后端、着色器构建流程、纹理、Sprite Batch、Camera、320×180 Render Target、整数缩放、Debug Overlay。 | macOS（Xcode、Ninja）与 Windows（VS、Ninja）均能干净构建并运行；可在一个房间中绘制 Tile 和角色；窗口缩放无模糊/意外拉伸；可显示 FPS、帧时间与调试信息；RHI 后端目录之外没有任何 OpenGL 调用。 |
 | M1 | 最小可玩游戏框架 | Tile Map、房间数据、角色移动/跳跃、碰撞、触发器、动画状态机、简单敌人、道具、房间切换、基础存档。 | 完成一个可从入口走到出口的关卡；重启后持久状态正确；碰撞和房间边界可重复测试；两平台行为一致。 |
 | M2 | 像素光照与合成 | 材质参数、法线贴图、点光源、遮罩、边缘光、调色、渲染层与合成策略。 | 同一场景在不同光照下产生稳定且可控的变化；渲染目标尺寸、混合和采样规则有文档；所有 Pass 只通过 RHI 实现。 |
-| M2.5 | Vulkan 后端 | Instance / Device / Swapchain、命令缓冲与同步、描述符、管线与管线缓存、验证层集成；macOS 经 MoltenVK。 | M0–M2 全部测试场景在 Vulkan 与 OpenGL 下输出一致（截图对比在容差内）；可通过启动参数切换后端；验证层无报错；上层代码无需修改。 |
+| M2.5 | Vulkan 后端完善 | 补齐 M1–M2 期间只在 OpenGL 实现的 RHI 功能；抽出两后端共用的参数校验；拆分 `vk_device.cpp`；细化屏障、内存子分配与管线缓存；Windows 原生驱动验证。 | M0–M2 全部测试场景在 Vulkan 与 OpenGL 下输出一致（截图对比在容差内）；可通过启动参数切换后端；验证层无报错；上层代码无需修改。 |
 | M3 | 粒子与流体原型 | GPU 粒子、低分辨率速度场、平流、耗散、外力/染料注入、烟雾/水的视觉合成。 | 角色或物件能扰动模拟；固定测试场景下结果稳定；有开关、参数控制与性能计数；OpenGL 4.1 下有片元着色器实现路径。 |
 | M4 | 内容工具与热迭代 | 调试面板、参数热调、纹理/着色器热重载、内嵌关卡编辑器、动画导入器。 | 不修改引擎代码即可摆放实体、光源、触发器并快速测试；资源重载失败能报错且不崩溃。 |
 | M5 | 资源烘焙与发行优化 | Asset Cooker、图集、去重、格式转换、压缩、资源目录/版本、包体分析、Release 构建。 | 源资源能确定性地生成发行资源；缺失/重复/未引用资源可报告；可比较优化前后的体积与加载性能。 |
@@ -141,13 +141,13 @@ AnimalEngine/
 5. 在 RHI 之上建立 Renderer 的最小边界：Texture、RenderTarget、Sprite、Camera；不要先做通用渲染图。
 6. 实现 320×180 离屏画布、整数倍缩放、视口/黑边策略与最近邻采样。
 7. 实现图集、批量绘制、图层排序、Tile Map 与一个测试房间。
-8. （建议）M0 完成后做一次限时的 Vulkan 技术验证：不修改 Renderer，只在 Vulkan 下画出 M0 测试场景，以检验 RHI 是否泄漏 OpenGL 语义；结论写入 ADR。
+8. ~~M0 完成后做一次限时的 Vulkan 技术验证~~：已完成并合入主线，结论见 ADR-0005。
 9. 实现 EntityId 生命周期、Transform、Sprite、碰撞体、碰撞查询和玩家控制。
 10. 实现动画状态机、触发器、房间切换、道具和持久状态。
 11. 建立资源导入约定和调试可视化；确保每个系统都有最小测试场景。
 12. 添加法线贴图和光照 Pass；先用少量光源验证正确性，再优化批处理和性能。
 13. 添加遮罩、边缘光、调色和最终合成；明确每个 Render Target 的格式和尺寸。
-14. 完整实现 Vulkan 后端（M2.5），建立 OpenGL / Vulkan 截图一致性对比测试。
+14. 完善 Vulkan 后端（M2.5）：补齐功能、拆分与优化，并在 Windows 原生驱动上验证。
 15. 独立实现粒子；再做低分辨率流体模拟，避免一开始混合多个未知系统。
 16. 加入参数热调、资源热重载与内嵌关卡编辑器。
 17. 最后实现发行资源烘焙、压缩、去重、包体分析和两个平台的发行流程。
@@ -158,7 +158,7 @@ AnimalEngine/
 - **跨平台持续可编译**：主分支在 macOS 与 Windows 上都必须可配置、编译、启动。源文件统一 UTF-8（MSVC 使用 `/utf-8`），行尾由 `.gitattributes` 管理，文件名大小写与 include 保持一致；不提交生成的 Xcode / VS 工程。
 - **图形 API 隔离**：只有 `engine/src/rhi/<backend>/` 可以包含 OpenGL / Vulkan 头文件或调用图形 API。Renderer 与上层只依赖 RHI 接口，不出现任何图形 API 类型。
 - **RHI 按 Vulkan 语义设计**：管线状态预先创建且不可变；资源创建时声明用途；渲染通道显式声明 load/store；命令先录制再提交；资源绑定按 set/binding 布局。由 OpenGL 后端模拟这些语义，而不是让 RHI 迁就 OpenGL 的全局状态机。
-- **单后端推进**：OpenGL 后端在 M2 验收前是唯一完整后端；此前除限时技术验证外，不并行开发 Vulkan 后端。
+- **主后端推进，副后端不掉队**：OpenGL 是主开发后端。Vulkan 后端必须始终可编译，并在每个里程碑验收时通过截图一致性对比（`tools/scripts/compare_images.py`，容差 0）。新的 RHI 功能可以先只在 OpenGL 实现，但必须在 Vulkan 中给出明确的错误日志而不是静默错误，并在 M2.5 前补齐。
 - **逻辑分辨率规则**：游戏世界逻辑坐标与窗口像素坐标必须分离。明确整数缩放、视口、鼠标坐标反变换和最近邻采样规则。
 - **固定/可变时间规则**：物理与模拟优先采用固定时间步；渲染可变帧率。明确最大补帧数，避免卡顿后无限追赶。
 - **资源所有权**：资源使用明确的 Handle/生命周期管理。避免裸指针跨模块长期持有；热重载必须处理旧资源引用。
@@ -213,7 +213,7 @@ AnimalEngine/
 |---|---|---|
 | 构建测试 | 两个平台、各生成器干净目录可配置并编译 | macOS（Xcode、Ninja）与 Windows（VS、Ninja）删除 build 目录后执行 preset 构建。 |
 | 渲染回归 | 固定测试场景可重复截图 | 像素缩放、Alpha、图层、光照和后处理。 |
-| 后端一致性 | 同一场景在不同后端输出一致 | Vulkan 后端接入后，对比 OpenGL 与 Vulkan 截图（容差内）。 |
+| 后端一致性 | 同一场景在不同后端输出一致 | 每个里程碑验收时，用 `--hide-overlay --no-vsync` 截图并逐像素对比 OpenGL 与 Vulkan（目前容差 0）。 |
 | 物理/碰撞 | 边界与角落案例可重复 | 墙角、落地、连续碰撞、触发器进入/退出。 |
 | 资源测试 | 缺失/损坏/版本不符可定位 | 加载故意损坏的纹理、动画和资源包。 |
 | 存档测试 | 保存/加载状态一致 | 关卡状态、收集品、机关状态与地图探索；存档跨平台可读。 |
@@ -235,7 +235,7 @@ AnimalEngine/
 | 风险 | 表现 | 缓解 |
 |---|---|---|
 | 过度设计 | 长时间建设框架但没有可玩关卡 | 每个里程碑都交付可运行演示；优先垂直切片。 |
-| RHI 泄漏 OpenGL 语义 | 接口隐含 OpenGL 全局状态，接入 Vulkan 时需要重写上层 | RHI 按 Vulkan 语义设计；M0 后做限时 Vulkan 技术验证；代码审查禁止上层出现图形 API 类型。 |
+| RHI 泄漏 OpenGL 语义 | 接口隐含 OpenGL 全局状态，接入 Vulkan 时需要重写上层 | RHI 按 Vulkan 语义设计；Vulkan 后端常驻主线并做截图一致性对比（ADR-0005）；代码审查禁止上层出现图形 API 类型。 |
 | RHI 过度抽象 | 为覆盖各 API 全部特性而膨胀，拖慢游戏进度 | 只抽象当前用到的能力；新增接口必须有实际使用者。 |
 | macOS 上的 Vulkan 依赖 MoltenVK | 部分特性/扩展缺失或性能差异 | 只使用 MoltenVK 支持的特性子集；必要时评估 Metal 后端（RHI 已预留扩展点）。 |
 | 过早做编辑器 | 工具开发时间超过内容开发 | 先 Debug Overlay、参数热调和内嵌编辑，再逐步独立。 |
@@ -310,7 +310,6 @@ ctest --test-dir build/<preset> --output-on-failure
 ## 13. 当前待确认项（不阻塞 M0）
 
 - macOS 最低系统版本（预设中暂定 13.3，libc++ 的 `std::format` 需要）、是否需要 Universal Binary（arm64 + x86_64）；Windows 最低版本。
-- 验证版 Vulkan 后端是否提前合入主线（ADR-0005；最低版本已确定为 Vulkan 1.2 + dynamic rendering + synchronization2）。
 - 是否评估 SDL3 自带的 GPU API（SDL_GPU，支持 Vulkan / Metal / D3D12）作为 RHI 的一个后端或替代方案。
 - CI 平台（例如 GitHub Actions 的 macOS + Windows 矩阵）。
 - 音频模块采用 SDL3 音频能力还是单独音频库。
@@ -345,3 +344,4 @@ Animal Well 的公开访谈和演讲可以帮助理解设计方向，但本项�
 | v1.0 | 2026-10-20 | 建立项目愿景、初始技术决策、模块架构、里程碑、硬规则、测试策略和启动任务。 |
 | v1.1 | 2026-10-22 | 确认三项基线决策：图形层采用按 Vulkan 语义设计的 RHI，OpenGL 为首个后端、Vulkan 为后续目标；平台层由 SDL2 改为 SDL3；macOS 与 Windows 均为一等平台，支持 Xcode、Visual Studio 与 Ninja 构建。相应更新技术决策、架构分层、仓库目录、里程碑（新增 M2.5 Vulkan 后端）、实现顺序、硬规则、渲染抽象约定（§7.4）、测试、风险、待确认项与任务清单。项目尚无代码，无迁移成本。 |
 | v1.2 | 2026-10-22 | 确认房间与镜头方式（单屏房间、8 px Tile、出屏切换）和关卡数据格式（Tiled `.tmj`）；确定 M0 之后先做 Vulkan 限时验证再进入 M1。M0 测试房间（16 px Tile、滚动镜头）为占位实现，M1 中替换。 |
+| v1.3 | 2026-10-22 | Vulkan 技术验证通过（ADR-0005），验证版 Vulkan 后端合入主线。硬规则“单后端推进”改为“主后端推进，副后端不掉队”：OpenGL 为主开发后端，Vulkan 必须始终可编译并在里程碑验收时通过截图一致性对比；M2.5 改为 Vulkan 后端完善。 |

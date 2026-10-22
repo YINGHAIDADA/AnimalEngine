@@ -93,7 +93,8 @@ python3 tools/scripts/compare_images.py screenshots/gl.png screenshots/vk.png
 | 一个房间中绘制 Tile 和可移动角色 | 运行 `AnimalGame` | ✅ |
 | 窗口缩放无模糊、无意外拉伸（整数倍 + 留黑边） | 拖动窗口大小；单元测试 `present_layout_*` | ✅ |
 | 显示 FPS、帧时间、渲染尺寸、缩放倍率、当前后端 | F1 覆盖层 | ✅ |
-| RHI 后端目录之外没有 OpenGL 调用 | `engine/src/rhi/opengl/` 之外搜索 `gl[A-Z]` 无结果 | ✅ |
+| RHI 后端目录之外没有图形 API 调用 | `engine/src/rhi/opengl/`、`engine/src/rhi/vulkan/` 之外搜索 `gl[A-Z]` / `vk[A-Z]` 无结果 | ✅ |
+| OpenGL 与 Vulkan 输出一致 | 见上文“后端一致性”，容差 0 | ✅（macOS / MoltenVK） |
 | 单元测试通过 | `ctest` | ✅ |
 | 两个平台的验收截图 | `AnimalGame --frames=60 --screenshot=screenshots/m0_<platform>.png` | macOS ✅ / Windows ⏳ |
 

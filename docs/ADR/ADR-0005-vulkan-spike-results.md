@@ -12,6 +12,10 @@
 3. **“先录制、后提交”的设计被证明是必要的**：dynamic rendering 内不允许插入屏障，后端在提交时预扫描每个渲染通道，把该通道需要的布局转换（附件 → COLOR_ATTACHMENT，被采样纹理 → SHADER_READ_ONLY）统一放在 `vkCmdBeginRenderingKHR` 之前。
 4. **队列顺序的 `writeBuffer` / `writeTexture` 语义可直接实现**：帧内写入进入暂存缓冲与上传命令缓冲，提交时排在帧命令之前；帧外写入立即执行并等待完成。
 
+## 决定
+
+验证版 Vulkan 后端整体合入主线（不再留在分支等待 M2.5）。OpenGL 仍是主开发后端；Vulkan 后端必须始终可编译，并在每个里程碑验收时通过截图一致性对比。新的 RHI 功能可以先只在 OpenGL 实现，在 Vulkan 中给出明确错误日志，M2.5 前补齐（PROJECT.md §6）。
+
 ## 由此确定的约定
 
 - **Vulkan 基线**：Vulkan 1.2 + `VK_KHR_dynamic_rendering` + `VK_KHR_synchronization2`；MoltenVK 上额外启用 `VK_KHR_portability_subset`。（解决 PROJECT.md §13 中“最低 Vulkan 版本与必需扩展”。）
