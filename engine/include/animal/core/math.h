@@ -20,6 +20,16 @@ struct Vec2 {
     friend constexpr bool operator==(Vec2, Vec2) = default;
 };
 
+// Also used for linear RGB that may exceed 1 (light intensities).
+struct Vec3 {
+    float x = 0.0f;
+    float y = 0.0f;
+    float z = 0.0f;
+
+    constexpr Vec3 operator*(float s) const { return {x * s, y * s, z * s}; }
+    friend constexpr bool operator==(Vec3, Vec3) = default;
+};
+
 inline float length(Vec2 v) {
     return std::sqrt(v.x * v.x + v.y * v.y);
 }

@@ -4,14 +4,16 @@
 #include <animal/resources/loaders.h>
 #include <animal/rhi/command_list.h>
 
+#include <algorithm>
 #include <cstddef>
 
 namespace animal {
 
-bool SpriteBatch::init(rhi::Device& device, const std::string& shaderDirectory, rhi::Format targetFormat) {
+bool SpriteBatch::init(rhi::Device& device, const std::string& shaderDirectory, const SpriteBatchDesc& desc) {
     device_ = &device;
-    vertexShader_ = loadShader(device, shaderDirectory + "sprite.vert.ashd");
-    fragmentShader_ = loadShader(device, shaderDirectory + "sprite.frag.ashd");
+    texturesPerSprite_ = desc.texturesPerSprite;
+    vertexShader_ = loadShader(device, shaderDirectory + desc.vertexShader);
+    fragmentShader_ = loadShader(device, shaderDirectory + desc.fragmentShader);
     if (!vertexShader_ || !fragmentShader_) {
         return false;
     }
@@ -25,8 +27,8 @@ bool SpriteBatch::init(rhi::Device& device, const std::string& shaderDirectory, 
         {1, 0, rhi::VertexFormat::Float2, offsetof(Vertex, u)},
         {2, 0, rhi::VertexFormat::UNorm8x4, offsetof(Vertex, color)},
     };
-    pipelineDesc.colorTargets = {{targetFormat, rhi::BlendState::premultipliedAlpha()}};
-    pipelineDesc.debugName = "sprite";
+    pipelineDesc.colorTargets = desc.colorTargets;
+    pipelineDesc.debugName = desc.debugName;
     pipeline_ = device.createGraphicsPipeline(pipelineDesc);
     if (!pipeline_) {
         return false;
@@ -113,11 +115,11 @@ void SpriteBatch::begin(rhi::CommandList& commands, const Mat4& viewProjection) 
     commands.setVertexBuffer(0, vertexBuffer_);
     commands.setIndexBuffer(indexBuffer_, rhi::IndexType::UInt16);
     commands.setBindGroup(0, view.group);
-    runTexture_ = {};
+    runTextures_ = {};
     runStart_ = quadCount();
 }
 
-void SpriteBatch::draw(rhi::TextureHandle texture, const RectF& dst, const RectF& uv, Color color) {
+void SpriteBatch::draw(const SpriteTextures& textures, const RectF& dst, const RectF& uv, Color color) {
     if (!commands_) {
         return;
     }
@@ -128,9 +130,9 @@ void SpriteBatch::draw(rhi::TextureHandle texture, const RectF& dst, const RectF
         }
         return;
     }
-    if (texture != runTexture_) {
+    if (textures != runTextures_) {
         flush();
-        runTexture_ = texture;
+        runTextures_ = textures;
     }
 
     const Color c = color.premultiplied();
@@ -151,8 +153,8 @@ void SpriteBatch::draw(rhi::TextureHandle texture, const RectF& dst, const RectF
 void SpriteBatch::flush() {
     const uint32_t end = quadCount();
     const uint32_t count = end - runStart_;
-    if (count > 0 && runTexture_) {
-        const rhi::BindGroupHandle group = textureGroup(runTexture_);
+    if (count > 0 && runTextures_[0]) {
+        const rhi::BindGroupHandle group = textureGroup(runTextures_);
         if (group) {
             commands_->setBindGroup(1, group);
             commands_->drawIndexed(count * 6, 1, runStart_ * 6, 0);
@@ -168,7 +170,7 @@ void SpriteBatch::end() {
     }
     flush();
     commands_ = nullptr;
-    runTexture_ = {};
+    runTextures_ = {};
 }
 
 void SpriteBatch::endFrame() {
@@ -181,26 +183,39 @@ void SpriteBatch::endFrame() {
 }
 
 void SpriteBatch::forgetTexture(rhi::TextureHandle texture) {
-    const auto it = textureGroups_.find(texture.key());
-    if (it != textureGroups_.end()) {
-        device_->destroy(it->second);
-        textureGroups_.erase(it);
+    for (auto it = textureGroups_.begin(); it != textureGroups_.end();) {
+        if (std::find(it->first.begin(), it->first.end(), texture.key()) != it->first.end()) {
+            device_->destroy(it->second);
+            it = textureGroups_.erase(it);
+        } else {
+            ++it;
+        }
     }
 }
 
-rhi::BindGroupHandle SpriteBatch::textureGroup(rhi::TextureHandle texture) {
-    const auto it = textureGroups_.find(texture.key());
-    if (it != textureGroups_.end()) {
+SpriteBatch::TextureKey SpriteBatch::keyOf(const SpriteTextures& textures) {
+    TextureKey key{};
+    for (size_t i = 0; i < textures.size(); ++i) {
+        key[i] = textures[i].key();
+    }
+    return key;
+}
+
+rhi::BindGroupHandle SpriteBatch::textureGroup(const SpriteTextures& textures) {
+    const TextureKey key = keyOf(textures);
+    if (const auto it = textureGroups_.find(key); it != textureGroups_.end()) {
         return it->second;
     }
     rhi::BindGroupDesc desc;
     desc.pipeline = pipeline_;
     desc.set = 1;
-    desc.entries = {rhi::BindGroupEntry::textureSampler(0, texture, sampler_)};
-    desc.debugName = "sprite texture";
+    for (uint32_t i = 0; i < texturesPerSprite_; ++i) {
+        desc.entries.push_back(rhi::BindGroupEntry::textureSampler(i, textures[i], sampler_));
+    }
+    desc.debugName = "sprite textures";
     const rhi::BindGroupHandle group = device_->createBindGroup(desc);
     if (group) {
-        textureGroups_.emplace(texture.key(), group);
+        textureGroups_.emplace(key, group);
     }
     return group;
 }

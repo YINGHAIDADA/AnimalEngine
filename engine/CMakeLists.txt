@@ -10,6 +10,7 @@ set(ANIMAL_ENGINE_HEADERS
     include/animal/platform/platform.h
     include/animal/platform/window.h
     include/animal/renderer/camera2d.h
+    include/animal/renderer/lighting.h
     include/animal/renderer/pixel_canvas.h
     include/animal/renderer/renderer2d.h
     include/animal/renderer/sprite_batch.h
@@ -29,6 +30,8 @@ set(ANIMAL_ENGINE_SOURCES
     src/platform/window.cpp
     src/renderer/debug_font.cpp
     src/renderer/debug_font.h
+    src/renderer/lighting_pass.cpp
+    src/renderer/lighting_pass.h
     src/renderer/pixel_canvas.cpp
     src/renderer/renderer2d.cpp
     src/renderer/sprite_batch.cpp

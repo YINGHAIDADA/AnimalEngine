@@ -3,9 +3,10 @@
 #include <animal/core/math.h>
 #include <animal/rhi/rhi.h>
 
+#include <array>
 #include <cstdint>
+#include <map>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace animal::rhi {
@@ -19,21 +20,37 @@ struct SpriteBatchStats {
     uint32_t drawCalls = 0;
 };
 
+inline constexpr uint32_t kMaxSpriteTextures = 3;
+using SpriteTextures = std::array<rhi::TextureHandle, kMaxSpriteTextures>;
+
+// Shaders and targets of one batch. Textures are bound at set 1, bindings 0..texturesPerSprite-1.
+struct SpriteBatchDesc {
+    std::string vertexShader = "sprite.vert.ashd";
+    std::string fragmentShader = "sprite.frag.ashd";
+    std::vector<rhi::ColorTargetDesc> colorTargets;
+    uint32_t texturesPerSprite = 1;
+    const char* debugName = "sprite";
+};
+
 // Collects textured quads for a whole frame. Draws are recorded into the command list as
 // they are batched; vertex data is uploaded once in endFrame(), which must run before
-// Device::submit(). Consecutive quads sharing a texture become one draw call.
+// Device::submit(). Consecutive quads sharing the same textures become one draw call.
 class SpriteBatch {
 public:
     static constexpr uint32_t kMaxQuadsPerFrame = 16384; // 65536 vertices, addressable with uint16 indices
     static constexpr uint32_t kMaxViewsPerFrame = 8;
 
-    bool init(rhi::Device& device, const std::string& shaderDirectory, rhi::Format targetFormat);
+    bool init(rhi::Device& device, const std::string& shaderDirectory, const SpriteBatchDesc& desc);
     void shutdown();
 
     void beginFrame();
     void begin(rhi::CommandList& commands, const Mat4& viewProjection);
-    // `color` is straight alpha. `uv` is in normalized texture coordinates, v = 0 at the top.
-    void draw(rhi::TextureHandle texture, const RectF& dst, const RectF& uv, Color color = Color::white());
+    // `color` is straight alpha. `uv` is in normalized texture coordinates, v = 0 at the top;
+    // a negative width mirrors horizontally.
+    void draw(const SpriteTextures& textures, const RectF& dst, const RectF& uv, Color color = Color::white());
+    void draw(rhi::TextureHandle texture, const RectF& dst, const RectF& uv, Color color = Color::white()) {
+        draw(SpriteTextures{texture}, dst, uv, color);
+    }
     void end();
     void endFrame();
 
@@ -53,11 +70,15 @@ private:
         rhi::BindGroupHandle group;
     };
 
+    using TextureKey = std::array<uint64_t, kMaxSpriteTextures>;
+
     void flush();
     uint32_t quadCount() const { return static_cast<uint32_t>(vertices_.size() / 4); }
-    rhi::BindGroupHandle textureGroup(rhi::TextureHandle texture);
+    rhi::BindGroupHandle textureGroup(const SpriteTextures& textures);
+    static TextureKey keyOf(const SpriteTextures& textures);
 
     rhi::Device* device_ = nullptr;
+    uint32_t texturesPerSprite_ = 1;
     rhi::ShaderHandle vertexShader_;
     rhi::ShaderHandle fragmentShader_;
     rhi::PipelineHandle pipeline_;
@@ -65,11 +86,11 @@ private:
     rhi::BufferHandle indexBuffer_;
     rhi::SamplerHandle sampler_;
     std::vector<View> views_;
-    std::unordered_map<uint64_t, rhi::BindGroupHandle> textureGroups_;
+    std::map<TextureKey, rhi::BindGroupHandle> textureGroups_;
 
     std::vector<Vertex> vertices_;
     rhi::CommandList* commands_ = nullptr;
-    rhi::TextureHandle runTexture_;
+    SpriteTextures runTextures_{};
     uint32_t runStart_ = 0;
     uint32_t viewsUsed_ = 0;
     bool overflowReported_ = false;

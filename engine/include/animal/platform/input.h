@@ -23,6 +23,8 @@ enum class Key : uint8_t {
     Escape,
     F1,
     F2,
+    F3,
+    F4,
     F12,
     Count,
 };

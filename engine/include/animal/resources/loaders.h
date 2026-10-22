@@ -26,8 +26,26 @@ struct LoadedTexture {
     uint32_t height = 0;
 };
 
-// Loads a PNG as a premultiplied-alpha RGBA8 texture. Logs and returns nullopt on failure.
-std::optional<LoadedTexture> loadTexture(rhi::Device& device, const std::string& path);
+enum class AlphaMode {
+    Premultiply, // color textures
+    Keep,        // data textures: normal maps, emissive maps
+};
+
+// Loads a PNG as an RGBA8 texture. Logs and returns nullopt on failure.
+std::optional<LoadedTexture> loadTexture(rhi::Device& device, const std::string& path,
+                                         AlphaMode alpha = AlphaMode::Premultiply);
+
+// Sprite sheet plus optional companions with the same layout (docs/ART_PIPELINE.md):
+// <base>.png albedo, <base>_n.png normal map, <base>_e.png emissive map.
+struct SpriteMaterial {
+    LoadedTexture albedo;
+    rhi::TextureHandle normal;   // invalid: flat
+    rhi::TextureHandle emissive; // invalid: none
+};
+
+// `basePath` excludes the extension. Missing companions are allowed; a missing albedo fails.
+std::optional<SpriteMaterial> loadMaterial(rhi::Device& device, const std::string& basePath);
+void destroyMaterial(rhi::Device& device, SpriteMaterial& material);
 
 // Loads a compiled .ashd shader package. Logs and returns an invalid handle on failure.
 rhi::ShaderHandle loadShader(rhi::Device& device, const std::string& path);

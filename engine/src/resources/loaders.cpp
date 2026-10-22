@@ -22,6 +22,7 @@
 #pragma warning(pop)
 #endif
 
+#include <SDL3/SDL_filesystem.h>
 #include <SDL3/SDL_iostream.h>
 
 #include <cstring>
@@ -79,14 +80,16 @@ bool writePng(const std::string& path, uint32_t width, uint32_t height, const ui
     return ok;
 }
 
-std::optional<LoadedTexture> loadTexture(rhi::Device& device, const std::string& path) {
+std::optional<LoadedTexture> loadTexture(rhi::Device& device, const std::string& path, AlphaMode alpha) {
     std::string error;
     std::optional<Image> image = loadImage(path, &error);
     if (!image) {
         log::error("Failed to load texture '{}': {}", path, error);
         return std::nullopt;
     }
-    premultiplyAlpha(*image);
+    if (alpha == AlphaMode::Premultiply) {
+        premultiplyAlpha(*image);
+    }
 
     rhi::TextureDesc desc;
     desc.width = image->width;
@@ -100,6 +103,43 @@ std::optional<LoadedTexture> loadTexture(rhi::Device& device, const std::string&
     }
     device.writeTexture(handle, {0, 0, image->width, image->height}, image->pixels.data(), image->width * 4);
     return LoadedTexture{handle, image->width, image->height};
+}
+
+std::optional<SpriteMaterial> loadMaterial(rhi::Device& device, const std::string& basePath) {
+    const auto albedo = loadTexture(device, basePath + ".png");
+    if (!albedo) {
+        return std::nullopt;
+    }
+    SpriteMaterial material;
+    material.albedo = *albedo;
+
+    auto loadCompanion = [&](const std::string& suffix) -> rhi::TextureHandle {
+        const std::string path = basePath + suffix + ".png";
+        if (!SDL_GetPathInfo(path.c_str(), nullptr)) {
+            return {};
+        }
+        const auto texture = loadTexture(device, path, AlphaMode::Keep);
+        if (!texture) {
+            return {};
+        }
+        if (texture->width != albedo->width || texture->height != albedo->height) {
+            log::error("'{}' is {}x{} but its albedo is {}x{}; ignoring it", path, texture->width, texture->height,
+                       albedo->width, albedo->height);
+            device.destroy(texture->handle);
+            return {};
+        }
+        return texture->handle;
+    };
+    material.normal = loadCompanion("_n");
+    material.emissive = loadCompanion("_e");
+    return material;
+}
+
+void destroyMaterial(rhi::Device& device, SpriteMaterial& material) {
+    device.destroy(material.albedo.handle);
+    device.destroy(material.normal);
+    device.destroy(material.emissive);
+    material = {};
 }
 
 rhi::ShaderHandle loadShader(rhi::Device& device, const std::string& path) {

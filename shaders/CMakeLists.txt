@@ -1,4 +1,9 @@
 animal_add_shaders(animal_shaders
     SOURCES
         sprite.vert
-        sprite.frag)
+        sprite.frag
+        sprite_lit.frag
+        light.vert
+        light.frag
+        composite.vert
+        composite.frag)

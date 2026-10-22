@@ -24,6 +24,7 @@ struct CommandLine {
     bool noVsync = false;
     bool hideOverlay = false;
     bool resizeTest = false;
+    bool deterministic = false;
     uint64_t exitAfterFrames = 0;
     std::string screenshotPath;
 };
@@ -42,6 +43,8 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv) {
             cl.hideOverlay = true;
         } else if (arg == "--resize-test") {
             cl.resizeTest = true;
+        } else if (arg == "--deterministic") {
+            cl.deterministic = true;
         } else if (arg.starts_with("--frames=")) {
             cl.exitAfterFrames = std::strtoull(std::string(arg.substr(9)).c_str(), nullptr, 10);
         } else if (arg.starts_with("--screenshot=")) {
@@ -50,7 +53,7 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv) {
             // Added by macOS when launched from Finder.
         } else {
             log::error("Unknown argument '{}'. Options: --backend=opengl|vulkan --no-vsync --hide-overlay "
-                       "--resize-test --frames=N --screenshot=path.png",
+                       "--resize-test --deterministic --frames=N --screenshot=path.png",
                        arg);
             return std::nullopt;
         }
@@ -214,7 +217,10 @@ int Application::run(int argc, char** argv) {
                 }
 
                 const uint64_t now = platform::nowNanoseconds();
-                const double frameTime = std::min(static_cast<double>(now - lastTime) * 1e-9, 0.25);
+                // Deterministic runs advance exactly one fixed step per frame (reproducible captures).
+                const double frameTime = commandLine->deterministic
+                                             ? kFixedTimestep
+                                             : std::min(static_cast<double>(now - lastTime) * 1e-9, 0.25);
                 lastTime = now;
                 timer.tick(frameTime, context.stats);
                 onFrame(context);
@@ -254,7 +260,8 @@ int Application::run(int argc, char** argv) {
                             std::format("WINDOW {}X{}  CANVAS {}X{}  SCALE {}X", extent.width, extent.height,
                                         Renderer2D::kCanvasExtent.width, Renderer2D::kCanvasExtent.height,
                                         layout.scale),
-                            std::format("SPRITES {}  DRAWS {}", renderer.stats().quads, renderer.stats().drawCalls),
+                            std::format("SPRITES {}  DRAWS {}  LIGHTS {}", renderer.stats().quads,
+                                        renderer.stats().drawCalls, renderer.lightCount()),
                         };
                         onDebugText(context, lines);
                         lines.emplace_back("F1 OVERLAY  F12 SCREENSHOT  ESC QUIT");

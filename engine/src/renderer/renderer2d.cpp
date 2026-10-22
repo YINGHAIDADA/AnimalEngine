@@ -1,4 +1,5 @@
 #include "debug_font.h"
+#include "lighting_pass.h"
 
 #include <animal/core/assert.h>
 #include <animal/core/log.h>
@@ -15,15 +16,57 @@ rhi::ClearColor toClearColor(Color c) {
     return {c.r / 255.0f, c.g / 255.0f, c.b / 255.0f, c.a / 255.0f};
 }
 
+// G-buffer clear values: "nothing here" is a flat normal and no emission.
+constexpr rhi::ClearColor kFlatNormalClear{0.5f, 0.5f, 1.0f, 0.0f};
+constexpr rhi::ClearColor kNoEmissionClear{0.0f, 0.0f, 0.0f, 0.0f};
+
 } // namespace
 
-Renderer2D::Renderer2D() : font_(std::make_unique<DebugFont>()) {}
+Renderer2D::Renderer2D() : font_(std::make_unique<DebugFont>()), lightingPass_(std::make_unique<LightingPass>()) {}
 
 Renderer2D::~Renderer2D() = default;
 
+rhi::TextureHandle Renderer2D::createTarget(rhi::Format format, const char* name) {
+    rhi::TextureDesc desc;
+    desc.width = kCanvasExtent.width;
+    desc.height = kCanvasExtent.height;
+    desc.format = format;
+    desc.usage = rhi::TextureUsage::Sampled | rhi::TextureUsage::RenderTarget;
+    desc.debugName = name;
+    return device_->createTexture(desc);
+}
+
+rhi::TextureHandle Renderer2D::createSolidTexture(Color color, const char* name) {
+    rhi::TextureDesc desc;
+    desc.width = 1;
+    desc.height = 1;
+    desc.debugName = name;
+    const rhi::TextureHandle texture = device_->createTexture(desc);
+    if (texture) {
+        device_->writeTexture(texture, {0, 0, 1, 1}, &color, 4);
+    }
+    return texture;
+}
+
 bool Renderer2D::init(rhi::Device& device, const std::string& dataDirectory) {
     device_ = &device;
-    if (!batch_.init(device, dataDirectory + "shaders/", device.swapchainFormat())) {
+    const std::string shaders = dataDirectory + "shaders/";
+
+    SpriteBatchDesc unlit;
+    unlit.colorTargets = {{device.swapchainFormat(), rhi::BlendState::premultipliedAlpha()}};
+    unlit.debugName = "sprite";
+
+    SpriteBatchDesc lit;
+    lit.fragmentShader = "sprite_lit.frag.ashd";
+    lit.colorTargets = {
+        {rhi::Format::RGBA8_UNorm, rhi::BlendState::premultipliedAlpha()}, // albedo
+        {rhi::Format::RGBA8_UNorm, rhi::BlendState::premultipliedAlpha()}, // normal
+        {rhi::Format::RGBA8_UNorm, rhi::BlendState::premultipliedAlpha()}, // emissive
+    };
+    lit.texturesPerSprite = 3;
+    lit.debugName = "sprite lit";
+
+    if (!batch_.init(device, shaders, unlit) || !litBatch_.init(device, shaders, lit)) {
         log::error("Renderer2D: sprite batch initialization failed (is '{}' deployed?)", dataDirectory);
         return false;
     }
@@ -31,40 +74,60 @@ bool Renderer2D::init(rhi::Device& device, const std::string& dataDirectory) {
         return false;
     }
 
-    rhi::TextureDesc canvasDesc;
-    canvasDesc.width = kCanvasExtent.width;
-    canvasDesc.height = kCanvasExtent.height;
-    canvasDesc.format = rhi::Format::RGBA8_UNorm;
-    canvasDesc.usage = rhi::TextureUsage::Sampled | rhi::TextureUsage::RenderTarget;
-    canvasDesc.debugName = "pixel canvas";
-    canvas_ = device.createTexture(canvasDesc);
-    return canvas_.valid();
+    canvas_ = createTarget(rhi::Format::RGBA8_UNorm, "pixel canvas");
+    albedo_ = createTarget(rhi::Format::RGBA8_UNorm, "g-buffer albedo");
+    normal_ = createTarget(rhi::Format::RGBA8_UNorm, "g-buffer normal");
+    emissive_ = createTarget(rhi::Format::RGBA8_UNorm, "g-buffer emissive");
+    light_ = createTarget(rhi::Format::RGBA16_Float, "light accumulation");
+    flatNormal_ = createSolidTexture(Color::rgba(128, 128, 255), "flat normal");
+    noEmission_ = createSolidTexture(Color::rgba(0, 0, 0), "no emission");
+    if (!canvas_ || !albedo_ || !normal_ || !emissive_ || !light_ || !flatNormal_ || !noEmission_) {
+        return false;
+    }
+
+    LightingPass::Targets targets{albedo_, normal_, emissive_, light_, kCanvasExtent};
+    return lightingPass_->init(device, shaders, targets, rhi::Format::RGBA8_UNorm);
 }
 
 void Renderer2D::shutdown() {
     if (!device_) {
         return;
     }
+    lightingPass_->shutdown();
+    litBatch_.shutdown();
     batch_.shutdown();
     font_->shutdown(*device_);
-    device_->destroy(canvas_);
+    for (rhi::TextureHandle texture : {canvas_, albedo_, normal_, emissive_, light_, flatNormal_, noEmission_}) {
+        device_->destroy(texture);
+    }
     device_ = nullptr;
 }
 
 void Renderer2D::beginFrame(rhi::CommandList& commands) {
     commands_ = &commands;
     batch_.beginFrame();
+    litBatch_.beginFrame();
+    lightingPass_->beginFrame();
 }
 
 void Renderer2D::beginWorld(const Camera2D& camera, Color clearColor) {
-    ANIMAL_ASSERT(commands_ != nullptr);
-    commands_->beginRenderPass(rhi::RenderPassDesc::single(
-        {canvas_, rhi::LoadOp::Clear, rhi::StoreOp::Store, toClearColor(clearColor)}));
-    batch_.begin(*commands_, camera.viewProjection(kCanvasExtent));
+    ANIMAL_ASSERT(commands_ != nullptr && phase_ == Phase::Idle);
+    phase_ = Phase::World;
+    worldViewProjection_ = camera.viewProjection(kCanvasExtent);
+    lights_.clear();
+
+    rhi::RenderPassDesc pass;
+    pass.colorAttachments[0] = {albedo_, rhi::LoadOp::Clear, rhi::StoreOp::Store, toClearColor(clearColor)};
+    pass.colorAttachments[1] = {normal_, rhi::LoadOp::Clear, rhi::StoreOp::Store, kFlatNormalClear};
+    pass.colorAttachments[2] = {emissive_, rhi::LoadOp::Clear, rhi::StoreOp::Store, kNoEmissionClear};
+    pass.colorAttachmentCount = 3;
+    commands_->beginRenderPass(pass);
+    litBatch_.begin(*commands_, worldViewProjection_);
 }
 
-void Renderer2D::drawSprite(const LoadedTexture& texture, Vec2 position, const RectF& source, Color tint,
+void Renderer2D::drawSprite(const SpriteMaterial& material, Vec2 position, const RectF& source, Color tint,
                             bool flipX) {
+    const LoadedTexture& texture = material.albedo;
     if (texture.width == 0 || texture.height == 0) {
         return;
     }
@@ -76,16 +139,53 @@ void Renderer2D::drawSprite(const LoadedTexture& texture, Vec2 position, const R
         uv.x += uv.width;
         uv.width = -uv.width;
     }
-    batch_.draw(texture.handle, {p.x, p.y, source.width, source.height}, uv, tint);
+    const RectF dst{p.x, p.y, source.width, source.height};
+    if (phase_ == Phase::World) {
+        litBatch_.draw({texture.handle, material.normal ? material.normal : flatNormal_,
+                        material.emissive ? material.emissive : noEmission_},
+                       dst, uv, tint);
+    } else {
+        batch_.draw(texture.handle, dst, uv, tint);
+    }
+}
+
+void Renderer2D::drawSprite(const LoadedTexture& texture, Vec2 position, const RectF& source, Color tint,
+                            bool flipX) {
+    SpriteMaterial material;
+    material.albedo = texture;
+    drawSprite(material, position, source, tint, flipX);
+}
+
+void Renderer2D::addLight(const PointLight& light) {
+    ANIMAL_ASSERT(phase_ == Phase::World);
+    lights_.push_back(light);
 }
 
 void Renderer2D::endWorld() {
+    ANIMAL_ASSERT(phase_ == Phase::World);
+    litBatch_.end();
+    commands_->endRenderPass();
+    lightingPass_->render(*commands_, worldViewProjection_, lights_, lightingSettings_, canvas_);
+    phase_ = Phase::Idle;
+}
+
+void Renderer2D::beginWorldOverlay(const Camera2D& camera) {
+    ANIMAL_ASSERT(commands_ != nullptr && phase_ == Phase::Idle);
+    phase_ = Phase::WorldOverlay;
+    commands_->beginRenderPass(rhi::RenderPassDesc::single({canvas_, rhi::LoadOp::Load, rhi::StoreOp::Store, {}}));
+    batch_.begin(*commands_, camera.viewProjection(kCanvasExtent));
+}
+
+void Renderer2D::endWorldOverlay() {
+    ANIMAL_ASSERT(phase_ == Phase::WorldOverlay);
     batch_.end();
     commands_->endRenderPass();
+    phase_ = Phase::Idle;
 }
 
 void Renderer2D::beginScreen(Color letterboxColor) {
-    ANIMAL_ASSERT(commands_ != nullptr);
+    ANIMAL_ASSERT(commands_ != nullptr && phase_ == Phase::Idle);
+    phase_ = Phase::Screen;
     const rhi::Extent2D window = device_->swapchainExtent();
     presentLayout_ = computePresentLayout(kCanvasExtent, window);
 
@@ -127,8 +227,19 @@ void Renderer2D::drawText(Vec2 position, std::string_view text, Color color) {
     }
 }
 
+void Renderer2D::endScreen() {
+    ANIMAL_ASSERT(phase_ == Phase::Screen);
+    batch_.end();
+    commands_->endRenderPass();
+    phase_ = Phase::Idle;
+}
+
 void Renderer2D::fillRect(const RectF& rect, Color color) {
-    batch_.draw(font_->texture(), rect, font_->solidUV(), color);
+    if (phase_ == Phase::World) {
+        litBatch_.draw({font_->texture(), flatNormal_, noEmission_}, rect, font_->solidUV(), color);
+    } else {
+        batch_.draw(font_->texture(), rect, font_->solidUV(), color);
+    }
 }
 
 void Renderer2D::strokeRect(const RectF& rect, Color color, float thickness) {
@@ -139,14 +250,22 @@ void Renderer2D::strokeRect(const RectF& rect, Color color, float thickness) {
     fillRect({rect.x + rect.width - t, rect.y + t, t, rect.height - 2.0f * t}, color);
 }
 
-void Renderer2D::endScreen() {
-    batch_.end();
-    commands_->endRenderPass();
+void Renderer2D::endFrame() {
+    ANIMAL_ASSERT(phase_ == Phase::Idle);
+    batch_.endFrame();
+    litBatch_.endFrame();
+    lightingPass_->endFrame();
+    commands_ = nullptr;
 }
 
-void Renderer2D::endFrame() {
-    batch_.endFrame();
-    commands_ = nullptr;
+SpriteBatchStats Renderer2D::stats() const {
+    const SpriteBatchStats a = batch_.stats();
+    const SpriteBatchStats b = litBatch_.stats();
+    return {a.quads + b.quads, a.drawCalls + b.drawCalls};
+}
+
+uint32_t Renderer2D::lightCount() const {
+    return lightingPass_->lightCount();
 }
 
 } // namespace animal

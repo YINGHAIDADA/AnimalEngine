@@ -41,7 +41,7 @@ struct EngineContext {
 
 // Owns the main loop: fixed-timestep simulation (60 Hz, bounded catch-up) and variable-rate
 // rendering. Command line: --backend=opengl|vulkan  --no-vsync  --hide-overlay  --resize-test
-// --frames=N  --screenshot=path.png
+// --deterministic (one fixed step per frame)  --frames=N  --screenshot=path.png
 class Application {
 public:
     static constexpr double kFixedTimestep = 1.0 / 60.0;
