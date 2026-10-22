@@ -104,6 +104,7 @@ private:
     } clips_{};
     double time_ = 0.0;      // simulation time, drives animation
     float fluidTime_ = 0.0f; // simulation time not yet handed to the smoke solver
+    float gpuParticleTime_ = 0.0f; // likewise for the GPU particles
 
     animal::ActionMap actions_;
     bool showCollision_ = false;

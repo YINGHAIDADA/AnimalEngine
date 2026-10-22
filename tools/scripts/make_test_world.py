@@ -105,6 +105,13 @@ class Room:
     def lantern(self, tx, ty):  # centred in a tile cell; hangs from the ceiling above
         self.obj("lantern", tx * TILE + 4, ty * TILE + 4)
 
+    def emitter_px(self, effect, x, y, w, h, **props):  # an area emitter in pixels
+        entry = {"id": len(self.objects) + 1, "name": "", "type": "emitter", "rotation": 0, "visible": True,
+                 "x": x, "y": y, "width": w, "height": h,
+                 "properties": [prop("effect", "file", f"../effects/{effect}.effect.json")] +
+                               [prop(k, "float", float(v)) for k, v in props.items()]}
+        self.objects.append(entry)
+
     def emitter(self, effect, tx=0, ty=0, tw=W, th=H, **props):  # an area emitter (whole room by default)
         extra = {k: (("int" if isinstance(v, int) else "float"), v) for k, v in props.items()}
         self.area("emitter", tx, ty, tw, th, effect=("file", f"../effects/{effect}.effect.json"), **extra)
@@ -268,6 +275,10 @@ def smoke_pit():
     room.water(27, 18, 10, 2, rgb=(46, 84, 110), reflection=0.45)
     room.lantern(33, 16)  # lights the pool so the surface and reflections read
     room.plants("reeds", 25, 15, 14, 6)                # on the banks and the pool floor
+    # A waterfall (GPU particles) pours from under the upper right platform into the pool,
+    # vanishing at its surface (floor) and throwing up mist where it lands.
+    room.emitter_px("falls", 277, 48, 6, 2, floor=144)
+    room.emitter_px("mist", 266, 137, 28, 6)
     return room
 
 

@@ -11,6 +11,7 @@
 #include <animal/framework/triggers.h>
 #include <animal/framework/water.h>
 #include <animal/framework/tilemap.h>
+#include <animal/renderer/gpu_particles.h>
 #include <animal/renderer/lighting.h>
 #include <animal/renderer/water.h>
 #include <animal/resources/loaders.h>
@@ -58,6 +59,8 @@ public:
     float updatePlayerInWater(const animal::IntRect& player, animal::Vec2 velocity, float previous);
     float submersion(const animal::IntRect& box) const;
     void addWater(animal::Renderer2D& renderer, double time) const;
+    const std::vector<animal::GpuEmitter>& gpuEmitters() const { return gpuEmitters_; }
+    animal::Vec2 windAt(animal::Vec2 position, double time) const { return animal::windVectorAt(wind_, position, time); }
     static std::string gemFlag(const std::string& room, int objectId) { return room + ":" + std::to_string(objectId); }
 
     void drawBehindPlayer(animal::Renderer2D& renderer, const CaveAssets& assets) const;
@@ -130,6 +133,12 @@ private:
     std::vector<LightSource> lights_;
     std::vector<Lantern> lanterns_;
     std::vector<Pool> pools_;
+    std::vector<animal::GpuEmitter> gpuEmitters_;
+    struct Stream { // a GPU emitter pouring into a pool: keeps rippling its surface
+        size_t pool;
+        float left, right;
+    };
+    std::vector<Stream> streams_;
     std::vector<Gem> gems_;
     std::vector<Crawler> crawlers_;
     animal::PatrolParams patrolParams_;

@@ -11,7 +11,7 @@
  "tilewidth": 8,
  "tileheight": 8,
  "nextlayerid": 3,
- "nextobjectid": 18,
+ "nextobjectid": 20,
  "properties": [
   {
    "name": "look",
@@ -1214,6 +1214,47 @@
        "name": "plant",
        "type": "file",
        "value": "../plants/reeds.plant.json"
+      }
+     ]
+    },
+    {
+     "id": 18,
+     "name": "",
+     "type": "emitter",
+     "rotation": 0,
+     "visible": true,
+     "x": 277,
+     "y": 48,
+     "width": 6,
+     "height": 2,
+     "properties": [
+      {
+       "name": "effect",
+       "type": "file",
+       "value": "../effects/falls.effect.json"
+      },
+      {
+       "name": "floor",
+       "type": "float",
+       "value": 144.0
+      }
+     ]
+    },
+    {
+     "id": 19,
+     "name": "",
+     "type": "emitter",
+     "rotation": 0,
+     "visible": true,
+     "x": 266,
+     "y": 137,
+     "width": 28,
+     "height": 6,
+     "properties": [
+      {
+       "name": "effect",
+       "type": "file",
+       "value": "../effects/mist.effect.json"
       }
      ]
     }

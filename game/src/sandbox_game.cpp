@@ -133,6 +133,7 @@ bool SandboxGame::enterRoom(const animal::WorldRoom& worldRoom, animal::Renderer
     const animal::Vec2 canvasOrigin = camera_.topLeft(animal::Renderer2D::kCanvasExtent);
     renderer.setFluidObstacles(cave_.fluidObstacles(canvasOrigin));
     renderer.setLightOccluders(cave_.lightOccluders(canvasOrigin));
+    renderer.setGpuEmitters(effectsEnabled_ ? std::span(cave_.gpuEmitters()) : std::span<const animal::GpuEmitter>());
     lookTo_ = roomLook(worldRoom);
     lookFrom_ = firstRoom ? lookTo_ : currentLook(); // fade from whatever is on screen
     lookBlend_ = firstRoom ? 1.0f : 0.0f;
@@ -336,6 +337,7 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
     if (input.pressed(Key::F10)) {
         effectsEnabled_ = !effectsEnabled_;
         cave_.effects().setEnabled(effectsEnabled_);
+        renderer.setGpuEmitters(effectsEnabled_ ? std::span(cave_.gpuEmitters()) : std::span<const animal::GpuEmitter>());
     }
     if (input.pressed(Key::F8)) {
         resetProgress(renderer);
@@ -469,6 +471,7 @@ void SandboxGame::handleRoomExit(animal::Renderer2D& renderer) {
 void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
     time_ += dt;
     fluidTime_ += static_cast<float>(dt);
+    gpuParticleTime_ += static_cast<float>(dt);
     const float step = static_cast<float>(dt);
     lookBlend_ = std::min(1.0f, lookBlend_ + step / kLookFadeSeconds);
     invulnerable_ = std::max(0.0f, invulnerable_ - step);
@@ -522,6 +525,8 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
 
 void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer) {
     applyCurrentLook(renderer);
+    renderer.setGpuParticleStep(gpuParticleTime_, cave_.windAt(kCameraCenter, time_));
+    gpuParticleTime_ = 0.0f;
     renderer.beginWorld(camera_, kBackdrop);
     cave_.drawBehindPlayer(renderer, assets_);
     cave_.drawGems(renderer, assets_, time_);
@@ -600,7 +605,7 @@ void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::s
     const animal::EffectSystem& effects = cave_.effects();
     std::string effectLine = std::format("F10 EFFECTS {}", effects.enabled() ? "ON" : "OFF");
     if (effects.enabled()) {
-        effectLine += std::format(" {:.2f} MS", effects.lastStepMilliseconds());
+        effectLine += std::format(" {:.2f} MS  GPU {}", effects.lastStepMilliseconds(), context.renderer->gpuParticleCount());
         for (size_t i = 0; i < effects.presets().size(); ++i) {
             effectLine += std::format("  {} {}", upperCase(effects.presets()[i].name),
                                       effects.countOf(static_cast<animal::EffectSystem::PresetId>(i)));

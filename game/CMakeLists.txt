@@ -50,6 +50,8 @@ animal_add_data_files(animal_game_world
         effects/ember.effect.json
         effects/spark.effect.json
         effects/splash.effect.json
+        effects/falls.effect.json
+        effects/mist.effect.json
         plants/grass.plant.json
         plants/reeds.plant.json
         plants/moss.plant.json

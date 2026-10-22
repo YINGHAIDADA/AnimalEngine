@@ -101,6 +101,8 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
     lights_.clear();
     lanterns_.clear();
     pools_.clear();
+    gpuEmitters_.clear();
+    streams_.clear();
     vines_ = animal::VineSystem();
     sparkPreset_ = effectPreset(effects, room, kGemPickupEffect);
 
@@ -175,6 +177,31 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
                                                               : std::nullopt;
             const auto rate = object.properties.has("rate") ? std::optional<float>(object.properties.getFloat("rate"))
                                                             : std::nullopt;
+            const animal::EffectPreset& e = effects_.presets()[*preset];
+            if (e.gpu) {
+                // GPU particles (ADR-0020); "floor" is a world y below which they vanish (a water surface).
+                animal::GpuEmitter g;
+                g.area = area ? animal::RectF{static_cast<float>(area->x), static_cast<float>(area->y),
+                                              static_cast<float>(area->width), static_cast<float>(area->height)}
+                              : animal::RectF{object.position.x, object.position.y, 1.0f, 1.0f};
+                g.count = static_cast<uint32_t>(std::max(0, count.value_or(e.count)));
+                g.velocityX = {e.velocityX.min, e.velocityX.max};
+                g.velocityY = {e.velocityY.min, e.velocityY.max};
+                g.acceleration = {(e.accelerationX.min + e.accelerationX.max) * 0.5f,
+                                  (e.accelerationY.min + e.accelerationY.max) * 0.5f};
+                g.drag = e.drag;
+                g.windResponse = e.windResponse;
+                g.lifetime = {e.lifetime.min, e.lifetime.max};
+                g.fade = e.fade;
+                g.floorY = object.properties.getFloat("floor", g.floorY);
+                g.dieOnSolid = e.dieOnSolid;
+                g.startColor = e.startColor;
+                g.endColor = e.endColor;
+                g.style = e.style == animal::EffectPreset::Style::Glow ? animal::GpuEmitter::Style::Glow
+                                                                         : animal::GpuEmitter::Style::Lit;
+                gpuEmitters_.push_back(g);
+                continue;
+            }
             effects_.addEmitter(*preset, object.position, area, count, rate);
         } else if (object.type == "vent") {
             vents_.push_back({propTopLeft(object), object.properties.getFloat("rate", 6.0f),
@@ -274,6 +301,16 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
     }
 
     effects_.start(tiles_);
+    // GPU emitters whose floor is a pool's surface pour into it.
+    for (const animal::GpuEmitter& g : gpuEmitters_) {
+        for (size_t i = 0; i < pools_.size(); ++i) {
+            const animal::IntRect& water = pools_[i].body.area();
+            if (std::fabs(g.floorY - static_cast<float>(water.y)) < 1.0f && g.area.x + g.area.width > water.x &&
+                g.area.x < water.right()) {
+                streams_.push_back({i, g.area.x, g.area.x + g.area.width});
+            }
+        }
+    }
     return true;
 }
 
@@ -361,6 +398,13 @@ void CaveRoom::addWater(animal::Renderer2D& renderer, double time) const {
 }
 
 void CaveRoom::step(float dt, double time, std::span<const animal::Influence> influences) {
+    const auto t = static_cast<float>(time);
+    for (size_t i = 0; i < streams_.size(); ++i) {
+        // The falling water lands somewhere along its width each step.
+        const Stream& s = streams_[i];
+        const float wander = 0.5f + 0.5f * std::sin(t * 23.0f + static_cast<float>(i) * 1.7f);
+        pools_[s.pool].body.disturb(s.left + (s.right - s.left) * wander, 1.5f, 40.0f);
+    }
     for (Pool& pool : pools_) {
         pool.body.step(dt);
     }
