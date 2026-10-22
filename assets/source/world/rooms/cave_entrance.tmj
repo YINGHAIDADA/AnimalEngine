@@ -11,12 +11,27 @@
  "tilewidth": 8,
  "tileheight": 8,
  "nextlayerid": 3,
- "nextobjectid": 23,
+ "nextobjectid": 25,
  "properties": [
   {
    "name": "look",
    "type": "file",
    "value": "../looks/cave.look.json"
+  },
+  {
+   "name": "wind.gusts",
+   "type": "float",
+   "value": 1.6
+  },
+  {
+   "name": "wind.gustInterval",
+   "type": "float",
+   "value": 8.0
+  },
+  {
+   "name": "wind.gustSpeed",
+   "type": "float",
+   "value": -110.0
   }
  ],
  "tilesets": [
@@ -1278,6 +1293,58 @@
        "name": "count",
        "type": "int",
        "value": 14
+      }
+     ]
+    },
+    {
+     "id": 23,
+     "name": "",
+     "type": "plants",
+     "rotation": 0,
+     "visible": true,
+     "x": 0,
+     "y": 0,
+     "width": 320,
+     "height": 176,
+     "properties": [
+      {
+       "name": "plant",
+       "type": "file",
+       "value": "../plants/moss.plant.json"
+      }
+     ]
+    },
+    {
+     "id": 24,
+     "name": "",
+     "type": "wind",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 312,
+     "y": 156,
+     "width": 0,
+     "height": 0,
+     "properties": [
+      {
+       "name": "direction",
+       "type": "float",
+       "value": 180.0
+      },
+      {
+       "name": "strength",
+       "type": "float",
+       "value": 1.6
+      },
+      {
+       "name": "length",
+       "type": "float",
+       "value": 130.0
+      },
+      {
+       "name": "radius",
+       "type": "float",
+       "value": 8.0
       }
      ]
     }

@@ -121,7 +121,7 @@ const animal::Room* SandboxGame::roomData(const animal::WorldRoom& worldRoom) {
 
 bool SandboxGame::enterRoom(const animal::WorldRoom& worldRoom, animal::Renderer2D& renderer) {
     const animal::Room* room = roomData(worldRoom);
-    if (!room || !cave_.build(*room, roomName(worldRoom.path), save_.flags, effects_, kRoomSeed + roomVisits_++)) {
+    if (!room || !cave_.build(*room, roomName(worldRoom.path), save_.flags, effects_, plants_, kRoomSeed + roomVisits_++)) {
         return false;
     }
     const bool firstRoom = currentRoom_ == nullptr;

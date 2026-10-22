@@ -8,6 +8,7 @@
 #include <cctype>
 #include <cmath>
 #include <format>
+#include <map>
 
 namespace game {
 
@@ -30,11 +31,7 @@ constexpr animal::IntRect kGemArea{-3, -3, 6, 6};       // around the gem centre
 constexpr animal::Color kVineStem = animal::Color::rgba(70, 140, 72);
 constexpr animal::Color kVineLeaf = animal::Color::rgba(120, 196, 96);
 // Grass colors per [shade][level] (base → tip).
-constexpr animal::Color kGrassColors[3][3] = {
-    {animal::Color::rgba(46, 104, 52), animal::Color::rgba(76, 150, 70), animal::Color::rgba(136, 198, 92)},
-    {animal::Color::rgba(40, 92, 58), animal::Color::rgba(64, 136, 76), animal::Color::rgba(110, 182, 96)},
-    {animal::Color::rgba(56, 112, 46), animal::Color::rgba(96, 160, 64), animal::Color::rgba(160, 208, 96)},
-};
+constexpr const char* kGrassPlant = "../plants/grass.plant.json"; // species of tiles with the "grass" property
 
 animal::Vec3 toVec3(animal::Color c) {
     return {c.r / 255.0f, c.g / 255.0f, c.b / 255.0f};
@@ -92,7 +89,7 @@ animal::Vec2 propTopLeft(const animal::LevelObject& object) {
 } // namespace
 
 bool CaveRoom::build(const animal::Room& room, const std::string& name, const std::set<std::string>& collected,
-                     animal::EffectLibrary& effects, uint32_t seed) {
+                     animal::EffectLibrary& effects, animal::PlantLibrary& plants, uint32_t seed) {
     tiles_ = room.tiles;
     gems_.clear();
     crawlers_.clear();
@@ -107,7 +104,19 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
     vines_ = animal::VineSystem();
     sparkPreset_ = effectPreset(effects, room, kGemPickupEffect);
 
+    grass_.clear();
+    if (const animal::PlantSpecies* grass = plants.load(animal::resolvePath(room.path, kGrassPlant))) {
+        grass_.addSpecies(*grass);
+    }
     grass_.generate(tiles_, [&room](animal::TileId id) { return room.propertiesOf(id).getBool("grass"); }, seed);
+    std::map<const animal::PlantSpecies*, size_t> speciesIndex;
+
+    // Wind (ADR-0019): the room's breeze and gusts; vents and wind objects add drafts below.
+    wind_ = {};
+    wind_.strength = room.properties.getFloat("wind.strength", wind_.strength);
+    wind_.gustStrength = room.properties.getFloat("wind.gusts", wind_.gustStrength);
+    wind_.gustInterval = room.properties.getFloat("wind.gustInterval", wind_.gustInterval);
+    wind_.gustSpeed = room.properties.getFloat("wind.gustSpeed", wind_.gustSpeed);
 
     for (int ty = 0; ty < tiles_.height(); ++ty) {
         for (int tx = 0; tx < tiles_.width(); ++tx) {
@@ -170,6 +179,38 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
         } else if (object.type == "vent") {
             vents_.push_back({propTopLeft(object), object.properties.getFloat("rate", 6.0f),
                               object.properties.getFloat("force", 420.0f)});
+            animal::WindSource updraft;
+            updraft.position = vents_.back().position + animal::Vec2{4.0f, 2.0f};
+            updraft.strength = vents_.back().force / 200.0f;
+            updraft.length = 70.0f;
+            updraft.radius = 8.0f;
+            wind_.sources.push_back(updraft);
+        } else if (object.type == "wind") {
+            // A draft: blows along "direction" (degrees, 0 = right, 90 = down) from the point.
+            animal::WindSource draft;
+            draft.position = object.position;
+            const float angle = object.properties.getFloat("direction", 0.0f) * animal::kPi / 180.0f;
+            draft.direction = {std::cos(angle), std::sin(angle)};
+            draft.strength = object.properties.getFloat("strength", draft.strength);
+            draft.length = object.properties.getFloat("length", draft.length);
+            draft.radius = object.properties.getFloat("radius", draft.radius);
+            wind_.sources.push_back(draft);
+        } else if (object.type == "plants") {
+            // Plants on the exposed tile faces inside the rectangle; "plant" names the species file.
+            const std::string file = object.properties.getString("plant");
+            const animal::PlantSpecies* species = file.empty() ? nullptr : plants.load(animal::resolvePath(room.path, file));
+            if (!species || object.point) {
+                animal::log::warn("{}: plants {} needs a rectangle and a usable \"plant\" file", room.path, object.id);
+                continue;
+            }
+            auto [it, added] = speciesIndex.try_emplace(species, 0);
+            if (added) {
+                it->second = grass_.addSpecies(*species);
+            }
+            grass_.plant(tiles_,
+                         {static_cast<int>(object.position.x), static_cast<int>(object.position.y),
+                          static_cast<int>(object.size.x), static_cast<int>(object.size.y)},
+                         it->second, seed ^ static_cast<uint32_t>(object.id));
         } else if (object.type == "vine") {
             // Hang down to just above the first solid tile below the anchor.
             const int tx = static_cast<int>(std::floor(object.position.x / kTileSize));
@@ -379,8 +420,15 @@ void CaveRoom::drawGems(animal::Renderer2D& renderer, const CaveAssets& assets, 
 }
 
 void CaveRoom::drawInFrontOfPlayer(animal::Renderer2D& renderer) const {
-    grass_.forEachPixel([&](int x, int y, int level, uint8_t shade) {
-        renderer.fillRect({static_cast<float>(x), static_cast<float>(y), 1.0f, 1.0f}, kGrassColors[shade][level]);
+    grass_.forEachPixel([&](int x, int y, animal::Color color) {
+        renderer.fillRect({static_cast<float>(x), static_cast<float>(y), 1.0f, 1.0f}, color);
+    });
+    grass_.forEachFlower([&](animal::Vec2 p, const animal::PlantSpecies& species) {
+        if (species.flowerGlow) {
+            renderer.drawGlow(p, species.flowerColor);
+        } else {
+            renderer.fillRect({p.x, p.y, 1.0f, 1.0f}, species.flowerColor);
+        }
     });
     effects_.draw(renderer);
 }
@@ -417,6 +465,11 @@ void CaveRoom::addLights(animal::Renderer2D& renderer, double time) const {
         }
     }
     effects_.addLights(renderer);
+    grass_.forEachFlower([&](animal::Vec2 p, const animal::PlantSpecies& species) {
+        if (species.flowerLightRadius > 0.0f) {
+            renderer.addLight({p, species.flowerLightRadius, species.flowerLightColor, species.flowerLightIntensity, 6.0f});
+        }
+    });
 }
 
 void CaveRoom::addFluidSources(animal::Renderer2D& renderer, double time) const {

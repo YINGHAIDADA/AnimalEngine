@@ -11,7 +11,7 @@
  "tilewidth": 8,
  "tileheight": 8,
  "nextlayerid": 3,
- "nextobjectid": 15,
+ "nextobjectid": 18,
  "properties": [
   {
    "name": "look",
@@ -1127,6 +1127,60 @@
        "name": "count",
        "type": "int",
        "value": 8
+      }
+     ]
+    },
+    {
+     "id": 15,
+     "name": "",
+     "type": "plants",
+     "rotation": 0,
+     "visible": true,
+     "x": 0,
+     "y": 0,
+     "width": 320,
+     "height": 176,
+     "properties": [
+      {
+       "name": "plant",
+       "type": "file",
+       "value": "../plants/moss.plant.json"
+      }
+     ]
+    },
+    {
+     "id": 16,
+     "name": "",
+     "type": "plants",
+     "rotation": 0,
+     "visible": true,
+     "x": 48,
+     "y": 104,
+     "width": 40,
+     "height": 16,
+     "properties": [
+      {
+       "name": "plant",
+       "type": "file",
+       "value": "../plants/glowflower.plant.json"
+      }
+     ]
+    },
+    {
+     "id": 17,
+     "name": "",
+     "type": "plants",
+     "rotation": 0,
+     "visible": true,
+     "x": 224,
+     "y": 56,
+     "width": 40,
+     "height": 16,
+     "properties": [
+      {
+       "name": "plant",
+       "type": "file",
+       "value": "../plants/glowflower.plant.json"
       }
      ]
     }

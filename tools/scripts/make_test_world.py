@@ -5,8 +5,8 @@
   tilesets/cave.tsj    tileset with custom tile properties (solid, grass, light)
   rooms/*.tmj          rooms: tile layer "tiles" + object layer "objects"
 
-Rooms reference the hand-written look presets in looks/ (ADR-0015) and effect presets in effects/
-(ADR-0017), which this script leaves alone.
+Rooms reference the hand-written presets in looks/ (ADR-0015), effects/ (ADR-0017) and plants/
+(ADR-0019), which this script leaves alone.
 
 The output is ordinary Tiled data: open test.world in Tiled to edit rooms visually. This script
 only exists because the first rooms were authored as text; once rooms are edited in Tiled, stop
@@ -113,6 +113,13 @@ class Room:
         self.area("water", tx, ty, tw, th, color=("color", color(*rgb)), opacity=("float", opacity),
                   reflection=("float", reflection))
 
+    def plants(self, plant, tx=0, ty=0, tw=W, th=H):  # plants on exposed faces in the area
+        self.area("plants", tx, ty, tw, th, plant=("file", f"../plants/{plant}.plant.json"))
+
+    def wind(self, x, y, direction, strength, length, radius):  # a draft from a point (pixels)
+        self.obj("wind", x, y, direction=("float", direction), strength=("float", strength),
+                 length=("float", length), radius=("float", radius))
+
     def gem(self, tx, ty):  # centred in a tile cell
         self.obj("gem", tx * TILE + 4, ty * TILE + 4)
 
@@ -174,7 +181,10 @@ def cave_entrance():
         "#======================================#",
         "########################################",
     ])
-    room.properties = [prop("look", "file", "../looks/cave.look.json")]
+    room.properties = [prop("look", "file", "../looks/cave.look.json"),
+                       # gusts blow in from the tunnel to the east
+                       prop("wind.gusts", "float", 1.6), prop("wind.gustInterval", "float", 8.0),
+                       prop("wind.gustSpeed", "float", -110.0)]
     room.obj("spawn", 3 * TILE + 3, 20 * TILE)
     for tx, row in [(11, 20), (21, 20), (13, 11), (28, 5), (36, 17), (20, 8)]:
         room.candle(tx, row)
@@ -191,6 +201,8 @@ def cave_entrance():
     room.light(22 * TILE, 2, (170, 200, 255), 176.0, 1.5, height=24.0, cone=44.0, direction=90.0)
     room.emitter("dust", count=70)
     room.emitter("firefly", count=14)
+    room.plants("moss")                                # hanging from every exposed underside
+    room.wind(39 * TILE, 19 * TILE + 4, 180.0, 1.6, 130.0, 8.0)  # air flowing in from the tunnel
     return room
 
 
@@ -218,6 +230,9 @@ def crystal_gallery():
     room.lantern(14, 11)  # platforms cast shadows around it
     room.emitter("dust", count=50)
     room.emitter("firefly", count=8)
+    room.plants("moss")
+    room.plants("glowflower", 6, 13, 5, 2)             # on the left platform
+    room.plants("glowflower", 28, 7, 5, 2)             # on the upper right platform
     return room
 
 
@@ -252,6 +267,7 @@ def smoke_pit():
         room.set(x, 19, "#")
     room.water(27, 18, 10, 2, rgb=(46, 84, 110), reflection=0.45)
     room.lantern(33, 16)  # lights the pool so the surface and reflections read
+    room.plants("reeds", 25, 15, 14, 6)                # on the banks and the pool floor
     return room
 
 

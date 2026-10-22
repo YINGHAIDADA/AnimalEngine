@@ -40,7 +40,7 @@ class CaveRoom {
 public:
     // `name` identifies the room in save flags; gems listed in `collected` ("name:id") are skipped.
     bool build(const animal::Room& room, const std::string& name, const std::set<std::string>& collected,
-               animal::EffectLibrary& effects, uint32_t seed);
+               animal::EffectLibrary& effects, animal::PlantLibrary& plants, uint32_t seed);
 
     const animal::TileMap& tiles() const { return tiles_; }
     animal::VineSystem& vines() { return vines_; }

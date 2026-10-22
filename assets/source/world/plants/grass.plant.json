@@ -1,0 +1,9 @@
+{
+  "format": "animal-plant",
+  "version": 1,
+  "heightMin": 2,
+  "heightMax": 5,
+  "spacing": 2,
+  "gaps": 0.2,
+  "colors": ["#2e6834", "#4c9646", "#88c65c"]
+}

@@ -78,6 +78,7 @@ private:
     bool checkpointPending_ = false;
     CaveRoom cave_;
     animal::EffectLibrary effects_; // effect presets by path, shared by all rooms
+    animal::PlantLibrary plants_;   // plant species by path
     uint32_t roomVisits_ = 0;
 
     animal::EntityWorld entities_;

@@ -11,7 +11,7 @@
  "tilewidth": 8,
  "tileheight": 8,
  "nextlayerid": 3,
- "nextobjectid": 17,
+ "nextobjectid": 18,
  "properties": [
   {
    "name": "look",
@@ -1198,6 +1198,24 @@
      "y": 132,
      "width": 0,
      "height": 0
+    },
+    {
+     "id": 17,
+     "name": "",
+     "type": "plants",
+     "rotation": 0,
+     "visible": true,
+     "x": 200,
+     "y": 120,
+     "width": 112,
+     "height": 48,
+     "properties": [
+      {
+       "name": "plant",
+       "type": "file",
+       "value": "../plants/reeds.plant.json"
+      }
+     ]
     }
    ]
   }

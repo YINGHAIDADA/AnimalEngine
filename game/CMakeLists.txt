@@ -49,6 +49,10 @@ animal_add_data_files(animal_game_world
         effects/firefly.effect.json
         effects/ember.effect.json
         effects/spark.effect.json
-        effects/splash.effect.json)
+        effects/splash.effect.json
+        plants/grass.plant.json
+        plants/reeds.plant.json
+        plants/moss.plant.json
+        plants/glowflower.plant.json)
 
 add_dependencies(animal_game animal_shaders animal_game_textures animal_game_world)
