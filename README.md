@@ -81,6 +81,7 @@ cmake --build --preset windows-ninja-debug
 | `--demo` | 游戏用脚本输入自己操作：抓住入口的长藤蔓爬升并荡动、跳离，经隧道进入水晶长廊、坠入烟雾深坑；配合 `--deterministic` 可复现交互截图 |
 | `--frames=N` | 渲染 N 帧后退出 |
 | `--screenshot=path.png` | 与 `--frames` 合用，在最后一帧截图（用于验收与渲染回归） |
+| `--canvas-screenshot=path.png` | 与 `--frames` 合用，保存最后一帧的 320×180 最终画布（与窗口大小、DPI 无关，渲染回归使用） |
 | `--profile` | 退出时打印帧时间与各渲染 pass 的 GPU 耗时（平均 / 最大，跳过 60 帧预热；见 ADR-0016） |
 | `--stress-lights=N` | （示例游戏）额外加入 N 盏游走的阴影光源，用于性能测试 |
 | `--start-room=NAME` | （示例游戏）从指定房间开始（如 `smoke_pit`），用于测试；不读写存档 |
@@ -106,6 +107,14 @@ cmake --build --preset windows-ninja-debug
 
 ```bash
 ctest --preset macos-ninja-debug        # 或 windows-vs2022-debug / windows-ninja-debug / macos-xcode-debug
+```
+
+渲染回归（在两个后端上跑 6 个固定场景，读回 320×180 最终画布：两后端必须逐像素相同，并与 `tests/golden/` 中的基准截图逐像素相同；Vulkan 验证层必须零报错）：
+
+```bash
+python3 tools/scripts/render_regression.py            # 全部场景
+python3 tools/scripts/render_regression.py --only demo_pit
+python3 tools/scripts/render_regression.py --update   # 有意改变画面后刷新基准截图（提交时可见哪些画面变了）
 ```
 
 后端一致性（OpenGL 与 Vulkan 截图逐像素对比）：

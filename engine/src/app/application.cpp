@@ -31,6 +31,7 @@ struct CommandLine {
     bool profile = false;
     uint64_t exitAfterFrames = 0;
     std::string screenshotPath;
+    std::string canvasScreenshotPath; // the 320×180 final canvas, independent of window size and DPI
 };
 
 std::optional<CommandLine> parseCommandLine(int argc, char** argv,
@@ -56,13 +57,16 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv,
             cl.exitAfterFrames = std::strtoull(std::string(arg.substr(9)).c_str(), nullptr, 10);
         } else if (arg.starts_with("--screenshot=")) {
             cl.screenshotPath = std::string(arg.substr(13));
+        } else if (arg.starts_with("--canvas-screenshot=")) {
+            cl.canvasScreenshotPath = std::string(arg.substr(20));
         } else if (arg == "--profile") {
             cl.profile = true;
         } else if (arg.starts_with("-psn_")) {
             // Added by macOS when launched from Finder.
         } else if (!other(arg)) {
             log::error("Unknown argument '{}'. Options: --backend=opengl|vulkan --no-vsync --hide-overlay "
-                       "--resize-test --deterministic --demo --profile --frames=N --screenshot=path.png",
+                       "--resize-test --deterministic --demo --profile --frames=N --screenshot=path.png "
+                       "--canvas-screenshot=path.png",
                        arg);
             return std::nullopt;
         }
@@ -70,9 +74,8 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv,
     return cl;
 }
 
-bool saveScreenshot(rhi::Device& device, const std::string& path) {
-    const rhi::Extent2D extent = device.swapchainExtent();
-    std::vector<uint8_t> pixels = device.readTexture(device.swapchainTexture());
+bool saveScreenshot(rhi::Device& device, rhi::TextureHandle texture, rhi::Extent2D extent, const std::string& path) {
+    std::vector<uint8_t> pixels = device.readTexture(texture);
     if (pixels.empty()) {
         return false;
     }
@@ -369,7 +372,11 @@ int Application::run(int argc, char** argv) {
                     renderer.endFrame();
                     device->submit(commands);
                     if (!screenshotPath.empty()) {
-                        saveScreenshot(*device, screenshotPath);
+                        saveScreenshot(*device, device->swapchainTexture(), device->swapchainExtent(), screenshotPath);
+                    }
+                    if (lastFrame && !commandLine->canvasScreenshotPath.empty()) {
+                        saveScreenshot(*device, renderer.finalCanvas(), Renderer2D::kCanvasExtent,
+                                       commandLine->canvasScreenshotPath);
                     }
                     device->endFrame();
                     ++framesRendered;

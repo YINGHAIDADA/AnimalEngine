@@ -81,6 +81,10 @@ public:
         gpuParticleWind_ = wind;
     }
     uint32_t gpuParticleCount() const; // slots in use
+
+    // The finished canvas (after bloom and grading, before the screen pass): what regression
+    // captures compare (--canvas-screenshot).
+    rhi::TextureHandle finalCanvas() const { return final_; }
     // The simulation sleeps (costs nothing) once no smoke has been added for long enough that what
     // is left has faded out; adding smoke wakes it.
     bool fluidSleeping() const { return fluidQuietSeconds_ > fluidFadeSeconds(); }
