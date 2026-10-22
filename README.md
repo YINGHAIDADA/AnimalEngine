@@ -2,7 +2,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**M2 光照生产化**——硬边像素阴影、聚光灯 / 光源动画 / 灯具、边缘光、观感预设（按房间配置光照与调色）、GPU 计时与压力测试已完成，接下来是渲染规则文档与 M2 验收（M1b 游戏结构与 V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
+当前阶段：**M2 光照生产化已完成**（macOS）——硬边像素阴影、聚光灯 / 光源动画 / 灯具、边缘光、观感预设（按房间配置光照与调色）、GPU 计时与帧预算；接下来按计划是 M3 模拟效果生产化（M1b 游戏结构与 V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 
@@ -160,3 +160,15 @@ $R --backend=vulkan --demo --deterministic --no-vsync --hide-overlay --profile -
 | 房间边界与切换有可重复测试 | `ctest`（level 测试：世界查找、重叠检测）+ `--demo --deterministic` 回放 | ✅ |
 | 两平台行为一致 | Windows 上重复以上步骤 | ⏳ 待在 Windows 机器上验证 |
 | OpenGL 与 Vulkan 截图一致 | `--demo --deterministic` 截图逐像素对比，容差 0 | ✅ |
+
+## M2 验收条件
+
+| 条件 | 验证方式 | 状态 |
+|---|---|---|
+| 遮罩（阴影）、边缘光、更多光源类型 | F7 对比阴影；入口天花板裂缝的聚光、长廊灯具；角色与甲虫的边缘光（ADR-0012 ~ 0014） | ✅ |
+| 光照参数随房间配置 | 三个房间分别引用 cave / crystal / ember 观感预设，切换时渐变；F9 重读预设（ADR-0015） | ✅ |
+| 多个房间使用光照且帧时间在预算内 | `--profile`（Vulkan，Release）：示例房间 GPU 约 2.7 ms ≤ 4 ms，光照约 0.3 ms ≤ 1 ms；`--stress-lights=256` 约 7.7 ms ≤ 10 ms（ADR-0016） | ✅（Apple M2） |
+| 渲染目标尺寸、混合和采样规则有文档 | [docs/ARCHITECTURE.md §5.1](docs/ARCHITECTURE.md) | ✅ |
+| 所有 pass 只通过 RHI 实现 | `engine/src/rhi/opengl/`、`engine/src/rhi/vulkan/` 之外搜索 `gl[A-Z]` / `vk[A-Z]` 调用与图形 API 头文件，无结果 | ✅ |
+| OpenGL 与 Vulkan 截图一致（含 256 盏随机阴影光源的压力场景） | `--demo --deterministic [--stress-lights=256]` 截图逐像素对比，容差 0；Vulkan 验证层零报错 | ✅ |
+| Windows 上的帧时间与一致性 | Windows 上重复 `--profile` 与截图对比 | ⏳ 待在 Windows 机器上验证 |

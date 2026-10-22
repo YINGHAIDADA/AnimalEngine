@@ -99,8 +99,37 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | 光源类型 | `PointLight`：点光源，或设置 `coneAngle` + `direction` 成为聚光灯（锥体外缘五分之一软过渡，再被光照分级切成色阶）；每个光源可关闭阴影（ADR-0013）。 |
 | 边缘光 | `SpriteMaterial::rim` 写入材质标志；光照 pass 对“朝向光源的邻居不是边缘光精灵”的像素累积光色，合成时与环境边缘光一起加色叠加，不乘 albedo（ADR-0014）。 |
 | 阴影 | 画布尺寸 R8 遮挡图（`setLightOccluders`，画布空间）；光照 pass 中每个像素沿整数 Bresenham 走向光源：穿出一块遮挡物即挡住，所在遮挡物内按深度衰减（`shadowPenetration`）（ADR-0012）。 |
-| 颜色空间 | 目前全程 UNorm（不做 sRGB 转换）。M2 光照前需要重新评估。 |
+| 颜色空间 | 全程 UNorm、在显示空间计算（不做 sRGB 转换）。M2 评估后保留：美术、光照分级与抖动、调色都在这个空间里调好，两后端逐像素一致；改为线性空间会改变全部观感与色阶分布，收益不足。 |
 | 调试文字 | 内置 3×5 像素字体（不依赖资源文件），覆盖层缩放 = 画布缩放 / 2（至少 1）。 |
+
+### 5.1 渲染目标与 pass 一览
+
+画布 = 320×180（`Renderer2D::kCanvasExtent`），流体网格 = 160×90（`kFluidGrid`）。“采样”一列中，`texelFetch` 与“最近邻”都按整数纹素读取。
+
+| 目标 | 尺寸 | 格式 | 写入（pass，加载，混合） | 读取（采样） |
+|---|---|---|---|---|
+| albedo | 画布 | RGBA8 | 材质 pass，Clear = 背景色，预乘 over | 合成（最近邻） |
+| normal | 画布 | RGBA8 | 材质 pass，Clear = (0.5, 0.5, 1, 0)，预乘 over | 光照 pass（最近邻） |
+| emissive | 画布 | RGBA8 | 材质 pass，Clear = 0，预乘 over | 合成（最近邻） |
+| 材质标志（r = 边缘光强度） | 画布 | RGBA8 | 材质 pass，Clear = 0，预乘 over | 光照 pass、合成（`texelFetch`） |
+| 光照遮挡图 | 画布 | R8 | CPU `setLightOccluders`（进入房间时） | 光照 pass（`texelFetch`） |
+| light | 画布 | RGBA16F | 光照 pass，Clear = 0，加色 One/One | 合成（最近邻） |
+| rim light | 画布 | RGBA16F | 光照 pass（第二个附件），Clear = 0，加色 One/One | 合成（最近邻） |
+| 流体速度 ×2、烟 ×2、压力 ×2、散度、旋度 | 流体网格 | RGBA16F | 流体各 pass，DontCare，不透明（乒乓，跨帧保留；`resetFluid` 时 Clear） | 流体各 pass（平流的速度 / 来源 / 密度为线性，其余最近邻）；烟 [0] 由合成读取（线性） |
+| 流体障碍 | 流体网格 | R8 | CPU `setFluidObstacles` | 流体各 pass（最近邻） |
+| canvas | 画布 | RGBA8 | 合成，DontCare，不透明；发光 pass，Load，加色 One/One | 泛光亮部提取（线性）、调色（最近邻） |
+| bloom ×2 | 画布 / 2 | RGBA16F | 亮部提取 / 模糊，DontCare，不透明（首次使用前 Clear） | 模糊、调色（线性） |
+| final | 画布 | RGBA8 | 调色，DontCare，不透明；世界调试叠加，Load，预乘 over | 屏幕 pass（最近邻，整数倍放大） |
+| swapchain（虚拟） | 窗口 | RGBA8 | 屏幕 pass，Clear = 留边色，预乘 over（画布、HUD、调试覆盖层） | 呈现（最近邻 blit）、截图读回 |
+
+规则：
+
+- **尺寸**：与画面像素对应的目标都是画布尺寸，1 个画布像素 = 1 个纹素；只有模拟场（流体）和模糊（泛光）使用低分辨率，读取时线性放大。
+- **格式**：颜色与 [0, 1] 数据用 RGBA8；可能超过 1 的累积量（光照、边缘光、流体、泛光）用 RGBA16F；掩码用 R8。
+- **混合**：材质 pass 的所有附件都是预乘 over（含材质标志，所以遮挡关系正确）；光照累积是加色；全屏 pass 不透明且覆盖整个目标，因此用 DontCare（Debug 构建的 OpenGL 后端把 DontCare 填成品红，暴露误用）。
+- **生命周期**：除流体场（跨帧乒乓）外，每个目标在被读取前都会在本帧完整重写；泛光目标首次使用前清零以免读到未定义内容。
+- **采样**：画布空间的读取一律最近邻 / `texelFetch`；屏幕 uv 由裁剪坐标计算（不用 `gl_FragCoord`），整数像素坐标为 `floor(uv × 尺寸)`。
+- **两后端一致**：选择“哪个像素”的判定（阴影光线、边缘光邻居）只用整数运算，光源所在像素在 CPU 上算好（ADR-0012、ADR-0014），保证 OpenGL 与 Vulkan 逐像素相同。
 
 ## 6. 游戏框架（framework/，ADR-0006）
 
