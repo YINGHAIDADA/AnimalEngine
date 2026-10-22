@@ -1,6 +1,7 @@
 set(ANIMAL_FRAMEWORK_HEADERS
     include/animal/framework/action_map.h
     include/animal/framework/entity.h
+    include/animal/framework/foliage.h
     include/animal/framework/geometry.h
     include/animal/framework/physics.h
     include/animal/framework/platformer.h
@@ -9,6 +10,7 @@ set(ANIMAL_FRAMEWORK_HEADERS
 set(ANIMAL_FRAMEWORK_SOURCES
     src/action_map.cpp
     src/entity.cpp
+    src/foliage.cpp
     src/physics.cpp
     src/platformer.cpp
     src/tilemap.cpp)

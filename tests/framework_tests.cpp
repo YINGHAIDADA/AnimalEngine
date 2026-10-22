@@ -2,6 +2,7 @@
 
 #include <animal/framework/action_map.h>
 #include <animal/framework/entity.h>
+#include <animal/framework/foliage.h>
 #include <animal/framework/physics.h>
 #include <animal/framework/platformer.h>
 #include <animal/framework/tilemap.h>
@@ -112,6 +113,7 @@ TEST(platformer_lands_exactly_on_floor) {
         landed = landed || state.landedThisStep;
     }
     CHECK(landed);
+    CHECK(state.landingSpeed > 100.0f);
     CHECK(state.grounded);
     CHECK(body.worldCollider().bottom() == 80);
     CHECK(state.velocity.y == 0.0f);
@@ -238,6 +240,136 @@ TEST(platformer_ceiling_corner_correction) {
         blockedMinY = std::min(blockedMinY, blocked.position.y);
     }
     CHECK(blockedMinY == 48); // head stops at the block's bottom edge
+}
+
+// --- Foliage -------------------------------------------------------------------------------
+
+constexpr TileId kGrassy = 2;
+
+TileMap grassMap() {
+    TileMap map = emptyMap();
+    map.setSolid(kGrassy, true);
+    for (int32_t tx = 0; tx < 10; ++tx) {
+        map.setTile(tx, 10, kGrassy); // exposed grass top at y = 80
+    }
+    map.setTile(4, 9, kSolid);        // covers tile (4, 10): no grass there
+    return map;
+}
+
+GrassField makeGrass() {
+    GrassField grass;
+    grass.generate(grassMap(), [](TileId id) { return id == kGrassy; }, 1234u);
+    return grass;
+}
+
+FoliageInfluence playerAt(int32_t x, float vx = 0.0f) {
+    return {{x, 80 - 7, 6, 7}, {vx, 0.0f}, false};
+}
+
+TEST(grass_grows_only_on_exposed_grass_tops) {
+    const GrassField grass = makeGrass();
+    CHECK(!grass.blades().empty());
+    for (const auto& blade : grass.blades()) {
+        CHECK(blade.baseY == 79.0f);
+        CHECK(blade.x < 32.0f || blade.x >= 40.0f); // tile 4 is covered
+        CHECK(blade.height >= 2 && blade.height <= 5);
+    }
+    const GrassField again = makeGrass();
+    CHECK(again.blades().size() == grass.blades().size()); // deterministic placement
+}
+
+TEST(grass_settles_back_upright_without_wind) {
+    GrassField grass = makeGrass();
+    for (auto& blade : grass.blades()) {
+        blade.angle = 0.9f;
+    }
+    const WindParams calm{0.0f, 0.8f};
+    for (int i = 0; i < 240; ++i) {
+        grass.step(kDt, i * kDt, {}, calm);
+    }
+    for (const auto& blade : grass.blades()) {
+        CHECK(std::fabs(blade.angle) < 0.01f);
+    }
+}
+
+TEST(grass_bends_away_from_the_player) {
+    GrassField grass = makeGrass();
+    const WindParams calm{0.0f, 0.8f};
+    const FoliageInfluence player = playerAt(60); // center x = 63
+    for (int i = 0; i < 30; ++i) {
+        grass.step(kDt, i * kDt, std::span(&player, 1), calm);
+    }
+    int bentRight = 0;
+    int bentLeft = 0;
+    for (const auto& blade : grass.blades()) {
+        if (blade.x >= 64.0f && blade.x <= 69.0f) {
+            bentRight += blade.angle > 0.3f;
+        } else if (blade.x >= 57.0f && blade.x <= 62.0f) {
+            bentLeft += blade.angle < -0.3f;
+        } else if (blade.x < 50.0f) {
+            CHECK(std::fabs(blade.angle) < 0.01f); // far away: untouched
+        }
+    }
+    CHECK(bentRight > 0 && bentLeft > 0);
+}
+
+TEST(grass_is_flattened_by_landing) {
+    GrassField grass = makeGrass();
+    FoliageInfluence landing = playerAt(60);
+    landing.velocity.y = 200.0f;
+    landing.landed = true;
+    landing.bounds.x = 40; // center 43; push overlap ends at 49
+    grass.step(kDt, 0.0, std::span(&landing, 1), WindParams{0.0f, 0.8f});
+    bool pushed = false;
+    for (const auto& blade : grass.blades()) {
+        if (blade.x > 50.0f && blade.x < 56.0f) { // inside the impact radius, outside the overlap
+            pushed = pushed || blade.angularVelocity > 1.0f;
+        }
+    }
+    CHECK(pushed);
+}
+
+TEST(vine_hangs_from_its_anchor) {
+    VineSystem vines;
+    vines.addVine({50.0f, 8.0f}, 10);
+    for (int i = 0; i < 300; ++i) {
+        vines.step(kDt, i * kDt, {}, WindParams{0.0f, 0.8f});
+    }
+    const auto& points = vines.vines()[0].points;
+    CHECK(points[0] == (Vec2{50.0f, 8.0f}));
+    for (size_t i = 1; i < points.size(); ++i) {
+        CHECK(test::near(length(points[i] - points[i - 1]), 3.0f, 0.05f));
+        CHECK(std::fabs(points[i].x - 50.0f) < 0.5f); // straight down when calm
+    }
+    CHECK(points.back().y > 37.0f);
+}
+
+TEST(vine_is_pushed_by_the_player) {
+    VineSystem vines;
+    vines.addVine({50.0f, 8.0f}, 10); // tip around y = 38
+    FoliageInfluence player{{44, 26, 6, 7}, {80.0f, 0.0f}, false}; // walking right through it
+    for (int i = 0; i < 20; ++i) {
+        player.bounds.x = 44 + i;
+        vines.step(kDt, i * kDt, std::span(&player, 1), WindParams{0.0f, 0.8f});
+    }
+    const auto& points = vines.vines()[0].points;
+    CHECK(points[0] == (Vec2{50.0f, 8.0f}));
+    CHECK(points.back().x > 52.0f); // tip swung away in the walking direction
+}
+
+TEST(foliage_simulation_is_deterministic) {
+    auto run = [] {
+        GrassField grass = makeGrass();
+        VineSystem vines;
+        vines.addVine({30.0f, 8.0f}, 8);
+        for (int i = 0; i < 120; ++i) {
+            const FoliageInfluence player = playerAt(20 + i / 4, 40.0f);
+            grass.step(kDt, i * kDt, std::span(&player, 1), WindParams{});
+            vines.step(kDt, i * kDt, std::span(&player, 1), WindParams{});
+        }
+        return std::pair{grass.blades()[3].angle, vines.vines()[0].points.back().x};
+    };
+    CHECK(run() == run());
 }
 
 // --- Entities & input ---------------------------------------------------------------------

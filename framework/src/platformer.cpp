@@ -107,6 +107,7 @@ void stepPlatformer(Body& body, PlatformerState& state, const PlatformerInput& i
         } else {
             if (v.y > 0.0f) {
                 state.landedThisStep = true;
+                state.landingSpeed = v.y;
             }
             v.y = 0.0f;
             state.rising = false;

@@ -44,6 +44,7 @@ struct PlatformerState {
     int32_t jumpBufferTimer = 0;
     bool jumpedThisStep = false;
     bool landedThisStep = false;
+    float landingSpeed = 0.0f; // fall speed at the moment of landing (valid when landedThisStep)
 };
 
 // One fixed step of platformer movement: run, gravity, buffered / coyote jumps, variable
