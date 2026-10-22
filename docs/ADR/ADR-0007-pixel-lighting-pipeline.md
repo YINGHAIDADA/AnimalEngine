@@ -10,7 +10,7 @@
 
 | Pass | 输出 | 内容 |
 |---|---|---|
-| 材质 pass | albedo RGBA8、normal RGBA8、emissive RGBA8（多颜色附件） | 精灵按材质（albedo + 法线 + 自发光三张图）绘制，三个输出都按覆盖率预乘后混合。清除值：albedo = 背景色，normal = 平面法线 (0.5, 0.5, 1, 0)，emissive = 0。 |
+| 材质 pass | albedo RGBA8、normal RGBA8、emissive RGBA8（多颜色附件；M2 起另有材质标志 RGBA8，见 ADR-0014） | 精灵按材质（albedo + 法线 + 自发光三张图）绘制，三个输出都按覆盖率预乘后混合。清除值：albedo = 背景色，normal = 平面法线 (0.5, 0.5, 1, 0)，emissive = 0。 |
 | 光照 pass | light RGBA16F | 每个点光源一个方块，加色混合（One, One）。Lambert 漫反射 × (1 − d/r)² 衰减；光源有“高度”，高度越低越贴近表面、法线起伏越明显。 |
 | 合成 pass | 画布 RGBA8 | `albedo × (ambient + light) + emissive`；可选把光照强度量化为 N 级（按最大分量缩放以免偏色）并加 4×4 有序抖动；再混入被同一光照照亮的烟（ADR-0008）。 |
 

@@ -316,6 +316,7 @@ ctest --test-dir build/<preset> --output-on-failure
   - ADR-0011 玩法要素与存档：触发器、巡逻敌人、宝石的分层与 Tiled 表达，检查点与 JSON 存档（Accepted）。
   - ADR-0012 硬边像素阴影：画布尺寸遮挡图、整数光线、穿出即挡与墙内衰减（Accepted）。
   - ADR-0013 光源类型、动画与灯具：聚光灯、数据驱动的闪烁 / 脉动、Tiled 光源属性与灯具对象（Accepted）。
+  - ADR-0014 像素边缘光：材质标志附件、朝向光源的轮廓像素受光、环境轮廓（Accepted）。
 
 ## 13. 当前待确认项（不阻塞 M0）
 

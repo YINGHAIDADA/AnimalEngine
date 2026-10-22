@@ -30,8 +30,8 @@ platform::pollEvents → Input::update → 固定步长 onFixedUpdate（60 Hz，
 Device::beginFrame（窗口最小化时返回 false，跳过渲染）
   Renderer2D::beginFrame
     game.onRender:  beginWorld(camera) … drawSprite / drawGlow / addLight / addFluidSplat … endWorld
-                    → 材质 pass（albedo / normal / emissive）→ 流体烟雾一步（ADR-0008）
-                    → 光照 pass（RGBA16F，按遮挡图做硬边阴影）→ 合成到 320×180 画布（含被照亮的烟）
+                    → 材质 pass（albedo / normal / emissive / 材质标志）→ 流体烟雾一步（ADR-0008）
+                    → 光照 pass（光照 + 边缘光两个 RGBA16F，按遮挡图做硬边阴影）→ 合成到 320×180 画布（含被照亮的烟与边缘光）
                     → 发光 pass（drawGlow 收集的像素，加色混合叠加到画布，不受光照影响）
                     → 后处理：泛光（亮部提取 → 半分辨率模糊 → 量化抖动加回）+ 调色 → 最终画布（ADR-0009）
                     [beginWorldOverlay … 调试图形 … endWorldOverlay]（无光照、不调色，叠加在最终画布上）
@@ -94,6 +94,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | 烟雾 | 160×90 网格的 stable fluids（平流、浮力、涡量约束、Jacobi 压力投影），片元着色器实现；合成时被同一光照照亮（ADR-0008）。 |
 | 光照 | 画布分辨率的延迟光照：材质 pass 写 albedo / normal / emissive（RGBA8），光照 pass 加色累积到 RGBA16F，合成 `albedo × (ambient + light) + emissive`，可选量化 + 有序抖动（ADR-0007）。 |
 | 光源类型 | `PointLight`：点光源，或设置 `coneAngle` + `direction` 成为聚光灯（锥体外缘五分之一软过渡，再被光照分级切成色阶）；每个光源可关闭阴影（ADR-0013）。 |
+| 边缘光 | `SpriteMaterial::rim` 写入材质标志；光照 pass 对“朝向光源的邻居不是边缘光精灵”的像素累积光色，合成时与环境边缘光一起加色叠加，不乘 albedo（ADR-0014）。 |
 | 阴影 | 画布尺寸 R8 遮挡图（`setLightOccluders`，画布空间）；光照 pass 中每个像素沿整数 Bresenham 走向光源：穿出一块遮挡物即挡住，所在遮挡物内按深度衰减（`shadowPenetration`）（ADR-0012）。 |
 | 颜色空间 | 目前全程 UNorm（不做 sRGB 转换）。M2 光照前需要重新评估。 |
 | 调试文字 | 内置 3×5 像素字体（不依赖资源文件），覆盖层缩放 = 画布缩放 / 2（至少 1）。 |
