@@ -1,0 +1,274 @@
+// Framework: tile collision, pixel-stepped movement, platformer feel, action latching.
+
+#include <animal/framework/action_map.h>
+#include <animal/framework/entity.h>
+#include <animal/framework/physics.h>
+#include <animal/framework/platformer.h>
+#include <animal/framework/tilemap.h>
+
+#include "test_harness.h"
+
+#include <algorithm>
+#include <climits>
+
+namespace {
+
+using namespace animal;
+
+constexpr TileId kSolid = 1;
+constexpr float kDt = 1.0f / 60.0f;
+
+TileMap emptyMap(int32_t w = 20, int32_t h = 12) {
+    TileMap map(w, h, 8);
+    map.setSolid(kSolid, true);
+    return map;
+}
+
+void fillRow(TileMap& map, int32_t ty, int32_t x0, int32_t x1) {
+    for (int32_t tx = x0; tx <= x1; ++tx) {
+        map.setTile(tx, ty, kSolid);
+    }
+}
+
+Body playerBody(int32_t x, int32_t y) {
+    Body body;
+    body.position = {x, y};
+    body.collider = {0, 0, 6, 7};
+    return body;
+}
+
+// Places a player standing on the floor row `floorTy` at pixel column x.
+Body standingOn(const TileMap& map, int32_t floorTy, int32_t x) {
+    return playerBody(x, floorTy * map.tileSize() - 7);
+}
+
+// --- Tile map ------------------------------------------------------------------------
+
+TEST(tilemap_overlap_and_bounds) {
+    TileMap map = emptyMap();
+    map.setTile(3, 2, kSolid);
+    CHECK(map.overlapsSolid({24, 16, 8, 8}));
+    CHECK(map.overlapsSolid({31, 23, 1, 1}));
+    CHECK(!map.overlapsSolid({32, 16, 8, 8})); // touching the right edge is not overlapping
+    CHECK(!map.overlapsSolid({16, 16, 8, 8}));
+    CHECK(!map.overlapsSolid({-16, -16, 8, 8})); // outside the map is open
+    CHECK(!map.isSolid(-1, 0));
+}
+
+// --- Pixel-stepped movement ----------------------------------------------------------
+
+TEST(move_stops_flush_against_wall) {
+    TileMap map = emptyMap();
+    for (int32_t ty = 0; ty < map.height(); ++ty) {
+        map.setTile(5, ty, kSolid); // wall spans x = 40..47
+    }
+    Body body = playerBody(20, 8);
+    CHECK(moveX(body, 100.0f, map));
+    CHECK(body.position.x == 34); // right edge 40, flush with the wall
+    CHECK(body.remainder.x == 0.0f);
+    CHECK(!moveX(body, -3.0f, map));
+    CHECK(body.position.x == 31);
+}
+
+TEST(move_accumulates_subpixel_remainder) {
+    TileMap map = emptyMap();
+    Body body = playerBody(10, 10);
+    moveX(body, 0.4f, map);
+    CHECK(body.position.x == 10);
+    moveX(body, 0.4f, map);
+    moveX(body, 0.4f, map);
+    CHECK(body.position.x == 11);
+    CHECK(test::near(body.exactPosition().x, 11.2f));
+}
+
+TEST(move_never_tunnels_at_high_speed) {
+    TileMap map = emptyMap(200, 4);
+    map.setTile(100, 1, kSolid); // single-tile post at x = 800..807
+    Body body = playerBody(0, 8);
+    CHECK(moveX(body, 5000.0f, map));
+    CHECK(body.position.x == 794);
+}
+
+TEST(body_fits_one_tile_tunnel) {
+    TileMap map = emptyMap();
+    fillRow(map, 4, 0, 19); // ceiling y = 32..39
+    fillRow(map, 6, 0, 19); // floor   y = 48..55, gap y = 40..47
+    Body body = playerBody(0, 41);
+    CHECK(!moveX(body, 100.0f, map));
+    CHECK(body.position.x == 100);
+}
+
+// --- Platformer ------------------------------------------------------------------------
+
+TEST(platformer_lands_exactly_on_floor) {
+    TileMap map = emptyMap();
+    fillRow(map, 10, 0, 19); // floor top at y = 80
+    Body body = playerBody(40, 10);
+    PlatformerState state;
+    PlatformerParams params;
+    bool landed = false;
+    for (int i = 0; i < 120; ++i) {
+        stepPlatformer(body, state, {}, params, map, kDt);
+        landed = landed || state.landedThisStep;
+    }
+    CHECK(landed);
+    CHECK(state.grounded);
+    CHECK(body.worldCollider().bottom() == 80);
+    CHECK(state.velocity.y == 0.0f);
+}
+
+TEST(platformer_variable_jump_height) {
+    PlatformerParams params;
+    auto peakHeight = [&](int holdFrames) {
+        TileMap map = emptyMap();
+        fillRow(map, 10, 0, 19);
+        Body body = standingOn(map, 10, 40);
+        const int32_t startY = body.position.y;
+        PlatformerState state;
+        int32_t minY = startY;
+        for (int i = 0; i < 120; ++i) {
+            PlatformerInput input;
+            input.jumpPressed = i == 0;
+            input.jumpHeld = i < holdFrames;
+            stepPlatformer(body, state, input, params, map, kDt);
+            minY = std::min(minY, body.position.y);
+        }
+        return startY - minY;
+    };
+    const int32_t full = peakHeight(120);
+    const int32_t tap = peakHeight(2);
+    CHECK(full >= 24 && full <= 36); // about 3–4 tiles
+    CHECK(tap > 0 && tap * 2 < full);
+}
+
+TEST(platformer_coyote_time) {
+    PlatformerParams params;
+    // Walks right off a ledge; jumps `delay` steps after the first airborne step.
+    auto jumpsAfterLeaving = [&](int delay) {
+        TileMap map = emptyMap();
+        fillRow(map, 10, 0, 5); // ledge ends at x = 48
+        Body body = standingOn(map, 10, 30);
+        PlatformerState state;
+        int airborneSteps = -1;
+        for (int i = 0; i < 200; ++i) {
+            PlatformerInput input;
+            input.moveX = 1.0f;
+            input.jumpPressed = airborneSteps == delay;
+            input.jumpHeld = input.jumpPressed;
+            stepPlatformer(body, state, input, params, map, kDt);
+            if (state.jumpedThisStep) {
+                return true;
+            }
+            if (!state.grounded && airborneSteps < 0) {
+                airborneSteps = 0;
+            } else if (airborneSteps >= 0) {
+                ++airborneSteps;
+            }
+            if (airborneSteps > delay) {
+                return false;
+            }
+        }
+        return false;
+    };
+    CHECK(jumpsAfterLeaving(2));
+    CHECK(!jumpsAfterLeaving(params.coyoteFrames + 2));
+}
+
+TEST(platformer_jump_buffer) {
+    PlatformerParams params;
+    auto simulate = [&](int pressStep, int& landStep, int& jumpStep) {
+        TileMap map = emptyMap();
+        fillRow(map, 10, 0, 19);
+        Body body = playerBody(40, 20);
+        PlatformerState state;
+        landStep = jumpStep = -1;
+        for (int i = 0; i < 120; ++i) {
+            PlatformerInput input;
+            input.jumpPressed = i == pressStep;
+            input.jumpHeld = input.jumpPressed;
+            stepPlatformer(body, state, input, params, map, kDt);
+            if (state.landedThisStep && landStep < 0) {
+                landStep = i;
+            }
+            if (state.jumpedThisStep && jumpStep < 0) {
+                jumpStep = i;
+            }
+        }
+    };
+    int land = 0;
+    int jump = 0;
+    simulate(INT_MAX, land, jump);
+    CHECK(land > 0 && jump < 0);
+
+    int land2 = 0;
+    simulate(land - 3, land2, jump);
+    CHECK(jump == land + 1); // buffered press fires on the first grounded step
+
+    simulate(land - params.jumpBufferFrames - 3, land2, jump);
+    CHECK(jump < 0); // pressed too early: buffer expired
+}
+
+TEST(platformer_ceiling_corner_correction) {
+    TileMap map = emptyMap();
+    fillRow(map, 9, 0, 19);       // floor top at y = 72
+    map.setTile(3, 5, kSolid);    // ceiling block x = 24..31, y = 40..47
+    Body body = standingOn(map, 9, 19); // spans x = 19..24: overlaps the block by 1 px
+    PlatformerState state;
+    PlatformerParams params;
+    int32_t minY = body.position.y;
+    for (int i = 0; i < 60; ++i) {
+        PlatformerInput input;
+        input.jumpPressed = i == 0;
+        input.jumpHeld = true;
+        stepPlatformer(body, state, input, params, map, kDt);
+        minY = std::min(minY, body.position.y);
+    }
+    CHECK(minY < 40);               // rose past the block instead of bonking
+    CHECK(body.position.x == 18);   // nudged 1 px left
+
+    params.cornerCorrection = 0;
+    Body blocked = standingOn(map, 9, 19);
+    PlatformerState blockedState;
+    int32_t blockedMinY = blocked.position.y;
+    for (int i = 0; i < 60; ++i) {
+        PlatformerInput input;
+        input.jumpPressed = i == 0;
+        input.jumpHeld = true;
+        stepPlatformer(blocked, blockedState, input, params, map, kDt);
+        blockedMinY = std::min(blockedMinY, blocked.position.y);
+    }
+    CHECK(blockedMinY == 48); // head stops at the block's bottom edge
+}
+
+// --- Entities & input ---------------------------------------------------------------------
+
+TEST(entity_world_defers_destruction) {
+    EntityWorld world;
+    const EntityId a = world.create(EntityKind::Player);
+    const EntityId b = world.create(EntityKind::None);
+    CHECK(world.get(a) && world.get(a)->id == a && world.get(a)->kind == EntityKind::Player);
+    world.destroy(a);
+    CHECK(world.get(a) != nullptr); // still alive until flushed
+    world.flushDestroyed();
+    CHECK(world.get(a) == nullptr);
+    CHECK(world.get(b) != nullptr);
+    CHECK(world.size() == 1);
+}
+
+TEST(action_press_is_latched_until_fixed_step) {
+    ActionMap actions;
+    constexpr ActionId kJump = 0;
+    actions.applyStrength(kJump, 1.0f); // frame 1: pressed, but no fixed step ran
+    actions.applyStrength(kJump, 1.0f); // frame 2: still held
+    CHECK(actions.pressed(kJump));       // the press survives until a step consumes it
+    actions.endFixedStep();
+    CHECK(!actions.pressed(kJump));
+    CHECK(actions.down(kJump));
+
+    actions.applyStrength(kJump, 0.0f);
+    actions.applyStrength(kJump, 0.3f); // analog below threshold: not a press
+    CHECK(!actions.down(kJump) && !actions.pressed(kJump));
+    CHECK(test::near(actions.strength(kJump), 0.3f));
+}
+
+} // namespace

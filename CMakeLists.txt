@@ -33,6 +33,7 @@ include(AnimalData)
 add_subdirectory(tools/shaderc)
 add_subdirectory(shaders)
 add_subdirectory(engine)
+add_subdirectory(framework)
 add_subdirectory(game)
 
 if(ANIMAL_BUILD_TESTS)

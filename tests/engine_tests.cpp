@@ -1,4 +1,4 @@
-// Dependency-free unit tests for engine logic that runs without a window or GPU.
+// Engine logic that runs without a window or GPU.
 
 #include <animal/core/handle.h>
 #include <animal/core/math.h>
@@ -7,47 +7,13 @@
 #include <animal/rhi/command_list.h>
 #include <animal/rhi/shader_package.h>
 
-#include <cmath>
-#include <cstdio>
-#include <functional>
+#include "test_harness.h"
+
 #include <string>
-#include <vector>
 
 namespace {
 
-struct TestCase {
-    const char* name;
-    std::function<void()> body;
-};
-
-std::vector<TestCase>& registry() {
-    static std::vector<TestCase> tests;
-    return tests;
-}
-
-int gFailures = 0;
-
-struct Register {
-    Register(const char* name, std::function<void()> body) { registry().push_back({name, std::move(body)}); }
-};
-
-#define TEST(name)                                     \
-    void name();                                       \
-    const Register name##_registration(#name, name);   \
-    void name()
-
-#define CHECK(expr)                                                                   \
-    do {                                                                              \
-        if (!(expr)) {                                                                \
-            std::fprintf(stderr, "  CHECK failed: %s (%s:%d)\n", #expr, __FILE__, __LINE__); \
-            ++gFailures;                                                              \
-        }                                                                             \
-    } while (false)
-
-bool near(float a, float b) {
-    return std::fabs(a - b) < 1e-5f;
-}
-
+using animal::test::near;
 using namespace animal;
 
 // --- HandlePool ----------------------------------------------------------------
@@ -199,13 +165,3 @@ TEST(command_list_records_in_order) {
 }
 
 } // namespace
-
-int main() {
-    for (const TestCase& test : registry()) {
-        const int before = gFailures;
-        test.body();
-        std::printf("[%s] %s\n", gFailures == before ? " OK " : "FAIL", test.name);
-    }
-    std::printf("%zu tests, %d failed checks\n", registry().size(), gFailures);
-    return gFailures == 0 ? 0 : 1;
-}
