@@ -34,6 +34,7 @@ public:
 
     // `mask` holds kFluidGrid.width × height bytes, row 0 at the top; non-zero = solid.
     void setObstacles(std::span<const uint8_t> mask);
+    void reset() { needsClear_ = true; } // fields are cleared before the next step
 
     void beginFrame() { simulatedThisFrame_ = false; }
     // Records one simulation step (at most once per frame). Smoke always ends in smokeTexture().

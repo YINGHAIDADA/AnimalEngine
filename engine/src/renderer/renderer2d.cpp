@@ -198,6 +198,10 @@ void Renderer2D::addFluidSplat(const FluidSplat& splat) {
     fluidSplats_.push_back(splat);
 }
 
+void Renderer2D::resetFluid() {
+    fluidPass_->reset();
+}
+
 void Renderer2D::setFluidObstacles(std::span<const uint8_t> mask) {
     fluidPass_->setObstacles(mask);
 }

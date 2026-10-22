@@ -61,6 +61,7 @@ public:
     // solid. The time step is the simulation time to advance this frame (0 = paused).
     void setFluidObstacles(std::span<const uint8_t> mask);
     void setFluidTimeStep(float seconds) { fluidTimeStep_ = seconds; }
+    void resetFluid(); // clears velocity and smoke (e.g. on room change)
     FluidSettings& fluid() { return fluidSettings_; }
     PostSettings& post() { return postSettings_; }
 
