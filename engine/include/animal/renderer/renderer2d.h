@@ -10,6 +10,7 @@
 #include <animal/resources/loaders.h>
 #include <animal/rhi/rhi.h>
 
+#include <limits>
 #include <memory>
 #include <span>
 #include <string>
@@ -64,7 +65,10 @@ public:
     // non-zero = blocks light. Canvas space, so re-upload when the camera moves.
     void setLightOccluders(std::span<const uint8_t> mask);
     void setFluidTimeStep(float seconds) { fluidTimeStep_ = seconds; }
-    void resetFluid(); // clears velocity and smoke (e.g. on room change)
+    void resetFluid(); // clears velocity and smoke (e.g. on room change); the simulation sleeps until smoke is added
+    // The simulation sleeps (costs nothing) once no smoke has been added for long enough that what
+    // is left has faded out; adding smoke wakes it.
+    bool fluidSleeping() const { return fluidQuietSeconds_ > fluidFadeSeconds(); }
     FluidSettings& fluid() { return fluidSettings_; }
     PostSettings& post() { return postSettings_; }
 
@@ -124,6 +128,8 @@ private:
     FluidSettings fluidSettings_;
     std::vector<FluidSplat> fluidSplats_;
     float fluidTimeStep_ = 0.0f;
+    float fluidQuietSeconds_ = std::numeric_limits<float>::infinity(); // simulated time since smoke was last added
+    float fluidFadeSeconds() const;
     Vec2 worldOrigin_; // world position of the canvas top-left in the current world pass
     LightingSettings lightingSettings_;
     std::vector<PointLight> lights_;

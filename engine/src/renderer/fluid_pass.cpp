@@ -264,11 +264,13 @@ void FluidPass::simulate(rhi::CommandList& commands, float dt, std::span<const G
     pass(commands, Divergence, uniformGroup(Divergence, gridUniforms_), std::array{velocity_[v], obstacles_},
          divergence_);
     const int iterations = (std::max(2, settings.pressureIterations) + 1) / 2 * 2; // even: ends in pressure_[0]
+    commands.beginTimer("pressure");
     for (int i = 0; i < iterations; ++i) {
         const size_t from = static_cast<size_t>(i % 2);
         pass(commands, Pressure, uniformGroup(Pressure, gridUniforms_),
              std::array{pressure_[from], divergence_, obstacles_}, pressure_[1 - from]);
     }
+    commands.endTimer();
     pass(commands, Gradient, uniformGroup(Gradient, gridUniforms_), std::array{pressure_[0], velocity_[v], obstacles_},
          velocity_[1 - v]);
     swapVelocity();

@@ -9,6 +9,8 @@
 #include <animal/rhi/command_list.h>
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 
 namespace animal {
 
@@ -207,6 +209,14 @@ void Renderer2D::addFluidSplat(const FluidSplat& splat) {
 
 void Renderer2D::resetFluid() {
     fluidPass_->reset();
+    fluidQuietSeconds_ = std::numeric_limits<float>::infinity();
+}
+
+// Time for smoke to fade from full density to below 1/512 (invisible in RGBA8 output).
+float Renderer2D::fluidFadeSeconds() const {
+    const float keep = fluidSettings_.smokeKeepPerSecond;
+    return keep > 0.0f && keep < 1.0f ? std::log(1.0f / 512.0f) / std::log(keep)
+                                      : std::numeric_limits<float>::infinity();
 }
 
 void Renderer2D::setLightOccluders(std::span<const uint8_t> mask) {
@@ -249,11 +259,17 @@ void Renderer2D::endWorld() {
         }
     }
     commands_->beginTimer("fluid");
-    fluidPass_->simulate(*commands_, dt, forces, smoke, fluidSettings_);
+    const bool wasSleeping = fluidSleeping();
+    fluidQuietSeconds_ = smoke.empty() ? fluidQuietSeconds_ + dt : 0.0f;
+    const bool sleeping = fluidSleeping();
+    if (sleeping && !wasSleeping) {
+        fluidPass_->reset(); // wake up from a clean state
+    }
+    fluidPass_->simulate(*commands_, sleeping ? 0.0f : dt, forces, smoke, fluidSettings_);
     commands_->endTimer();
 
     const LightingPass::SmokeLook smokeLook{fluidSettings_.smokeTint,
-                                            fluidSettings_.enabled ? fluidSettings_.opacity : 0.0f};
+                                            fluidSettings_.enabled && !sleeping ? fluidSettings_.opacity : 0.0f};
     commands_->beginTimer("lighting");
     lightingPass_->render(*commands_, worldViewProjection_, worldOrigin_, lights_, lightingSettings_, smokeLook, canvas_);
     commands_->endTimer();
