@@ -16,7 +16,8 @@ set(ANIMAL_FRAMEWORK_HEADERS
     include/animal/framework/platformer.h
     include/animal/framework/save.h
     include/animal/framework/tilemap.h
-    include/animal/framework/triggers.h)
+    include/animal/framework/triggers.h
+    include/animal/framework/water.h)
 
 set(ANIMAL_FRAMEWORK_SOURCES
     src/action_map.cpp
@@ -34,7 +35,8 @@ set(ANIMAL_FRAMEWORK_SOURCES
     src/platformer.cpp
     src/save.cpp
     src/tilemap.cpp
-    src/triggers.cpp)
+    src/triggers.cpp
+    src/water.cpp)
 
 add_library(animal_framework STATIC ${ANIMAL_FRAMEWORK_HEADERS} ${ANIMAL_FRAMEWORK_SOURCES})
 add_library(animal::framework ALIAS animal_framework)

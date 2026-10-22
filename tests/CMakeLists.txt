@@ -6,7 +6,8 @@ add_executable(animal_tests
     level_tests.cpp
     gameplay_tests.cpp
     look_tests.cpp
-    effects_tests.cpp)
+    effects_tests.cpp
+    water_tests.cpp)
 animal_set_compile_options(animal_tests)
 target_link_libraries(animal_tests PRIVATE animal::framework)
 set_target_properties(animal_tests PROPERTIES FOLDER tests)
