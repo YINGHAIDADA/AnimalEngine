@@ -40,6 +40,41 @@ bool TileMap::overlapsSolid(const IntRect& rect) const {
             }
         }
     }
+    for (const IntRect& solid : dynamic_) {
+        if (solid.width > 0 && solid.height > 0 && solid.overlaps(rect)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool TileMap::overlapsHazard(const IntRect& rect) const {
+    if (rect.width <= 0 || rect.height <= 0) {
+        return false;
+    }
+    const int32_t x0 = floorDiv(rect.x, tileSize_);
+    const int32_t y0 = floorDiv(rect.y, tileSize_);
+    const int32_t x1 = floorDiv(rect.right() - 1, tileSize_);
+    const int32_t y1 = floorDiv(rect.bottom() - 1, tileSize_);
+    const int32_t half = tileSize_ / 2;
+    for (int32_t ty = y0; ty <= y1; ++ty) {
+        for (int32_t tx = x0; tx <= x1; ++tx) {
+            const Hazard hazard = inBounds(tx, ty) ? hazard_[tile(tx, ty)] : Hazard::None;
+            if (hazard == Hazard::None) {
+                continue;
+            }
+            // One pixel of slack at the sides: brushing past the tip does not count.
+            IntRect hurt{tx * tileSize_ + 1, ty * tileSize_ + 1, tileSize_ - 2, tileSize_ - 2};
+            if (hazard == Hazard::Up) {
+                hurt = {tx * tileSize_ + 1, ty * tileSize_ + half, tileSize_ - 2, tileSize_ - half};
+            } else if (hazard == Hazard::Down) {
+                hurt = {tx * tileSize_ + 1, ty * tileSize_, tileSize_ - 2, tileSize_ - half};
+            }
+            if (hurt.overlaps(rect)) {
+                return true;
+            }
+        }
+    }
     return false;
 }
 

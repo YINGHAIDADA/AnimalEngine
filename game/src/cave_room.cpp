@@ -90,9 +90,10 @@ animal::Vec2 propTopLeft(const animal::LevelObject& object) {
 
 } // namespace
 
-bool CaveRoom::build(const animal::Room& room, const std::string& name, const std::set<std::string>& collected,
+bool CaveRoom::build(const animal::Room& room, const std::string& name, const std::set<std::string>& flags, size_t gems,
                      animal::EffectLibrary& effects, animal::PlantLibrary& plants, uint32_t seed) {
     tiles_ = room.tiles;
+    mechanisms_.clear();
     presetPaths_.clear();
     gems_.clear();
     crawlers_.clear();
@@ -163,7 +164,8 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
             look.reflection = object.properties.getFloat("reflection", look.reflection);
             look.refraction = object.properties.getInt("refraction", look.refraction);
             pools_.push_back({animal::WaterBody(area), look,
-                              effectPreset(effects, room, object.properties.getString("effect", kSplashEffect))});
+                              effectPreset(effects, room, object.properties.getString("effect", kSplashEffect)),
+                              {object.properties.getFloat("currentX"), object.properties.getFloat("currentY")}});
         } else if (object.type == "emitter") {
             // A point emitter, or an area emitter for rectangles; "effect" names the preset file.
             const std::string file = object.properties.getString("effect");
@@ -261,7 +263,7 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
             gem.flag = gemFlag(name, object.id);
             gem.center = object.position;
             gem.phase = static_cast<float>(object.id) * 0.9f;
-            gem.collected = collected.count(gem.flag) != 0;
+            gem.collected = flags.count(gem.flag) != 0;
             gems_.push_back(gem);
         } else if (object.type == "crawler") {
             Crawler crawler;
@@ -302,10 +304,11 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
             lights_.push_back({readLight(object.properties, false, defaults),
                                readLightAnimation(object.properties, false, animation, where),
                                static_cast<float>(object.id) * 1.3f});
-        } else {
+        } else if (!mechanisms_.add(object, room.path, flags)) {
             animal::log::warn("{}: unknown object type '{}' (id {}) ignored", room.path, object.type, object.id);
         }
     }
+    mechanisms_.finish(flags, gems, tiles_);
 
     effects_.start(tiles_);
     // GPU emitters whose floor is a pool's surface pour into it.
@@ -370,6 +373,19 @@ float CaveRoom::submersion(const animal::IntRect& box) const {
     return deepest;
 }
 
+animal::Vec2 CaveRoom::currentAt(const animal::IntRect& box) const {
+    float deepest = 0.0f;
+    animal::Vec2 current;
+    for (const Pool& pool : pools_) {
+        const float s = pool.body.submersion(box);
+        if (s > deepest) {
+            deepest = s;
+            current = pool.current;
+        }
+    }
+    return current;
+}
+
 float CaveRoom::updatePlayerInWater(const animal::IntRect& player, animal::Vec2 velocity, float previous) {
     float deepest = 0.0f;
     const float x = static_cast<float>(player.x) + static_cast<float>(player.width) * 0.5f;
@@ -407,6 +423,7 @@ void CaveRoom::addWater(animal::Renderer2D& renderer, double time) const {
 
 void CaveRoom::step(float dt, double time, std::span<const animal::Influence> influences) {
     const auto t = static_cast<float>(time);
+    lastTime_ = time;
     for (size_t i = 0; i < streams_.size(); ++i) {
         // The falling water lands somewhere along its width each step.
         const Stream& s = streams_[i];
@@ -462,6 +479,7 @@ void CaveRoom::drawBehindPlayer(animal::Renderer2D& renderer, const CaveAssets& 
         }
         renderer.drawSprite(assets.props, lantern.position, {3.0f * size, 0.0f, size, size});
     }
+    mechanisms_.draw(renderer, assets, lastTime_);
     for (const Crawler& crawler : crawlers_) {
         const animal::Vec2i p = crawler.body.position;
         const float frame = static_cast<float>(static_cast<int>(crawler.walkTime * 6.0f) % 2);
@@ -507,6 +525,7 @@ void CaveRoom::drawCollision(animal::Renderer2D& renderer) const {
             }
         }
     }
+    mechanisms_.drawCollision(renderer);
 }
 
 void CaveRoom::addLights(animal::Renderer2D& renderer, double time) const {
@@ -529,6 +548,7 @@ void CaveRoom::addLights(animal::Renderer2D& renderer, double time) const {
             renderer.addLight({gem.center, 22.0f, kGemLight, 0.8f, 8.0f});
         }
     }
+    mechanisms_.addLights(renderer, time);
     effects_.addLights(renderer);
     grass_.forEachFlower([&](animal::Vec2 p, const animal::PlantSpecies& species) {
         if (species.flowerLightRadius > 0.0f) {

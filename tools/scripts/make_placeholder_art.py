@@ -49,6 +49,17 @@ PALETTE = {
     "L": ((150, 126, 96, 255), 1.0, None),    # lantern frame highlight
     "y": ((120, 84, 48, 255), 0.9, (100, 62, 26)),       # lantern glass (dark albedo: its own light would wash it out)
     "Y": ((160, 150, 120, 255), 1.0, (255, 232, 180)),   # lantern flame
+    "x": ((120, 124, 140, 255), 0.7, None),   # spike metal
+    "X": ((200, 206, 220, 255), 1.0, None),   # spike highlight
+    "o": ((88, 80, 92, 255), 0.7, None),      # platform stone
+    "O": ((140, 130, 138, 255), 1.0, None),   # platform stone highlight
+    "q": ((52, 50, 62, 255), 0.6, None),      # door iron
+    "Q": ((96, 94, 110, 255), 1.0, None),     # door iron highlight
+    "a": ((170, 140, 90, 255), 0.9, None),    # switch lever
+    "n": ((120, 40, 36, 255), 0.8, None),     # switch light, off
+    "N": ((120, 255, 140, 255), 1.0, (80, 230, 110)),   # switch light, on
+    "i": ((60, 120, 220, 255), 0.8, (40, 90, 200)),     # ability orb
+    "I": ((200, 230, 255, 255), 1.0, (170, 215, 255)),  # ability orb core
 }
 
 
@@ -206,6 +217,85 @@ LANTERN = [
     "...ll...",
 ]
 
+SPIKES_UP = [
+    "........",
+    "........",
+    "........",
+    "........",
+    ".X...X..",
+    ".x..XxX.",
+    "XxX.xxx.",
+    "xxxxxxxx",
+]
+SPIKES_DOWN = list(reversed(SPIKES_UP))
+
+# Moving / falling platform: repeated along its width.
+PLATFORM = [
+    "OOOOOOOO",
+    "oOoooOoo",
+    "oooooooo",
+    "oooooooo",
+    "oooooooo",
+    "oooooooo",
+    "oooooooo",
+    "kkkkkkkk",
+]
+
+# Doors and gates: repeated down their height.
+DOOR = [
+    "qQqqqQqq",
+    "qQqqqQqq",
+    "qQqqqQqq",
+    "kkkkkkkk",
+    "qQqqqQqq",
+    "qQqqqQqq",
+    "qQqqqQqq",
+    "qQqqqQqq",
+]
+GATE = [
+    "qQqqqQqq",
+    "qQqeqQqq",
+    "qQeEeQqq",
+    "qQqeqQqq",
+    "qQqqqQqq",
+    "kkkkkkkk",
+    "qQqqqQqq",
+    "qQqqqQqq",
+]
+
+# Floor switch, bottom-centre on the floor: lever up (off) and down (on).
+SWITCH_OFF = [
+    "........",
+    "..a.....",
+    "...a....",
+    "....a...",
+    "....a...",
+    "..hnnh..",
+    ".hhhhhh.",
+    "hhhhhhhh",
+]
+SWITCH_ON = [
+    "........",
+    "........",
+    "........",
+    "......a.",
+    ".....a..",
+    "..hNNa..",
+    ".hhhhhh.",
+    "hhhhhhhh",
+]
+
+ORB = [
+    "..iiii..",
+    ".iIIiii.",
+    "iIIiiiii",
+    "iIiiiiii",
+    "iiiiiiii",
+    "iiiiiiIi",
+    ".iiiiIi.",
+    "..iiii..",
+]
+
 CANDLE = [
     "...F....",
     "..fFf...",
@@ -352,14 +442,17 @@ def write_aseprite_json(name, cell_count, tags):
 
 
 def main():
-    # Tile ids match the game: 0 empty, 1 wall, 2 grass-topped ground, 3 background, 4 crystal.
+    # Tile ids match the game: 0 empty, 1 wall, 2 grass-topped ground, 3 background, 4 crystal,
+    # 5 / 6 spikes pointing up / down (in front of the background).
     empty = ["." * TILE for _ in range(TILE)]
     background = background_tile()
-    tiles = [empty, wall_tile(), ground_tile(), background, overlay(background, CRYSTAL)]
+    tiles = [empty, wall_tile(), ground_tile(), background, overlay(background, CRYSTAL),
+             overlay(background, SPIKES_UP), overlay(background, SPIKES_DOWN)]
     write_material("tileset", tiles, heights_from_palette, wrap=True)
     write_material("creature", CREATURE_FRAMES, dome_heights, wrap=False)
     write_aseprite_json("creature", len(CREATURE_FRAMES), CREATURE_TAGS)
-    write_material("props", [CANDLE, VENT, GEM, LANTERN], heights_from_palette, wrap=False)
+    write_material("props", [CANDLE, VENT, GEM, LANTERN, PLATFORM, DOOR, SWITCH_OFF, SWITCH_ON, ORB, GATE],
+                   heights_from_palette, wrap=False)
     write_material("crawler", CRAWLER_FRAMES, dome_heights, wrap=False)
     print(f"wrote textures to {OUT_DIR}")
 

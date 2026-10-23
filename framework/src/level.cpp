@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
+#include <format>
 
 namespace animal {
 
@@ -307,6 +308,16 @@ std::optional<Room> parseRoomImpl(std::string_view text, const std::string& path
     }
     for (size_t id = 0; id < room.tileProperties.size(); ++id) {
         room.tiles.setSolid(static_cast<TileId>(id), room.tileProperties[id].getBool("solid"));
+        const std::string hazard = room.tileProperties[id].getString("hazard");
+        if (hazard == "up") {
+            room.tiles.setHazard(static_cast<TileId>(id), Hazard::Up);
+        } else if (hazard == "down") {
+            room.tiles.setHazard(static_cast<TileId>(id), Hazard::Down);
+        } else if (hazard == "full") {
+            room.tiles.setHazard(static_cast<TileId>(id), Hazard::Full);
+        } else if (!hazard.empty()) {
+            return failWith(std::format("{}: tile {} has hazard \"{}\" (up, down or full)", path, id, hazard));
+        }
     }
 
     bool sawTiles = false;

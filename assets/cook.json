@@ -27,7 +27,11 @@
     "sounds/hit.wav",
     "sounds/splash.wav",
     "sounds/grab.wav",
-    "sounds/cave_ambience.wav"
+    "sounds/cave_ambience.wav",
+    "sounds/click.wav",
+    "sounds/door.wav",
+    "sounds/ability.wav",
+    "sounds/crumble.wav"
   ],
   "shaders": [
     "sprite.vert",

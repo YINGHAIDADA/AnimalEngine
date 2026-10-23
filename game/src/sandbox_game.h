@@ -76,6 +76,15 @@ private:
     void updateGameplay(animal::Entity& player);
     void showMessage(std::string text);
     void drawMap(animal::Renderer2D& renderer); // map_screen.cpp
+    // progression.cpp (ADR-0034)
+    size_t collectedGems() const;
+    bool canDive() const;
+    void stepPlatforms(animal::Entity& player, float dt);
+    bool stepDive(animal::Entity& player, float moveX, float moveY, float dt);
+    void applyCurrents(animal::Entity& player, float dt);
+    void hurt(animal::Entity& player); // spikes or crushed: back to the checkpoint
+    void updateMechanisms(animal::Entity& player, float dt);
+    void drawEnding(animal::Renderer2D& renderer);
     // A sound at a room position (panned by where it is on screen), slightly varied in pitch.
     void playSound(animal::audio::SoundHandle sound, float x, float volume = 1.0f);
     animal::Look roomLook(const animal::WorldRoom& worldRoom);
@@ -119,6 +128,11 @@ private:
     animal::ClimbParams climbParams_;
     animal::ClimbState climb_;
     animal::SwimParams swimParams_;
+    animal::DiveParams diveParams_;
+    bool diving_ = false;         // under water with the dive ability
+    bool respawnPending_ = false; // hurt this step: back to the checkpoint after it
+    bool endingOpen_ = false;     // the goal was reached: the ending screen shows until jump
+    static constexpr const char* kFinishedFlag = "finished";
     animal::Tuning tuning_;  // the parameters above, overridable by world/tuning.json (ADR-0027)
     std::string tuningPath_;
     bool facingLeft_ = false;
@@ -170,7 +184,7 @@ private:
     // Audio (ADR-0033)
     animal::audio::AudioSystem* audio_ = nullptr;
     struct Sounds {
-        animal::audio::SoundHandle jump, land, gem, hit, splash, grab, ambience;
+        animal::audio::SoundHandle jump, land, gem, hit, splash, grab, ambience, click, door, ability, crumble;
     } sounds_{};
     animal::audio::VoiceHandle ambienceVoice_;
     animal::Random soundRandom_{0x50D};           // pitch variation only: never touches the simulation

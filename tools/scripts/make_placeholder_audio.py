@@ -104,6 +104,10 @@ def main():
     write("splash", noise(0.45, seed=3, cutoff=1800, attack=0.01, decay=0.12))
     write("grab", noise(0.05, seed=4, cutoff=4000, decay=0.008))
     write("cave_ambience", ambience(6.0))
+    write("click", mix(noise(0.03, seed=5, cutoff=6000, decay=0.006), sweep(0.06, 1800, 1200, "square", decay=0.015)))
+    write("door", mix(noise(0.7, seed=6, cutoff=300, attack=0.05, decay=0.25), sweep(0.7, 70, 50, decay=0.3)))
+    write("ability", chime([523.3, 659.3, 784.0, 1046.5, 1318.5], 0.09, 0.25))
+    write("crumble", noise(0.35, seed=7, cutoff=1200, attack=0.02, decay=0.1, level=0.8))
     print(f"wrote sounds to {OUT}")
 
 

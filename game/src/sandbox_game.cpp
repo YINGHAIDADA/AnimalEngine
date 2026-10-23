@@ -139,7 +139,8 @@ const animal::Room* SandboxGame::roomData(const animal::WorldRoom& worldRoom) {
 
 bool SandboxGame::enterRoom(const animal::WorldRoom& worldRoom, animal::Renderer2D& renderer) {
     const animal::Room* room = roomData(worldRoom);
-    if (!room || !cave_.build(*room, roomName(worldRoom.path), save_.flags, effects_, plants_, kRoomSeed + roomVisits_++)) {
+    if (!room || !cave_.build(*room, roomName(worldRoom.path), save_.flags, collectedGems(), effects_, plants_,
+                              kRoomSeed + roomVisits_++)) {
         return false;
     }
     const bool firstRoom = currentRoom_ == nullptr;
@@ -147,6 +148,7 @@ bool SandboxGame::enterRoom(const animal::WorldRoom& worldRoom, animal::Renderer
     save_.visited.insert(roomName(worldRoom.path));
     checkpointPending_ = true;
     submersion_ = 0.0f;
+    diving_ = false;
     climb_.climbing = false; // vine indices belong to the previous room
     renderer.resetFluid();
     const animal::Vec2 canvasOrigin = camera_.topLeft(animal::Renderer2D::kCanvasExtent);
@@ -243,7 +245,9 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     sounds_ = {audio_->load(sounds + "jump.wav"),   audio_->load(sounds + "land.wav"),
                audio_->load(sounds + "gem.wav"),    audio_->load(sounds + "hit.wav"),
                audio_->load(sounds + "splash.wav"), audio_->load(sounds + "grab.wav"),
-               audio_->load(sounds + "cave_ambience.wav")};
+               audio_->load(sounds + "cave_ambience.wav"), audio_->load(sounds + "click.wav"),
+               audio_->load(sounds + "door.wav"),   audio_->load(sounds + "ability.wav"),
+               audio_->load(sounds + "crumble.wav")};
     ambienceVoice_ = audio_->play(sounds_.ambience, {1.0f, 0.0f, 1.0f, true, animal::audio::Bus::Ambience, 2.0f});
     creatureSheetPath_ = textures + "creature.json";
     std::optional<animal::SpriteSheet> sheet = animal::loadSpriteSheet(creatureSheetPath_);
@@ -289,6 +293,12 @@ void SandboxGame::registerTuning(animal::Renderer2D& renderer) {
     tuning_.add("swim.fallSpeedScale", &s.fallSpeedScale, 0.05f, 1.0f);
     tuning_.add("swim.drag", &s.drag, 0.0f, 10.0f);
     tuning_.add("swim.jumpDepth", &s.jumpDepth, 0.0f, 1.0f);
+    animal::DiveParams& d = diveParams_;
+    tuning_.add("dive.speed", &d.speed, 10.0f, 200.0f);
+    tuning_.add("dive.acceleration", &d.acceleration, 50.0f, 2000.0f);
+    tuning_.add("dive.drift", &d.drift, 0.0f, 60.0f);
+    tuning_.add("dive.enterDepth", &d.enterDepth, 0.1f, 1.0f);
+    tuning_.add("dive.leaveDepth", &d.leaveDepth, 0.1f, 1.0f);
     tuning_.add("audio.effects", &busVolumes_[0], 0.0f, 1.0f);
     tuning_.add("audio.ambience", &busVolumes_[1], 0.0f, 1.0f);
     tuning_.add("audio.music", &busVolumes_[2], 0.0f, 1.0f);
@@ -320,7 +330,8 @@ bool SandboxGame::rebuildRoom(animal::Renderer2D& renderer) {
         return false;
     }
     const animal::Room* room = roomData(*currentRoom_);
-    if (!room || !cave_.build(*room, roomName(currentRoom_->path), save_.flags, effects_, plants_, kRoomSeed + roomVisits_++)) {
+    if (!room || !cave_.build(*room, roomName(currentRoom_->path), save_.flags, collectedGems(), effects_, plants_,
+                              kRoomSeed + roomVisits_++)) {
         return false;
     }
     climb_.climbing = false; // vine indices may have changed
@@ -582,8 +593,8 @@ bool SandboxGame::setupAnimations() {
 // The animation state machine: the clip follows the movement state.
 void SandboxGame::updateAnimation(float dt) {
     const animal::PlatformerState& s = playerState_;
-    if (climb_.climbing) {
-        animator_.play(clips_.climb);
+    if (climb_.climbing || diving_) {
+        animator_.play(clips_.climb); // paddling under water looks like climbing
     } else if (s.landedThisStep) {
         animator_.restart(clips_.land);
     } else if (animator_.current() == clips_.land && !animator_.finished()) {
@@ -594,7 +605,9 @@ void SandboxGame::updateAnimation(float dt) {
         animator_.play(s.velocity.y < 0.0f ? clips_.jump : clips_.fall);
     }
     // On a vine the climb cycle only plays while moving along it.
-    animator_.update(dt, climb_.climbing && !climb_.movedThisStep ? 0.0f : 1.0f);
+    const bool idle = (climb_.climbing && !climb_.movedThisStep) ||
+                      (diving_ && std::fabs(playerState_.velocity.x) + std::fabs(playerState_.velocity.y) < 20.0f);
+    animator_.update(dt, idle ? 0.0f : 1.0f);
 }
 
 void SandboxGame::onFrame(animal::EngineContext& context) {
@@ -672,6 +685,8 @@ void SandboxGame::respawn(animal::Renderer2D& renderer) {
     playerState_ = {};
     climb_ = {};
     checkpointPending_ = false;
+    respawnPending_ = false;
+    diving_ = false;
 }
 
 // Resumes at the saved checkpoint with the saved gems collected; a save naming a room that is
@@ -826,8 +841,11 @@ void SandboxGame::handleRoomExit(animal::Renderer2D& renderer) {
 }
 
 void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
-    if (mapOpen_) {
-        actions_.endFixedStep(); // the world waits; presses made on the map do not carry over
+    if (mapOpen_ || endingOpen_) {
+        if (endingOpen_ && actions_.pressed(Jump)) {
+            endingOpen_ = false;
+        }
+        actions_.endFixedStep(); // the world waits; presses made meanwhile do not carry over
         return;
     }
     time_ += dt;
@@ -847,6 +865,7 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
         const float moveX = control ? actions_.strength(MoveRight) - actions_.strength(MoveLeft) : 0.0f;
         const float moveY = control ? actions_.strength(MoveDown) - actions_.strength(MoveUp) : 0.0f;
         const bool jumpPressed = control && actions_.pressed(Jump);
+        stepPlatforms(*player, step);
         const bool wasClimbing = climb_.climbing;
         const bool climbing = animal::stepClimb(player->body, playerState_, climb_, {moveX, moveY, jumpPressed},
                                                 climbParams_, cave_.vines(), cave_.tiles(), static_cast<float>(dt));
@@ -857,7 +876,7 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
             playSound(sounds_.jump, playerX, 0.8f);
         }
         const bool wasRising = playerState_.rising;
-        if (!climbing) {
+        if (!climbing && !stepDive(*player, moveX, moveY, step)) {
             animal::PlatformerInput input;
             input.moveX = moveX;
             // A jump that let go of a vine is already used up.
@@ -875,6 +894,7 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
                 playSound(sounds_.land, playerX, std::clamp(playerState_.landingSpeed / 260.0f, 0.15f, 1.0f));
             }
         }
+        applyCurrents(*player, step);
         if (moveX < 0.0f) {
             facingLeft_ = true;
         } else if (moveX > 0.0f) {
@@ -884,11 +904,19 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
         handleRoomExit(*context.renderer);
         if ((player = entities_.get(player_))) {
             updateGameplay(*player);
+            updateMechanisms(*player, step);
+            if (respawnPending_) {
+                respawn(*context.renderer);
+                player = entities_.get(player_);
+            }
         }
     }
 
     playerZone.reset();
     ANIMAL_PROFILE_ZONE("room");
+    if (!player || editing) {
+        cave_.stepPlatforms(step, nullptr); // the level editor freezes only the player
+    }
     std::vector<animal::Influence> influences;
     if (player && !editing) {
         animal::Influence influence{player->body.worldCollider(), playerState_.velocity, false};
@@ -977,6 +1005,9 @@ void SandboxGame::onScreen(animal::EngineContext&, animal::Renderer2D& renderer)
     if (mapOpen_) {
         drawMap(renderer);
     }
+    if (endingOpen_) {
+        drawEnding(renderer);
+    }
 }
 
 void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::string>& lines) {
@@ -1021,7 +1052,8 @@ void SandboxGame::onToolsPass(animal::EngineContext& context, animal::rhi::Comma
 }
 
 // Expectations: room (the room the player ends in), gems (at least N collected), visited (at least N
-// rooms entered), grounded (true / false), respawns (how often the player fell out of the world).
+// rooms entered), finished (the goal was reached), grounded (true / false), respawns (how often the
+// player was sent back to a checkpoint).
 bool SandboxGame::checkExpectations() {
     const size_t collected = static_cast<size_t>(
         std::ranges::count_if(save_.flags, [this](const std::string& f) { return gemFlags_.count(f) != 0; }));
@@ -1038,6 +1070,9 @@ bool SandboxGame::checkExpectations() {
         } else if (name == "grounded") {
             actual = playerState_.grounded ? "true" : "false";
             met = actual == expected;
+        } else if (name == "finished") {
+            actual = save_.flags.contains(kFinishedFlag) ? "true" : "false";
+            met = actual == expected;
         } else if (name == "visited") {
             actual = std::to_string(save_.visited.size());
             met = save_.visited.size() >= static_cast<size_t>(std::strtoul(expected.c_str(), nullptr, 10));
@@ -1045,7 +1080,7 @@ bool SandboxGame::checkExpectations() {
             actual = std::to_string(respawns_);
             met = actual == expected;
         } else {
-            animal::log::error("Expectation '{}' is unknown (room, gems, visited, grounded, respawns)", name);
+            animal::log::error("Expectation '{}' is unknown (room, gems, visited, finished, grounded, respawns)", name);
             ok = false;
             continue;
         }

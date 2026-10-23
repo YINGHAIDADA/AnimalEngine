@@ -13,6 +13,7 @@ set(ANIMAL_FRAMEWORK_HEADERS
     include/animal/framework/particles.h
     include/animal/framework/patrol.h
     include/animal/framework/physics.h
+    include/animal/framework/platforms.h
     include/animal/framework/platformer.h
     include/animal/framework/save.h
     include/animal/framework/sprite_sheet.h
@@ -35,6 +36,7 @@ set(ANIMAL_FRAMEWORK_SOURCES
     src/particles.cpp
     src/patrol.cpp
     src/physics.cpp
+    src/platforms.cpp
     src/platformer.cpp
     src/save.cpp
     src/sprite_sheet.cpp

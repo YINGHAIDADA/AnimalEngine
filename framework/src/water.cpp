@@ -1,4 +1,5 @@
 #include <animal/framework/water.h>
+#include <animal/framework/tilemap.h>
 
 #include <algorithm>
 #include <cmath>
@@ -83,6 +84,41 @@ void applyWater(PlatformerState& state, const PlatformerParams& base, float subm
     if (submersion >= swim.jumpDepth) {
         state.coyoteTimer = base.coyoteFrames;
     }
+}
+
+void stepDive(Body& body, PlatformerState& state, Vec2 move, const DiveParams& params, const TileMap& map, float dt) {
+    const float length = std::hypot(move.x, move.y);
+    if (length > 1.0f) {
+        move = move * (1.0f / length);
+    }
+    Vec2 target = move * params.speed;
+    if (move.y == 0.0f) {
+        target.y = -params.drift;
+    }
+    const float maxChange = params.acceleration * dt;
+    const auto approach = [maxChange](float value, float goal) {
+        return value + std::clamp(goal - value, -maxChange, maxChange);
+    };
+    state.velocity = {approach(state.velocity.x, target.x), approach(state.velocity.y, target.y)};
+    if (moveX(body, state.velocity.x * dt, map)) {
+        state.velocity.x = 0.0f;
+    }
+    if (moveY(body, state.velocity.y * dt, map)) {
+        state.velocity.y = 0.0f;
+    }
+    state.grounded = isGrounded(body, map);
+    state.rising = false;
+    state.jumpedThisStep = false;
+    state.landedThisStep = false;
+}
+
+void applyCurrent(Body& body, Vec2 current, float submersion, const TileMap& map, float dt) {
+    if (submersion <= 0.0f) {
+        return;
+    }
+    const float share = std::min(submersion, 1.0f);
+    moveX(body, current.x * share * dt, map);
+    moveY(body, current.y * share * dt, map);
 }
 
 } // namespace animal

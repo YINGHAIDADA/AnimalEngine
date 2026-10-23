@@ -5,12 +5,12 @@
  "name": "cave",
  "tilewidth": 8,
  "tileheight": 8,
- "tilecount": 5,
- "columns": 5,
+ "tilecount": 7,
+ "columns": 7,
  "margin": 0,
  "spacing": 0,
  "image": "../../textures/tileset.png",
- "imagewidth": 40,
+ "imagewidth": 56,
  "imageheight": 8,
  "tiles": [
   {
@@ -80,6 +80,26 @@
      "name": "lightAmount",
      "type": "float",
      "value": 0.14
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "properties": [
+    {
+     "name": "hazard",
+     "type": "string",
+     "value": "up"
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "properties": [
+    {
+     "name": "hazard",
+     "type": "string",
+     "value": "down"
     }
    ]
   }

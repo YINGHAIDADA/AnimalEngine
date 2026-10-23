@@ -4,6 +4,7 @@
 // floating rules for platformer bodies in it.
 
 #include <animal/framework/geometry.h>
+#include <animal/framework/physics.h>
 #include <animal/framework/platformer.h>
 
 #include <span>
@@ -55,5 +56,21 @@ PlatformerParams swimmingParams(const PlatformerParams& base, float submersion, 
 // Before stepPlatformer: water drag on the velocity, and a jump made available when deep enough.
 void applyWater(PlatformerState& state, const PlatformerParams& base, float submersion, float dt,
                 const SwimParams& swim = {});
+
+// Diving (ADR-0034): with the ability, a body under water swims freely in both axes instead of
+// floating at the surface; without input it drifts slowly up.
+struct DiveParams {
+    float speed = 72.0f;         // px/s with the stick fully over
+    float acceleration = 420.0f; // px/s² towards the input velocity
+    float drift = 16.0f;         // px/s upwards with no vertical input
+    float enterDepth = 0.5f;     // submersion from which holding down starts a dive
+    float leaveDepth = 0.85f;    // rising above this submersion (not holding down) ends the dive
+};
+
+// One fixed step of diving: `move` is the input (-1..1 per axis, + = right / down).
+void stepDive(Body& body, PlatformerState& state, Vec2 move, const DiveParams& params, const TileMap& map, float dt);
+
+// A current carries a body in water along with it, in proportion to how deep it is (px/s).
+void applyCurrent(Body& body, Vec2 current, float submersion, const TileMap& map, float dt);
 
 } // namespace animal

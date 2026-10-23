@@ -4,6 +4,9 @@ set(ANIMAL_GAME_SOURCES
     src/dev/dev_tools.h
     src/main.cpp
     src/map_screen.cpp
+    src/mechanisms.cpp
+    src/mechanisms.h
+    src/progression.cpp
     src/sandbox_game.cpp
     src/sandbox_game.h)
 

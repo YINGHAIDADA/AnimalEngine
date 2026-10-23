@@ -1,5 +1,7 @@
 #pragma once
 
+#include "mechanisms.h"
+
 #include <animal/core/random.h>
 #include <animal/framework/effects.h>
 #include <animal/framework/foliage.h>
@@ -31,7 +33,9 @@ constexpr int kTileSize = 8;
 
 struct CaveAssets {
     animal::SpriteMaterial tileset; // tile id = horizontal cell index
-    animal::SpriteMaterial props;   // cell 0: candle, cell 1: vent grate, cell 2: gem, cell 3: lantern
+    // cells: 0 candle, 1 vent grate, 2 gem, 3 lantern, 4 platform, 5 door, 6 / 7 switch off / on,
+    // 8 ability orb, 9 gem gate
+    animal::SpriteMaterial props;
     animal::SpriteMaterial crawler; // two walking frames
 };
 
@@ -39,8 +43,9 @@ struct CaveAssets {
 // sources, ambient particles and smoke vents. Rebuilt whenever the player enters the room.
 class CaveRoom {
 public:
-    // `name` identifies the room in save flags; gems listed in `collected` ("name:id") are skipped.
-    bool build(const animal::Room& room, const std::string& name, const std::set<std::string>& collected,
+    // `name` identifies the room in save flags; gems listed in `flags` ("name:id") are skipped, and
+    // doors whose switch is in `flags` or whose gem count `gems` reaches start open.
+    bool build(const animal::Room& room, const std::string& name, const std::set<std::string>& flags, size_t gems,
                animal::EffectLibrary& effects, animal::PlantLibrary& plants, uint32_t seed);
 
     const animal::TileMap& tiles() const { return tiles_; }
@@ -49,6 +54,18 @@ public:
     std::optional<animal::Vec2> spawnPoint() const { return spawn_; }
 
     void step(float dt, double time, std::span<const animal::Influence> influences);
+
+    // Mechanisms (ADR-0034): platforms move before the player does; touch / update after.
+    animal::PlatformSystem::StepResult stepPlatforms(float dt, animal::Body* player) {
+        return mechanisms_.stepPlatforms(dt, tiles_, player);
+    }
+    Mechanisms::Touch touchMechanisms(const animal::IntRect& player) { return mechanisms_.touch(player); }
+    int updateMechanisms(float dt, const std::set<std::string>& flags, size_t gems) {
+        return mechanisms_.update(dt, flags, gems, tiles_);
+    }
+    const Mechanisms& mechanisms() const { return mechanisms_; }
+    // The current of the deepest pool the box is in (px/s).
+    animal::Vec2 currentAt(const animal::IntRect& box) const;
 
     // Gameplay queries against the player's collider (room pixels).
     std::vector<std::string> collectGems(const animal::IntRect& player); // save flags of gems picked up now
@@ -105,6 +122,7 @@ private:
         animal::WaterBody body;
         animal::WaterSurface look;
         std::optional<animal::EffectSystem::PresetId> splash;
+        animal::Vec2 current; // px/s ("currentX" / "currentY")
     };
 
     struct Lantern {
@@ -151,6 +169,8 @@ private:
     animal::WindParams wind_;
     animal::EffectSystem effects_;
     std::optional<animal::EffectSystem::PresetId> sparkPreset_; // gem pickup burst
+    Mechanisms mechanisms_;
+    double lastTime_ = 0.0; // of the last step: drives the shaking of falling platforms
 };
 
 } // namespace game
