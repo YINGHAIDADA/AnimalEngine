@@ -12,6 +12,7 @@ if(ANIMAL_DEV_TOOLS)
         src/dev/dev_tools.cpp
         src/dev/hot_reload.cpp
         src/dev/level_editor.cpp
+        src/dev/world_editor.cpp
         src/dev/panels.cpp)
 else()
     list(APPEND ANIMAL_GAME_SOURCES src/dev/dev_tools_off.cpp)
@@ -36,46 +37,27 @@ set_target_properties(animal_game PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${ANIMAL_GAME_SOURCES})
 
+# Every file under the source folders is deployed (rooms created with the level editor included);
+# CONFIGURE_DEPENDS re-runs the glob when files are added or removed.
+file(GLOB_RECURSE ANIMAL_GAME_TEXTURE_FILES CONFIGURE_DEPENDS
+    RELATIVE "${PROJECT_SOURCE_DIR}/assets/source/textures"
+    "${PROJECT_SOURCE_DIR}/assets/source/textures/*.png"
+    "${PROJECT_SOURCE_DIR}/assets/source/textures/*.json")
+file(GLOB_RECURSE ANIMAL_GAME_WORLD_FILES CONFIGURE_DEPENDS
+    RELATIVE "${PROJECT_SOURCE_DIR}/assets/source/world"
+    "${PROJECT_SOURCE_DIR}/assets/source/world/*.world"
+    "${PROJECT_SOURCE_DIR}/assets/source/world/*.json"
+    "${PROJECT_SOURCE_DIR}/assets/source/world/*.tmj"
+    "${PROJECT_SOURCE_DIR}/assets/source/world/*.tsj")
+
 animal_add_data_files(animal_game_textures
     SOURCE_DIR "${PROJECT_SOURCE_DIR}/assets/source/textures"
     DESTINATION textures
-    FILES
-        tileset.png
-        tileset_n.png
-        tileset_e.png
-        creature.png
-        creature_n.png
-        creature.json
-        props.png
-        props_n.png
-        props_e.png
-        crawler.png
-        crawler_n.png
-        crawler_e.png)
+    FILES ${ANIMAL_GAME_TEXTURE_FILES})
 
 animal_add_data_files(animal_game_world
     SOURCE_DIR "${PROJECT_SOURCE_DIR}/assets/source/world"
     DESTINATION world
-    FILES
-        test.world
-        tuning.json
-        tilesets/cave.tsj
-        rooms/cave_entrance.tmj
-        rooms/crystal_gallery.tmj
-        rooms/smoke_pit.tmj
-        looks/cave.look.json
-        looks/crystal.look.json
-        looks/ember.look.json
-        effects/dust.effect.json
-        effects/firefly.effect.json
-        effects/ember.effect.json
-        effects/spark.effect.json
-        effects/splash.effect.json
-        effects/falls.effect.json
-        effects/mist.effect.json
-        plants/grass.plant.json
-        plants/reeds.plant.json
-        plants/moss.plant.json
-        plants/glowflower.plant.json)
+    FILES ${ANIMAL_GAME_WORLD_FILES})
 
 add_dependencies(animal_game animal_shaders animal_game_textures animal_game_world)

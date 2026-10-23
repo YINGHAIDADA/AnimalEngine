@@ -154,7 +154,8 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     auto props = animal::loadMaterial(*context.device, textures + "props");
     auto creature = animal::loadMaterial(*context.device, textures + "creature");
     auto crawler = animal::loadMaterial(*context.device, textures + "crawler");
-    auto world = animal::loadWorld(context.dataDirectory + "world/test.world");
+    worldPath_ = context.dataDirectory + "world/test.world";
+    auto world = animal::loadWorld(worldPath_);
     if (!tileset || !props || !creature || !crawler || !world) {
         return false;
     }
@@ -453,6 +454,9 @@ bool SandboxGame::reloadWorld(const std::string& path, animal::Renderer2D& rende
         }
     }
     world_ = std::move(*world); // moving the vector keeps its elements where they are
+    for (const animal::WorldRoom& r : world_.rooms) {
+        collectGemFlags(r, *roomData(r)); // rooms may have been added
+    }
     currentRoom_ = current;
     startRoom_ = start;
     checkpointRoom_ = checkpoint;

@@ -91,6 +91,7 @@ private:
     void collectGemFlags(const animal::WorldRoom& worldRoom, const animal::Room& room);
 
     animal::World world_;
+    std::string worldPath_;
     std::map<std::string, animal::Room> rooms_; // loaded room data by path
     const animal::WorldRoom* currentRoom_ = nullptr;
     const animal::WorldRoom* startRoom_ = nullptr; // where a new game begins

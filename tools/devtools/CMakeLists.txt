@@ -7,6 +7,7 @@ set(ANIMAL_DEVTOOLS_HEADERS
     include/animal/devtools/performance_panel.h
     include/animal/devtools/source_assets.h
     include/animal/devtools/tiled_map.h
+    include/animal/devtools/tiled_world.h
     include/animal/devtools/tuning_panel.h)
 
 set(ANIMAL_DEVTOOLS_SOURCES
@@ -17,6 +18,7 @@ set(ANIMAL_DEVTOOLS_SOURCES
     src/performance_panel.cpp
     src/source_assets.cpp
     src/tiled_map.cpp
+    src/tiled_world.cpp
     src/tuning_panel.cpp)
 
 add_library(animal_devtools STATIC ${ANIMAL_DEVTOOLS_HEADERS} ${ANIMAL_DEVTOOLS_SOURCES})

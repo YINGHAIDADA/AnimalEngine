@@ -5,6 +5,7 @@
 #include <animal/devtools/json_editor.h>
 #include <animal/devtools/source_assets.h>
 #include <animal/devtools/tiled_map.h>
+#include <animal/devtools/tiled_world.h>
 #include <animal/framework/level.h>
 
 #include "test_harness.h"
@@ -110,6 +111,25 @@ TEST(devtools_tiled_map_edits_tiles_objects_and_properties) {
     CHECK(map->removeObject(7) && !map->object(7) && !map->removeObject(7));
     CHECK(map->addObject({{"type", "gem"}}) == 9); // ids are never reused
     CHECK(!devtools::TiledMap::parse(R"({"type": "tileset"})").has_value());
+}
+
+TEST(devtools_tiled_world_round_trips_and_edits_the_layout) {
+    const std::string path = std::string(ANIMAL_TEST_SOURCE_DIR) + "/assets/source/world/test.world";
+    const std::optional<std::string> text = readText(path);
+    CHECK(text.has_value());
+    std::optional<devtools::TiledWorld> world = text ? devtools::TiledWorld::parse(*text) : std::nullopt;
+    CHECK(world.has_value());
+    if (!world) {
+        return;
+    }
+    CHECK(world->serialize() == *text);
+    CHECK(world->maps().size() >= 3 && world->find("rooms/cave_entrance.tmj"));
+    CHECK(world->move("rooms/cave_entrance.tmj", -320, 0) && world->find("rooms/cave_entrance.tmj")->x == -320);
+    CHECK(world->add({"rooms/new.tmj", 640, 0, 320, 176}) && !world->add({"rooms/new.tmj", 0, 0, 1, 1}));
+    CHECK(world->find("rooms/new.tmj")->width == 320);
+    CHECK(world->remove("rooms/new.tmj") && !world->find("rooms/new.tmj") && !world->remove("rooms/new.tmj"));
+    std::string error;
+    CHECK(!devtools::TiledWorld::parse("{}", &error) && !error.empty());
 }
 
 TEST(devtools_file_watcher_reports_settled_changes_once) {

@@ -879,8 +879,9 @@ void DevPanels::editorFrame(State& s, animal::EngineContext& context) {
                 if (clicked) {
                     e.brush = gid;
                 }
-                if (ImGui::IsItemHovered() && data && gid < data->tileProperties.size()) {
-                    const animal::Properties& p = data->tileProperties[gid];
+                const uint32_t local = gid >= static_cast<uint32_t>(firstGid) ? gid - static_cast<uint32_t>(firstGid) : 0;
+                if (ImGui::IsItemHovered() && data && gid != 0 && local < data->tileProperties.size()) {
+                    const animal::Properties& p = data->tileProperties[local];
                     ImGui::SetTooltip("tile %u%s%s", gid, p.getBool("solid") ? "  solid" : "",
                                       p.getBool("light") ? "  light" : "");
                 }

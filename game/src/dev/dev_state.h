@@ -11,6 +11,7 @@
 #include <animal/devtools/performance_panel.h>
 #include <animal/devtools/source_assets.h>
 #include <animal/devtools/tiled_map.h>
+#include <animal/devtools/tiled_world.h>
 #include <animal/core/math.h>
 
 #include <map>
@@ -66,6 +67,18 @@ struct LevelEditor {
     std::map<std::string, EditedRoom> rooms; // by deployed path
 };
 
+// The world layout window (world_editor.cpp).
+struct WorldEditor {
+    std::vector<std::string> undo; // previous world files, newest last
+    std::string error;             // why the last change was refused
+    float zoom = 0.25f;            // window points per world pixel
+    bool snapToRooms = true;       // drag in whole-room steps (else 8 px tiles)
+    std::string dragging;          // fileName of the room being dragged
+    animal::Vec2 dragOffset;       // world px moved so far
+    char newName[64] = {};
+    bool copyCurrent = false;
+};
+
 struct DevTools::State {
     SandboxGame* game = nullptr;
     animal::devtools::ImGuiLayer imgui;
@@ -83,11 +96,13 @@ struct DevTools::State {
         bool tuning = false;
         bool rooms = false;
         bool animations = false;
+        bool world = false;
         bool console = false;
         bool demo = false;
     } windows;
 
     LevelEditor editor;
+    WorldEditor worldEditor;
 
     PresetEditor look;
     PresetEditor effect;
@@ -121,6 +136,10 @@ struct DevPanels {
     static void tuning(State& state, animal::EngineContext& context);
     static void rooms(State& state, animal::EngineContext& context);
     static void animations(State& state, animal::EngineContext& context);
+    static void world(State& state, animal::EngineContext& context);
+    // Writes a new world layout after the game's parser accepted it, then reloads the world.
+    static bool applyWorld(State& state, animal::EngineContext& context, const animal::devtools::TiledWorld& world);
+    static bool createRoom(State& state, animal::EngineContext& context, const std::string& name, bool copyCurrent);
 
     // Level editor (level_editor.cpp).
     static void editorFrame(State& state, animal::EngineContext& context);

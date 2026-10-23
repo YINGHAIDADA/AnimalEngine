@@ -27,6 +27,7 @@ void openWindow(DevTools::State::Windows& w, std::string_view name) {
     else if (name == "tuning") w.tuning = true;
     else if (name == "rooms") w.rooms = true;
     else if (name == "animations") w.animations = true;
+    else if (name == "world") w.world = true;
     else if (name == "console") w.console = true;
     else if (name == "demo") w.demo = true;
     else animal::log::warn("--tools: unknown window '{}'", name);
@@ -41,6 +42,7 @@ void mainMenu(DevTools::State& s, animal::EngineContext& context) {
         ImGui::MenuItem("Performance", nullptr, &w.performance);
         ImGui::MenuItem("Rendering", nullptr, &w.rendering);
         ImGui::MenuItem("Rooms", nullptr, &w.rooms);
+        ImGui::MenuItem("World", nullptr, &w.world);
         ImGui::Separator();
         ImGui::MenuItem("Look", nullptr, &w.look);
         ImGui::MenuItem("Effects", nullptr, &w.effects);
@@ -57,6 +59,7 @@ void mainMenu(DevTools::State& s, animal::EngineContext& context) {
         if (ImGui::MenuItem("Edit room", "Tab", &editing)) {
             DevPanels::setEditing(s, context, editing);
         }
+        ImGui::MenuItem("World layout", nullptr, &w.world);
         ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Reload")) {
@@ -176,6 +179,7 @@ void DevTools::frame(animal::EngineContext& context) {
     window("Plants", w.plants, {360, 70}, {440, 480}, [&] { DevPanels::plants(s, context); });
     window("Tuning", w.tuning, {380, 90}, {420, 560}, [&] { DevPanels::tuning(s, context); });
     window("Animations", w.animations, {400, 110}, {360, 420}, [&] { DevPanels::animations(s, context); });
+    window("World", w.world, {350, 40}, {560, 440}, [&] { DevPanels::world(s, context); });
     if (w.console) {
         s.console.draw(&w.console);
     }
