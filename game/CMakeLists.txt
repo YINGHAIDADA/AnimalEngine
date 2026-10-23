@@ -135,6 +135,7 @@ if(ANIMAL_BUILD_TESTS)
     animal_add_route_test(bridge_crossing bridge_crossing root_bridge --flags=switch:bridge --frames=1080
         "--expect=room:gate_hall,respawns:0")
     animal_add_route_test(bridge_door_closed bridge_crossing root_bridge --frames=1080 "--expect=room:root_bridge")
+    animal_add_route_test(bridge_gems bridge_gems root_bridge --flags=switch:bridge --frames=1080 "--expect=gems:2")
     animal_add_route_test(dive dive smoke_pit --flags=ability:dive --frames=960
         "--expect=room:spike_shaft,grounded:true,respawns:0,visited:4")
     animal_add_route_test(no_dive dive smoke_pit --frames=960 "--expect=room:smoke_pit,visited:1")

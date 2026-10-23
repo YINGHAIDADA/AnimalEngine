@@ -1033,8 +1033,8 @@
      "type": "platform",
      "rotation": 0,
      "visible": true,
-     "x": 208,
-     "y": 120,
+     "x": 176,
+     "y": 112,
      "width": 16,
      "height": 8,
      "properties": [
@@ -1051,7 +1051,7 @@
      "type": "platform",
      "rotation": 0,
      "visible": true,
-     "x": 160,
+     "x": 136,
      "y": 112,
      "width": 16,
      "height": 8,
@@ -1100,7 +1100,7 @@
      "point": true,
      "rotation": 0,
      "visible": true,
-     "x": 168,
+     "x": 144,
      "y": 98,
      "width": 0,
      "height": 0

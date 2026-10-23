@@ -1,0 +1,19 @@
+# root_bridge: bridge_crossing up to the third ledge, then off its west end onto the falling platforms
+# for the gem above them, dropping onto the moving platform past the second gem
+1 down Right
+20 up Right
+535 down Right
+545 down Space
+560 up Space
+560 up Right
+845 down Right
+870 down Space
+885 up Space
+895 up Right
+930 down Left
+934 down Space
+950 up Space
+970 down Space
+986 up Space
+1029 down Space
+1044 up Space
