@@ -19,7 +19,8 @@ set(ANIMAL_FRAMEWORK_HEADERS
     include/animal/framework/tilemap.h
     include/animal/framework/triggers.h
     include/animal/framework/tuning.h
-    include/animal/framework/water.h)
+    include/animal/framework/water.h
+    include/animal/framework/world_map.h)
 
 set(ANIMAL_FRAMEWORK_SOURCES
     src/action_map.cpp
@@ -40,7 +41,8 @@ set(ANIMAL_FRAMEWORK_SOURCES
     src/tilemap.cpp
     src/triggers.cpp
     src/tuning.cpp
-    src/water.cpp)
+    src/water.cpp
+    src/world_map.cpp)
 
 add_library(animal_framework STATIC ${ANIMAL_FRAMEWORK_HEADERS} ${ANIMAL_FRAMEWORK_SOURCES})
 add_library(animal::framework ALIAS animal_framework)

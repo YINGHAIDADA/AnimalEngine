@@ -1,9 +1,11 @@
 // Tiled room / world parsing (ADR-0010).
 
 #include <animal/framework/level.h>
+#include <animal/framework/world_map.h>
 
 #include "test_harness.h"
 
+#include <cmath>
 #include <map>
 #include <string>
 
@@ -149,6 +151,27 @@ TEST(level_world_finds_rooms_by_point) {
         {"fileName": "b.tmj", "x": 300, "y": 0, "width": 320, "height": 176}]})";
     CHECK(!parseWorld(overlapping, "w.world", &error));
     CHECK(error.find("overlap") != std::string::npos);
+}
+
+TEST(level_world_map_fits_the_whole_world_centred) {
+    World world;
+    world.rooms = {{"a", {0, 0, 320, 176}}, {"b", {320, 0, 320, 176}}, {"c", {320, 176, 320, 176}}};
+    const WorldMapLayout map = layoutWorldMap(world, {10.0f, 20.0f, 200.0f, 200.0f}, 1.0f);
+    CHECK(map.rooms.size() == 3);
+    CHECK(std::fabs(map.scale - 200.0f / 640.0f) < 1e-6f); // width-bound
+    CHECK(map.rooms[0].x == 10.0f && map.rooms[1].x == map.rooms[0].x + map.rooms[0].width);
+    CHECK(map.rooms[2].y == map.rooms[1].y + map.rooms[1].height); // neighbours share edges
+    const float top = map.rooms[0].y;
+    const float bottom = map.rooms[2].y + map.rooms[2].height;
+    CHECK(std::fabs((top - 20.0f) - (220.0f - bottom)) <= 1.0f); // centred vertically
+    for (const RectF& r : map.rooms) {
+        CHECK(r.x == std::round(r.x) && r.width == std::round(r.width));
+    }
+
+    const WorldMapLayout small = layoutWorldMap(world, {0.0f, 0.0f, 4000.0f, 4000.0f}, 0.25f);
+    CHECK(small.scale == 0.25f && small.rooms[0].width == 80.0f);
+    CHECK(small.toScreen({320.0f, 0.0f}).x == small.rooms[1].x);
+    CHECK(layoutWorldMap(World{}, {0.0f, 0.0f, 10.0f, 10.0f}, 1.0f).rooms.empty());
 }
 
 } // namespace

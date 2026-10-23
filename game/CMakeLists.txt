@@ -3,6 +3,7 @@ set(ANIMAL_GAME_SOURCES
     src/cave_room.h
     src/dev/dev_tools.h
     src/main.cpp
+    src/map_screen.cpp
     src/sandbox_game.cpp
     src/sandbox_game.h)
 
@@ -109,7 +110,7 @@ set_target_properties(animal_package PROPERTIES FOLDER game)
 if(ANIMAL_BUILD_TESTS)
     add_test(NAME demo_playthrough
         COMMAND animal_game --headless --demo --deterministic --strict --frames=900
-                "--expect=room:smoke_pit,gems:2,respawns:0")
+                "--expect=room:smoke_pit,gems:2,visited:3,respawns:0")
     # Crash reports (ADR-0032) for a fault, abort() and an uncaught exception.
     foreach(mode segv abort exception)
         add_test(NAME crash_report_${mode}

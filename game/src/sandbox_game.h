@@ -35,6 +35,8 @@ namespace game {
 
 struct DevPanels;
 
+std::string roomName(const std::string& path); // a room's name: its file name without extension
+
 enum Action : animal::ActionId {
     MoveLeft,
     MoveRight,
@@ -73,6 +75,7 @@ private:
     void saveProgress();
     void updateGameplay(animal::Entity& player);
     void showMessage(std::string text);
+    void drawMap(animal::Renderer2D& renderer); // map_screen.cpp
     // A sound at a room position (panned by where it is on screen), slightly varied in pitch.
     void playSound(animal::audio::SoundHandle sound, float x, float volume = 1.0f);
     animal::Look roomLook(const animal::WorldRoom& worldRoom);
@@ -141,6 +144,7 @@ private:
 
     animal::ActionMap actions_;
     bool showCollision_ = false;
+    bool mapOpen_ = false; // M / Back: the map of the rooms seen so far; the world pauses
     bool usingGamepad_ = false;
     uint32_t stressLights_ = 0; // --stress-lights=N: extra moving shadow-casting lights
     std::string startRoomName_; // --start-room=NAME: begin there (testing; progress is not saved)

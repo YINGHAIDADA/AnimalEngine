@@ -53,12 +53,12 @@ std::string upperCase(std::string text) {
     return text;
 }
 
+} // namespace
+
 std::string roomName(const std::string& path) {
     const std::u8string stem = std::filesystem::path(std::u8string(path.begin(), path.end())).stem().u8string();
     return {stem.begin(), stem.end()};
 }
-
-} // namespace
 
 animal::AppConfig SandboxGame::configure() {
     animal::AppConfig config;
@@ -638,6 +638,9 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
     if (input.pressed(Key::F8)) {
         resetProgress(renderer);
     }
+    if (input.pressed(Key::M) || input.pressed(GamepadButton::Back)) {
+        mapOpen_ = !mapOpen_;
+    }
     if (input.gamepadConnected() && (input.down(GamepadButton::South) || input.axis(GamepadAxis::LeftX) != 0.0f)) {
         usingGamepad_ = true;
     } else if (input.down(Key::Left) || input.down(Key::Right) || input.down(Key::Space) || input.down(Key::Z)) {
@@ -823,6 +826,10 @@ void SandboxGame::handleRoomExit(animal::Renderer2D& renderer) {
 }
 
 void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
+    if (mapOpen_) {
+        actions_.endFixedStep(); // the world waits; presses made on the map do not carry over
+        return;
+    }
     time_ += dt;
     save_.playSeconds += dt;
     fluidTime_ += static_cast<float>(dt);
@@ -967,6 +974,9 @@ void SandboxGame::onScreen(animal::EngineContext&, animal::Renderer2D& renderer)
                            static_cast<float>(layout.y + layout.height) - margin - renderer.textLineHeight()},
                           message_, color);
     }
+    if (mapOpen_) {
+        drawMap(renderer);
+    }
 }
 
 void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::string>& lines) {
@@ -1002,7 +1012,7 @@ void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::s
     lines.push_back(std::format("LOOK {}  F9 RELOAD LOOKS", lookName_));
     lines.push_back(usingGamepad_ ? "GAMEPAD: STICK MOVE  UP GRAB VINE  A JUMP"
                                   : "ARROWS/WASD MOVE  UP GRAB VINE  SPACE/Z JUMP");
-    lines.push_back(std::format("F2 COLLISION VIEW ({})  F8 RESET PROGRESS{}", showCollision_ ? "ON" : "OFF",
+    lines.push_back(std::format("M MAP  F2 COLLISION VIEW ({})  F8 RESET PROGRESS{}", showCollision_ ? "ON" : "OFF",
                                 savePath_.empty() ? " (NOT SAVED)" : ""));
 }
 
@@ -1010,8 +1020,8 @@ void SandboxGame::onToolsPass(animal::EngineContext& context, animal::rhi::Comma
     dev_.render(context, commands);
 }
 
-// Expectations: room (the room the player ends in), gems (at least N collected), grounded (true /
-// false), alive (no respawn since the start: the player never fell out of the world).
+// Expectations: room (the room the player ends in), gems (at least N collected), visited (at least N
+// rooms entered), grounded (true / false), respawns (how often the player fell out of the world).
 bool SandboxGame::checkExpectations() {
     const size_t collected = static_cast<size_t>(
         std::ranges::count_if(save_.flags, [this](const std::string& f) { return gemFlags_.count(f) != 0; }));
@@ -1028,11 +1038,14 @@ bool SandboxGame::checkExpectations() {
         } else if (name == "grounded") {
             actual = playerState_.grounded ? "true" : "false";
             met = actual == expected;
+        } else if (name == "visited") {
+            actual = std::to_string(save_.visited.size());
+            met = save_.visited.size() >= static_cast<size_t>(std::strtoul(expected.c_str(), nullptr, 10));
         } else if (name == "respawns") {
             actual = std::to_string(respawns_);
             met = actual == expected;
         } else {
-            animal::log::error("Expectation '{}' is unknown (room, gems, grounded, respawns)", name);
+            animal::log::error("Expectation '{}' is unknown (room, gems, visited, grounded, respawns)", name);
             ok = false;
             continue;
         }
