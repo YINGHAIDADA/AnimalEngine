@@ -56,7 +56,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 |---|---|
 | 资源 | 通过代际句柄（`Handle<Tag>`）引用；过期句柄永远解析失败。创建失败返回无效句柄并记录日志。 |
 | 管线 | `GraphicsPipelineDesc` 一次性描述着色器、顶点布局、拓扑、剔除、混合与颜色目标格式，创建后不可变。 |
-| 资源绑定 | 着色器用 `layout(set, binding)`；`BindGroup` 对应 Vulkan descriptor set，布局取自管线，必须提供该 set 的全部绑定。上限：4 个 set × 每 set 8 个 binding。 |
+| 资源绑定 | 着色器用 `layout(set, binding)`；`BindGroup` 对应 Vulkan descriptor set，布局取自管线，必须提供该 set 的全部绑定；着色器没有声明的条目被忽略（着色器可以不改代码就去掉一个资源）。上限：4 个 set × 每 set 8 个 binding。 |
 | 命令 | `CommandList` 只记录、与后端无关；`Device::submit` 时由后端翻译。`beginRenderPass` 会把视口与裁剪重置为整个附件，pass 内的管线 / 缓冲 / 绑定必须重新设置。 |
 | 数据写入 | `writeBuffer` / `writeTexture` 按队列顺序生效：对之后提交的所有命令可见，与命令的录制时间无关。同一提交前重复写同一区域，只有最后一次可见。 |
 | 坐标 | 裁剪空间深度 [0, 1]；帧缓冲、视口、裁剪、纹理坐标的原点都在左上；纹理第 0 行是顶行。正面朝向按屏幕上看到的方向定义。 |
@@ -66,7 +66,8 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | 一致性 | `AnimalRhiConformance` 为每项 RHI 功能画一个格子，两后端逐像素一致且与基准相同（渲染回归的一部分，ADR-0025）。索引三角形条带不得使用最大索引值（部分后端无法关闭图元重启）。 |
 | 校验 | Debug 构建中 `createDevice` 返回 `ValidatingDevice`：后端无关地检查资源描述与提交的命令列表，两后端报同样的错误（ADR-0021）。 |
 | GPU 计时 | `CommandList::beginTimer` / `endTimer`（渲染通道之外，可嵌套）；`Device::gpuTimings()` 返回最近一个结果就绪帧的各计时域，晚几帧（ADR-0016）。 |
-| 着色器热重载 | `Device::reloadShader` 原地替换着色器代码，重建引用它的管线，所有句柄（着色器、管线、绑定组）保持有效；阶段或资源绑定改变、编译 / 链接失败时什么都不改并返回 false（ADR-0028）。只在两帧之间调用。 |
+| 着色器热重载 | `Device::reloadShader` 原地替换着色器代码，重建引用它的管线，所有句柄（着色器、管线、绑定组）保持有效；阶段或资源绑定改变、编译 / 链接失败时什么都不改并返回 false；绑定改变时由 `Renderer2D::rebuild` 另建整套资源后交换（ADR-0028）。只在两帧之间调用。 |
+| 纹理重建 | `Device::recreateTexture` 在同一句柄下改变纹理尺寸 / 格式，绑定组继续有效（Vulkan 等待空闲后改写描述符）；`Device::textureExtent` 返回当前尺寸，渲染器以它计算 UV（ADR-0028）。 |
 
 ### 3.1 OpenGL 4.1 后端如何模拟这些约定
 
