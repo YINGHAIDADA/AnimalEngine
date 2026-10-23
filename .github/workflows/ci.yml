@@ -1,6 +1,8 @@
-# Build and unit tests on macOS and Windows for every push to main and every pull request.
-# Warnings are errors here (ANIMAL_WARNINGS_AS_ERRORS). Rendering is not checked: hosted runners
-# have no GPU; the render regression (tools/scripts/render_regression.py) runs on developer machines.
+# For every push to main and every pull request, on macOS and Windows: builds with unit tests,
+# and the release layout (data.pak cooked twice and compared, verified, and identical on both
+# platforms; kept as a build artifact). Warnings are errors here (ANIMAL_WARNINGS_AS_ERRORS).
+# Rendering is not checked: hosted runners have no GPU; the render regression
+# (tools/scripts/render_regression.py, also with --pack) runs on developer machines.
 name: CI
 
 on:
@@ -65,3 +67,74 @@ jobs:
       - name: Unit tests
         if: matrix.tests
         run: ctest --test-dir build/ci --output-on-failure
+
+  # Release layout (ADR-0031): cook data.pak twice (must be identical), verify it, keep the result.
+  package:
+    name: Package ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: macOS, os: macos-15, preset: macos-ninja-release }
+          - { platform: Windows, os: windows-2022, preset: windows-ninja-release }
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Ninja (macOS)
+        if: runner.os == 'macOS'
+        run: brew list ninja >/dev/null 2>&1 || brew install ninja
+
+      - name: MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          variant: sccache
+          key: package-${{ matrix.os }}
+
+      - name: Configure
+        run: >
+          cmake --preset ${{ matrix.preset }} -B build/ci
+          -DANIMAL_DEV_TOOLS=OFF -DANIMAL_BUILD_TESTS=OFF -DANIMAL_WARNINGS_AS_ERRORS=ON
+          -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+
+      - name: Cook and assemble
+        run: cmake --build build/ci --target animal_package
+
+      - name: Cook again and compare (determinism)
+        shell: bash
+        run: |
+          build/ci/bin/Release/AnimalCooker --manifest=assets/cook.json --source=assets/source \
+            --shaders=build/ci/bin/Release/data/shaders --out=build/ci/second.pak > /dev/null
+          cmake -E compare_files build/ci/package/Release/data.pak build/ci/second.pak
+          cmake -E sha256sum build/ci/package/Release/data.pak | cut -d' ' -f1 > build/ci/package/Release/data.pak.sha256
+          cat build/ci/package/Release/data.pak.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AnimalGame-${{ matrix.platform }}
+          path: build/ci/package/Release/
+
+  # The same sources must cook to the same bytes on every platform.
+  pack-determinism:
+    name: Same data.pak on macOS and Windows
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: Compare
+        run: |
+          mac=$(cat AnimalGame-macOS/data.pak.sha256)
+          win=$(cat AnimalGame-Windows/data.pak.sha256)
+          echo "macOS   $mac"
+          echo "Windows $win"
+          test "$mac" = "$win"
