@@ -19,6 +19,7 @@ tools/shaderc/   构建期着色器编译器（不进入游戏）
 tools/devtools/  开发工具库（ANIMAL_DEV_TOOLS）：ImGui on RHI、面板组件、文件监视、源资源目录、Tiled 文档编辑
                  （依赖 engine + framework；游戏的 game/src/dev/ 在其上实现面板、热重载与关卡编辑器）
 tools/rhi_conformance/  RHI 功能一致性与着色器热重载检查
+tools/asset_cooker/     Asset Cooker（AnimalCooker）：源资源 → 确定性的 data.pak + 报告
 shaders/         GLSL 450 着色器源码
 ```
 
@@ -182,6 +183,8 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 
 ## 7. 运行时数据路径
 
-开发期数据在可执行文件旁的 `data/`（`build/<preset>/bin/<Config>/data/`），由 CMake 生成 / 复制：`data/shaders/*.ashd` 来自 `shaders/`，`data/textures/*` 来自 `assets/source/textures/`，`data/world/*` 来自 `assets/source/world/`。路径通过 `SDL_GetBasePath()` 计算，不依赖工作目录。M5 起改为 Asset Cooker 生成的资源包。
+开发期数据在可执行文件旁的 `data/`（`build/<preset>/bin/<Config>/data/`），由 CMake 生成 / 复制：`data/shaders/*.ashd` 来自 `shaders/`，`data/textures/*` 来自 `assets/source/textures/`，`data/world/*` 来自 `assets/source/world/`。路径通过 `SDL_GetBasePath()` 计算，不依赖工作目录。
+
+发行版的数据是 Asset Cooker 生成的 `data.pak`（ADR-0031）：启动时挂载在同一个数据目录上，此后该目录下的所有读取只走资源包（`core/file` 的挂载层），加载代码与散文件模式完全相同；材质来自共享图集（`textures/atlas.json` 列出区域）。
 
 开发构建中源文件是唯一真相（ADR-0026）：工具（面板保存、关卡编辑器、参数表）同时写源文件与部署副本；热重载监视源文件，变化时复制（或编译着色器）到 `data/` 再载入，被拒绝的数据会恢复部署副本（ADR-0028）。

@@ -4,7 +4,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**M0–M4 已完成**（macOS 与 Windows 均已验证）——M4 内容工具与热迭代：开发工具面板、参数表、着色器 / 纹理 / 数据热重载、内嵌关卡与世界编辑器、Aseprite 动画导入。下一步是 M5 资源烘焙与发行优化。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
+当前阶段：**M0–M5 已完成**（macOS 与 Windows）——M5 资源烘焙与发行优化：Asset Cooker、确定性的资源包 `data.pak`（zstd、去重、校验）、纹理图集、包体报告与发行布局。下一步是 M6 完整纵向切片与稳定性。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 
@@ -90,6 +90,7 @@ cmake --build --preset windows-ninja-debug
 | `--stress-lights=N` | （示例游戏）额外加入 N 盏游走的阴影光源，用于性能测试 |
 | `--start-room=NAME` | （示例游戏）从指定房间开始（如 `smoke_pit`），用于测试；不读写存档 |
 | `--tools[=窗口,...]` | （开发构建）启动时显示开发工具并打开指定窗口：`performance` `rendering` `rooms` `look` `effects` `plants` `tuning` `animations` `console` `demo` |
+| `--pack=data.pak` | 从资源包读取数据（不加时，可执行文件旁有 `data.pak` 就自动使用，否则读 `data/` 散文件；ADR-0031） |
 | `--input-script=path.txt` | 在指定帧注入按键 / 鼠标（画布像素坐标）/ 文本事件，用于自动化 UI 测试与演示；格式见 `engine/src/app/input_script.h` |
 
 玩法：收集散落在三个房间中的 7 颗宝石（右上角计数）；紫色甲虫在地面巡逻，碰到会被弹开；走进提示区域时屏幕下方显示提示；烟雾深坑右下角有水池（上方有一道 GPU 粒子瀑布），掉进去会漂浮在水面，按跳跃出水。拾取宝石、进入新房间后第一次站稳时自动保存，下次启动从该处继续（存档位置见 ADR-0011；`--demo` / `--deterministic` 不读写存档）。
@@ -124,6 +125,24 @@ cmake --build --preset windows-ninja-debug
 
 每次编辑都通过游戏自己的关卡解析器立即生效；保存写入 `assets/source/world/rooms/*.tmj` 与部署副本，新对象的 id 从不复用（宝石的存档键）。
 
+## 发行构建（M5）
+
+发行版只包含可执行文件和一个资源包 `data.pak`（ADR-0031）：
+
+```bash
+cmake --preset macos-ninja-release -DANIMAL_DEV_TOOLS=OFF     # 或 windows-ninja-release
+cmake --build --preset macos-ninja-release --target animal_package
+./build/macos-ninja-release/package/Release/AnimalGame         # 自动使用旁边的 data.pak
+```
+
+`animal_package` 用 `AnimalCooker` 按 [`assets/cook.json`](assets/cook.json) 烘焙：从世界文件出发沿引用收集房间、Tileset、观感、效果、植物，加上代码直接用到的预设、精灵表、材质与渲染器的着色器；每个文件用游戏自己的解析器校验，JSON 压缩为紧凑格式，材质合成图集（原始 RGBA8），全部用 zstd 写进 `data.pak`（同样的源文件总是得到逐字节相同的包），再用 `--verify` 按游戏的方式加载一遍。旁边的 `cook_report.json` 列出各类资源的源 / 烘焙后 / 压缩后大小、重复内容、未被引用（因此没有打包）的文件；引用缺失或数据无效时烘焙失败。新增的运行时数据要能从世界文件引用到，或写进清单。
+
+```bash
+B=build/macos-ninja-release/bin/Release
+$B/AnimalCooker --manifest=assets/cook.json --source=assets/source --shaders=$B/data/shaders --out=data.pak --report=report.json
+$B/AnimalCooker --verify=data.pak --manifest=assets/cook.json
+```
+
 ## 编辑关卡（Tiled）
 
 关卡位于 `assets/source/world/`：用 [Tiled](https://www.mapeditor.org/) 打开 `test.world` 即可看到并编辑所有房间。约定（Tile 属性、对象类型、地图属性）见 [ADR-0010](docs/ADR/ADR-0010-tiled-levels.md)，玩法对象（触发器、宝石、甲虫）见 [ADR-0011](docs/ADR/ADR-0011-gameplay-elements-and-save.md)，房间观感（`look` 预设与 `look.*` 覆盖，预设位于 `looks/`）见 [ADR-0015](docs/ADR/ADR-0015-looks.md)，粒子效果（`emitter` 对象，预设位于 `effects/`）见 [ADR-0017](docs/ADR/ADR-0017-effect-presets.md)，水域（`water` 对象）见 [ADR-0018](docs/ADR/ADR-0018-water.md)，植物（`plants` 对象，种类位于 `plants/`）与风（`wind.*` 地图属性、`wind` 对象）见 [ADR-0019](docs/ADR/ADR-0019-wind-and-plants.md)。开发构建运行时保存即自动热重载（否则重新构建即可部署到 `data/world/`）；也可以用游戏内的关卡编辑器（见上文）。房间最初由 `tools/scripts/make_test_world.py` 生成，该脚本现在拒绝覆盖已存在的文件（`--force` 才覆盖，会丢失编辑结果）。
@@ -155,6 +174,7 @@ ctest --preset macos-ninja-debug        # 或 windows-vs2022-debug / windows-nin
 python3 tools/scripts/render_regression.py            # 全部场景
 python3 tools/scripts/render_regression.py --only demo_pit
 python3 tools/scripts/render_regression.py --update   # 有意改变画面后刷新基准截图（提交时可见哪些画面变了）
+python3 tools/scripts/render_regression.py --pack build/macos-ninja-release/package/Release/data.pak   # 从资源包运行，结果也必须与基准相同
 ```
 
 后端一致性（OpenGL 与 Vulkan 截图逐像素对比）：
@@ -275,3 +295,16 @@ $R --backend=vulkan --demo --deterministic --no-vsync --hide-overlay --profile -
 | 发行构建可剔除开发工具 | `-DANIMAL_DEV_TOOLS=OFF` 的 Release 构建通过，不含 ImGui 与工具代码 | ✅ |
 | 渲染回归与单元测试 | `render_regression.py` 7 个场景两后端逐像素一致；`ctest` 101 个测试 | ✅ |
 | Windows 上的工具与热重载 | Windows 上重复以上步骤 | ✅ 已在 Windows 上验证 |
+
+## M5 验收条件
+
+| 条件 | 验证方式 | 状态 |
+|---|---|---|
+| Asset Cooker、格式转换、压缩、去重 | `AnimalCooker`：紧凑 JSON、原始 RGBA8 图集、zstd、相同内容只存一份（ADR-0031） | ✅ |
+| 图集 | 4 个材质（12 张 PNG）合成 128×16 图集三页；绘制调用平均 13.1 → 10.2（`--profile`，演示路线） | ✅ |
+| 资源目录与版本 | 包内资源目录带每个条目的哈希与压缩信息，文件头有格式版本、数据版本与目录哈希；损坏或版本不符时拒绝并说明 | ✅ |
+| 源资源确定性地生成发行资源 | 同一台机器两次烘焙逐字节相同（单元测试与 CI）；macOS 与 Windows 烘焙的 `data.pak` 哈希相同（CI） | ✅ |
+| 缺失 / 重复 / 未引用资源可报告 | 烘焙报告：缺失引用与无效数据使烘焙失败；重复内容与未引用文件列出（当前 6 个只给开发工具和测试用的着色器未打包） | ✅ |
+| 可比较优化前后的体积与加载性能 | 源数据 166 KB → `data.pak` 48.8 KB；启动数据加载（含渲染器初始化）OpenGL 约 21 → 20 ms、Vulkan 约 16 → 13 ms（Apple M2，Release，多次取中位数） | ✅ |
+| Release 构建 | `animal_package`：可执行文件 + `data.pak` 的独立目录，不依赖 `data/`；CI 在两个平台上打包并保存产物 | ✅ |
+| 发行资源与开发资源画面一致 | `render_regression.py --pack`：7 个场景两后端与基准逐像素一致 | ✅ |
