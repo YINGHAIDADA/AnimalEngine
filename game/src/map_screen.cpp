@@ -1,5 +1,6 @@
 // The map screen (M / Back): the rooms entered so far, laid out as in the world with their terrain,
-// the gems still to find in them and where the player is.
+// doors and switches, the gems still to find in them and where the player is. The current room is
+// drawn in full colour, the others darker.
 
 #include "sandbox_game.h"
 
@@ -16,38 +17,62 @@ namespace {
 constexpr animal::Color kShade = animal::Color::rgba(6, 6, 12, 215);
 constexpr animal::Color kTitle = animal::Color::rgba(150, 240, 215);
 constexpr animal::Color kHint = animal::Color::rgba(120, 130, 140);
-constexpr animal::Color kRoomFill = animal::Color::rgba(22, 26, 36);
-constexpr animal::Color kRoomEdge = animal::Color::rgba(96, 128, 140);
-constexpr animal::Color kCurrentFill = animal::Color::rgba(30, 40, 52);
-constexpr animal::Color kRock = animal::Color::rgba(128, 112, 104);
-constexpr animal::Color kCurrentRock = animal::Color::rgba(164, 146, 132);
-constexpr animal::Color kHazard = animal::Color::rgba(230, 60, 48);
-constexpr animal::Color kWater = animal::Color::rgba(50, 110, 170, 170);
-constexpr animal::Color kCurrentEdge = animal::Color::rgba(150, 240, 215);
+constexpr animal::Color kRoomFill = animal::Color::rgba(32, 42, 56);
+constexpr animal::Color kRock = animal::Color::rgba(166, 148, 134);
+constexpr animal::Color kHazard = animal::Color::rgba(236, 62, 48);
+constexpr animal::Color kWater = animal::Color::rgba(56, 120, 184, 190);
+constexpr animal::Color kDoor = animal::Color::rgba(150, 162, 214);
+constexpr animal::Color kGate = animal::Color::rgba(90, 226, 192);
+constexpr uint8_t kOpenDoorAlpha = 60;
+constexpr animal::Color kSwitchOff = animal::Color::rgba(214, 74, 60);
+constexpr animal::Color kSwitchOn = animal::Color::rgba(110, 236, 120);
 constexpr animal::Color kGem = animal::Color::rgba(255, 214, 90);
 constexpr animal::Color kPlayer = animal::Color::rgba(250, 250, 255);
 constexpr animal::Color kPlayerEdge = animal::Color::rgba(10, 10, 16);
+constexpr float kOtherRoomBrightness = 0.45f;
 
 // A square of `size` pixels centred on `p`, on whole pixels.
 animal::RectF square(animal::Vec2 p, float size) {
     return {std::round(p.x - size * 0.5f), std::round(p.y - size * 0.5f), size, size};
 }
 
-// A room's terrain on the map: water, solid tiles and hazards, in runs along each row, on whole pixels
-// so neighbouring tiles meet without gaps.
-void drawTerrain(animal::Renderer2D& renderer, const animal::WorldMapLayout& map, const animal::WorldRoom& worldRoom,
-                 const animal::Room& room, bool current) {
-    const auto screenX = [&](float x) { return std::round(map.toScreen({static_cast<float>(worldRoom.rect.x) + x, 0.0f}).x); };
-    const auto screenY = [&](float y) { return std::round(map.toScreen({0.0f, static_cast<float>(worldRoom.rect.y) + y}).y); };
-    const auto area = [&](float x0, float y0, float x1, float y1) {
+// Draws one room: everything in room pixels, mapped to whole screen pixels so neighbouring tiles
+// meet without gaps; rooms other than the current one darker.
+class RoomPainter {
+public:
+    RoomPainter(animal::Renderer2D& renderer, const animal::WorldMapLayout& map, const animal::WorldRoom& worldRoom,
+                bool current)
+        : renderer_(renderer), map_(map), origin_{static_cast<float>(worldRoom.rect.x), static_cast<float>(worldRoom.rect.y)},
+          brightness_(current ? 1.0f : kOtherRoomBrightness) {}
+
+    void fill(float x0, float y0, float x1, float y1, animal::Color color) const {
         const float left = screenX(x0);
         const float top = screenY(y0);
-        return animal::RectF{left, top, screenX(x1) - left, screenY(y1) - top};
-    };
+        renderer_.fillRect({left, top, screenX(x1) - left, screenY(y1) - top}, shade(color));
+    }
+    void dot(animal::Vec2 p, float size, animal::Color color) const {
+        renderer_.fillRect(square(map_.toScreen(origin_ + p), size), shade(color));
+    }
+
+private:
+    float screenX(float x) const { return std::round(map_.toScreen({origin_.x + x, 0.0f}).x); }
+    float screenY(float y) const { return std::round(map_.toScreen({0.0f, origin_.y + y}).y); }
+    animal::Color shade(animal::Color c) const {
+        const auto scale = [this](uint8_t v) { return static_cast<uint8_t>(std::lround(v * brightness_)); };
+        return animal::Color::rgba(scale(c.r), scale(c.g), scale(c.b), c.a);
+    }
+
+    animal::Renderer2D& renderer_;
+    const animal::WorldMapLayout& map_;
+    animal::Vec2 origin_;
+    float brightness_;
+};
+
+// Water, then solid tiles and hazards in runs along each row.
+void drawTerrain(const RoomPainter& paint, const animal::Room& room) {
     for (const animal::LevelObject* water : room.objectsOfType("water")) {
-        renderer.fillRect(area(water->position.x, water->position.y, water->position.x + water->size.x,
-                               water->position.y + water->size.y),
-                          kWater);
+        paint.fill(water->position.x, water->position.y, water->position.x + water->size.x,
+                   water->position.y + water->size.y, kWater);
     }
     const animal::TileMap& tiles = room.tiles;
     const float size = static_cast<float>(tiles.tileSize());
@@ -65,10 +90,8 @@ void drawTerrain(animal::Renderer2D& renderer, const animal::WorldMapLayout& map
                    (tiles.hazardOf(tiles.tile(end, ty)) != animal::Hazard::None) == hazard) {
                 ++end;
             }
-            const animal::Color color = hazard ? kHazard : (current ? kCurrentRock : kRock);
-            renderer.fillRect(area(static_cast<float>(tx) * size, static_cast<float>(ty) * size,
-                                   static_cast<float>(end) * size, static_cast<float>(ty + 1) * size),
-                              color);
+            paint.fill(static_cast<float>(tx) * size, static_cast<float>(ty) * size, static_cast<float>(end) * size,
+                       static_cast<float>(ty + 1) * size, hazard ? kHazard : kRock);
             tx = end;
         }
     }
@@ -97,26 +120,36 @@ void SandboxGame::drawMap(animal::Renderer2D& renderer) {
     const animal::RectF area{canvas.x + margin, canvas.y + band, canvas.width - margin * 2.0f,
                              canvas.height - band * 2.0f};
     const animal::WorldMapLayout map = animal::layoutWorldMap(world_, area, 0.5f * u);
+    const size_t gems = collectedGems();
     for (size_t i = 0; i < world_.rooms.size(); ++i) {
         const animal::WorldRoom& worldRoom = world_.rooms[i];
         const std::string name = roomName(worldRoom.path);
-        if (!save_.visited.contains(name)) {
-            continue;
-        }
-        const bool current = &worldRoom == currentRoom_;
-        renderer.fillRect(map.rooms[i], current ? kCurrentFill : kRoomFill);
         const animal::Room* room = roomData(worldRoom);
-        if (room) {
-            drawTerrain(renderer, map, worldRoom, *room, current);
-        }
-        renderer.strokeRect(map.rooms[i], current ? kCurrentEdge : kRoomEdge, current ? u : std::max(1.0f, u * 0.5f));
-        if (!room) {
+        if (!save_.visited.contains(name) || !room) {
             continue;
         }
-        const animal::Vec2 roomOrigin{static_cast<float>(worldRoom.rect.x), static_cast<float>(worldRoom.rect.y)};
+        const RoomPainter paint(renderer, map, worldRoom, &worldRoom == currentRoom_);
+        paint.fill(0.0f, 0.0f, static_cast<float>(worldRoom.rect.width), static_cast<float>(worldRoom.rect.height),
+                   kRoomFill);
+        drawTerrain(paint, *room);
+        for (const animal::LevelObject* door : room->objectsOfType("door")) {
+            const std::string flag = door->properties.getString("flag");
+            const int needs = door->properties.getInt("gems");
+            const bool open = (!flag.empty() && save_.flags.contains(Mechanisms::switchFlag(flag))) ||
+                              (needs > 0 && gems >= static_cast<size_t>(needs));
+            animal::Color color = needs > 0 ? kGate : kDoor;
+            color.a = open ? kOpenDoorAlpha : 255;
+            paint.fill(door->position.x, door->position.y, door->position.x + door->size.x,
+                       door->position.y + door->size.y, color);
+        }
+        for (const animal::LevelObject* lever : room->objectsOfType("switch")) {
+            const bool on = save_.flags.contains(Mechanisms::switchFlag(lever->properties.getString("flag")));
+            paint.fill(lever->position.x - 3.0f, lever->position.y - 4.0f, lever->position.x + 3.0f, lever->position.y,
+                       on ? kSwitchOn : kSwitchOff);
+        }
         for (const animal::LevelObject* gem : room->objectsOfType("gem")) {
             if (!save_.flags.contains(CaveRoom::gemFlag(name, gem->id))) {
-                renderer.fillRect(square(map.toScreen(roomOrigin + gem->position), 2.0f * u), kGem);
+                paint.dot(gem->position, 2.0f * u, kGem);
             }
         }
     }
