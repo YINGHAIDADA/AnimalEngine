@@ -5,7 +5,107 @@
 
 #include <SDL3/SDL.h>
 
+#include <array>
+
 namespace animal::platform {
+
+namespace {
+
+constexpr size_t kCursorCount = static_cast<size_t>(Cursor::Hidden);
+std::array<SDL_Cursor*, kCursorCount> gCursors{};
+Cursor gCurrentCursor = Cursor::Arrow;
+
+SDL_SystemCursor systemCursor(Cursor cursor) {
+    switch (cursor) {
+    case Cursor::Arrow:
+    case Cursor::Hidden:
+        break;
+    case Cursor::TextInput:
+        return SDL_SYSTEM_CURSOR_TEXT;
+    case Cursor::Move:
+        return SDL_SYSTEM_CURSOR_MOVE;
+    case Cursor::ResizeNS:
+        return SDL_SYSTEM_CURSOR_NS_RESIZE;
+    case Cursor::ResizeEW:
+        return SDL_SYSTEM_CURSOR_EW_RESIZE;
+    case Cursor::ResizeNESW:
+        return SDL_SYSTEM_CURSOR_NESW_RESIZE;
+    case Cursor::ResizeNWSE:
+        return SDL_SYSTEM_CURSOR_NWSE_RESIZE;
+    case Cursor::Hand:
+        return SDL_SYSTEM_CURSOR_POINTER;
+    case Cursor::NotAllowed:
+        return SDL_SYSTEM_CURSOR_NOT_ALLOWED;
+    }
+    return SDL_SYSTEM_CURSOR_DEFAULT;
+}
+
+MouseButton mouseButtonOf(uint8_t sdlButton, bool& known) {
+    known = true;
+    switch (sdlButton) {
+    case SDL_BUTTON_LEFT:
+        return MouseButton::Left;
+    case SDL_BUTTON_RIGHT:
+        return MouseButton::Right;
+    case SDL_BUTTON_MIDDLE:
+        return MouseButton::Middle;
+    default:
+        known = false;
+        return MouseButton::Left;
+    }
+}
+
+void translateInputEvent(const SDL_Event& event, std::vector<InputEvent>& out) {
+    InputEvent e;
+    switch (event.type) {
+    case SDL_EVENT_KEY_DOWN:
+    case SDL_EVENT_KEY_UP:
+        e.type = InputEvent::Type::Key;
+        e.key = detail::keyFromScancode(event.key.scancode);
+        e.down = event.type == SDL_EVENT_KEY_DOWN;
+        e.modifiers = detail::modifiersFrom(event.key.mod);
+        break;
+    case SDL_EVENT_TEXT_INPUT:
+        e.type = InputEvent::Type::Text;
+        e.text = event.text.text ? event.text.text : "";
+        break;
+    case SDL_EVENT_MOUSE_MOTION:
+        e.type = InputEvent::Type::MouseMove;
+        e.x = event.motion.x;
+        e.y = event.motion.y;
+        break;
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP: {
+        bool known = false;
+        e.type = InputEvent::Type::MouseButton;
+        e.button = mouseButtonOf(event.button.button, known);
+        e.down = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
+        if (!known) {
+            return;
+        }
+        break;
+    }
+    case SDL_EVENT_MOUSE_WHEEL:
+        e.type = InputEvent::Type::MouseWheel;
+        e.x = event.wheel.x;
+        e.y = event.wheel.y;
+        break;
+    case SDL_EVENT_WINDOW_FOCUS_GAINED:
+    case SDL_EVENT_WINDOW_FOCUS_LOST:
+        e.type = InputEvent::Type::Focus;
+        e.down = event.type == SDL_EVENT_WINDOW_FOCUS_GAINED;
+        break;
+    case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+        e.type = InputEvent::Type::MouseMove;
+        e.x = e.y = -1.0e30f; // no mouse over the window
+        break;
+    default:
+        return;
+    }
+    out.push_back(std::move(e));
+}
+
+} // namespace
 
 bool initialize() {
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
@@ -19,6 +119,12 @@ bool initialize() {
 
 void shutdown() {
     detail::closeAllGamepads();
+    for (SDL_Cursor*& cursor : gCursors) {
+        if (cursor) {
+            SDL_DestroyCursor(cursor);
+            cursor = nullptr;
+        }
+    }
     SDL_Quit();
 }
 
@@ -30,6 +136,7 @@ FrameEvents pollEvents() {
             events.quitRequested = true;
         }
         detail::handleGamepadEvent(event);
+        translateInputEvent(event, events.input);
     }
     return events;
 }
@@ -52,6 +159,34 @@ std::string userDataDirectory(const char* organization, const char* application)
 std::string executableDirectory() {
     const char* base = SDL_GetBasePath();
     return base ? std::string(base) : std::string("./");
+}
+
+std::string clipboardText() {
+    char* text = SDL_GetClipboardText();
+    std::string result = text ? text : "";
+    SDL_free(text);
+    return result;
+}
+
+void setClipboardText(const std::string& text) {
+    SDL_SetClipboardText(text.c_str());
+}
+
+void setCursor(Cursor cursor) {
+    if (cursor == gCurrentCursor) {
+        return;
+    }
+    gCurrentCursor = cursor;
+    if (cursor == Cursor::Hidden) {
+        SDL_HideCursor();
+        return;
+    }
+    SDL_Cursor*& slot = gCursors[static_cast<size_t>(cursor)];
+    if (!slot) {
+        slot = SDL_CreateSystemCursor(systemCursor(cursor));
+    }
+    SDL_SetCursor(slot);
+    SDL_ShowCursor();
 }
 
 } // namespace animal::platform

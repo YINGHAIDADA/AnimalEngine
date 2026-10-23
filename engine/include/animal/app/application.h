@@ -12,7 +12,12 @@ namespace animal {
 namespace platform {
 class Input;
 class Window;
+struct FrameEvents;
 } // namespace platform
+
+namespace rhi {
+class CommandList;
+}
 
 class Renderer2D;
 
@@ -34,11 +39,13 @@ struct EngineContext {
     platform::Window* window = nullptr;
     rhi::Device* device = nullptr;
     platform::Input* input = nullptr;
+    const platform::FrameEvents* events = nullptr; // this frame's OS events (valid during onFrame)
     Renderer2D* renderer = nullptr;
     std::string dataDirectory; // with trailing separator
     FrameStats stats;
     bool demo = false;          // --demo: the game drives itself with scripted input
     bool deterministic = false; // --deterministic: one fixed step per frame (reproducible runs)
+    bool escapeQuits = true;    // Escape ends the run (games turn this off while it means "back")
     bool quitRequested = false;
 };
 
@@ -66,6 +73,9 @@ protected:
     // Screen-space HUD in window pixels, drawn over the presented canvas (before the debug overlay).
     virtual void onScreen(EngineContext& context, Renderer2D& renderer);
     virtual void onDebugText(EngineContext& context, std::vector<std::string>& lines);
+    // Developer tools over the finished frame (after the debug overlay): record a render pass that
+    // loads and stores the swapchain texture.
+    virtual void onToolsPass(EngineContext& context, rhi::CommandList& commands);
     virtual void onShutdown(EngineContext& context);
 };
 

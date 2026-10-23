@@ -103,6 +103,24 @@ PixelSize Window::pixelSize() const {
     return {static_cast<uint32_t>(w > 0 ? w : 0), static_cast<uint32_t>(h > 0 ? h : 0)};
 }
 
+PixelSize Window::sizeInPoints() const {
+    int w = 0;
+    int h = 0;
+    SDL_GetWindowSize(window_, &w, &h);
+    return {static_cast<uint32_t>(w > 0 ? w : 0), static_cast<uint32_t>(h > 0 ? h : 0)};
+}
+
+void Window::setTextInput(bool enabled) {
+    if (enabled == SDL_TextInputActive(window_)) {
+        return;
+    }
+    if (enabled) {
+        SDL_StartTextInput(window_);
+    } else {
+        SDL_StopTextInput(window_);
+    }
+}
+
 void Window::show() {
     SDL_ShowWindow(window_);
 }

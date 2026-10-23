@@ -35,9 +35,14 @@ public:
     Window& operator=(const Window&) = delete;
 
     PixelSize pixelSize() const;
+    // Window size in points: the unit of mouse positions. pixelSize() / sizeInPoints() is the
+    // display density (2 on Retina).
+    PixelSize sizeInPoints() const;
     GraphicsApi api() const { return api_; }
     void show();
     void setSize(int width, int height); // in points
+    // Text input events (InputEvent::Type::Text) are only delivered while enabled.
+    void setTextInput(bool enabled);
 
     // For RHI backends only (surface / context creation).
     SDL_Window* sdlWindow() const { return window_; }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <format>
+#include <functional>
 #include <string_view>
 #include <utility>
 
@@ -15,6 +16,12 @@ enum class Level {
 
 void write(Level level, std::string_view message);
 void setMinimumLevel(Level level);
+
+// Extra receivers of every message that passes the minimum level (e.g. an in-game console).
+// Called on the logging thread; sinks must not log themselves.
+using Sink = std::function<void(Level level, std::string_view message)>;
+int addSink(Sink sink);
+void removeSink(int id);
 
 template <typename... Args>
 void debug(std::format_string<Args...> fmt, Args&&... args) {

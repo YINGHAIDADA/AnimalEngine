@@ -215,6 +215,8 @@ void Application::onScreen(EngineContext&, Renderer2D&) {}
 
 void Application::onDebugText(EngineContext&, std::vector<std::string>&) {}
 
+void Application::onToolsPass(EngineContext&, rhi::CommandList&) {}
+
 void Application::onShutdown(EngineContext&) {}
 
 bool Application::onArgument(std::string_view) {
@@ -292,11 +294,13 @@ int Application::run(int argc, char** argv) {
             int screenshotCounter = 0;
 
             while (!context.quitRequested) {
-                if (platform::pollEvents().quitRequested) {
+                const platform::FrameEvents events = platform::pollEvents();
+                if (events.quitRequested) {
                     break;
                 }
-                input.update();
-                if (input.pressed(platform::Key::Escape)) {
+                input.update(events);
+                context.events = &events;
+                if (context.escapeQuits && input.pressed(platform::Key::Escape)) {
                     break;
                 }
                 if (input.pressed(platform::Key::F1)) {
@@ -369,6 +373,7 @@ int Application::run(int argc, char** argv) {
                         drawOverlay(context, renderer, std::move(lines));
                     }
                     renderer.endScreen();
+                    onToolsPass(context, commands);
                     renderer.endFrame();
                     device->submit(commands);
                     if (!screenshotPath.empty()) {
@@ -386,6 +391,7 @@ int Application::run(int argc, char** argv) {
                     break;
                 }
             }
+            context.events = nullptr;
             if (commandLine->profile) {
                 profile.report();
             }

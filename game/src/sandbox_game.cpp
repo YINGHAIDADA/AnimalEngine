@@ -75,7 +75,7 @@ bool SandboxGame::onArgument(std::string_view argument) {
         startRoomName_ = std::string(argument.substr(kStartRoom.size()));
         return true;
     }
-    return false;
+    return dev_.handleArgument(argument);
 }
 
 // Performance testing: lights wandering over the whole room on fixed pseudo-random orbits.
@@ -218,7 +218,7 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     fluid.smokeKeepPerSecond = 0.8f;
     fluid.velocityKeepPerSecond = 0.7f;
     fluid.buoyancy = 45.0f;
-    return true;
+    return dev_.init(context, *this);
 }
 
 // The room's look: the preset named by its "look" property (a file relative to the room) over
@@ -303,6 +303,7 @@ void SandboxGame::updateAnimation(float dt) {
 }
 
 void SandboxGame::onFrame(animal::EngineContext& context) {
+    dev_.frame(context);
     const animal::platform::Input& input = *context.input;
     if (context.demo) {
         applyDemoInput();
@@ -629,7 +630,12 @@ void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::s
                                 savePath_.empty() ? " (NOT SAVED)" : ""));
 }
 
+void SandboxGame::onToolsPass(animal::EngineContext& context, animal::rhi::CommandList& commands) {
+    dev_.render(context, commands);
+}
+
 void SandboxGame::onShutdown(animal::EngineContext& context) {
+    dev_.shutdown(context);
     animal::destroyMaterial(*context.device, assets_.tileset);
     animal::destroyMaterial(*context.device, assets_.props);
     animal::destroyMaterial(*context.device, creature_);

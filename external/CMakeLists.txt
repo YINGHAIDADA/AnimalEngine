@@ -78,6 +78,23 @@ endif()
 add_library(animal_stb INTERFACE)
 target_include_directories(animal_stb SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/stb")
 
+# --- Dear ImGui (developer tools only) -----------------------------------------
+if(ANIMAL_DEV_TOOLS)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui.h")
+        message(FATAL_ERROR "Missing submodule external/imgui. Run: git submodule update --init --depth 1")
+    endif()
+    add_library(animal_imgui STATIC
+        imgui/imgui.cpp
+        imgui/imgui_demo.cpp
+        imgui/imgui_draw.cpp
+        imgui/imgui_tables.cpp
+        imgui/imgui_widgets.cpp)
+    target_include_directories(animal_imgui SYSTEM PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/imgui")
+    target_compile_definitions(animal_imgui PUBLIC IMGUI_DISABLE_OBSOLETE_FUNCTIONS)
+    target_compile_features(animal_imgui PUBLIC cxx_std_20)
+    animal_set_folder(external animal_imgui)
+endif()
+
 add_library(animal_json INTERFACE)
 target_include_directories(animal_json SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/nlohmann")
 

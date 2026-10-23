@@ -1,5 +1,11 @@
+set(ANIMAL_TOOL_SHADERS "")
+if(ANIMAL_DEV_TOOLS)
+    list(APPEND ANIMAL_TOOL_SHADERS imgui.vert imgui.frag)
+endif()
+
 animal_add_shaders(animal_shaders
     SOURCES
+        ${ANIMAL_TOOL_SHADERS}
         sprite.vert
         sprite.frag
         sprite_lit.frag

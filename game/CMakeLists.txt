@@ -1,13 +1,26 @@
 set(ANIMAL_GAME_SOURCES
     src/cave_room.cpp
     src/cave_room.h
+    src/dev/dev_tools.h
     src/main.cpp
     src/sandbox_game.cpp
     src/sandbox_game.h)
 
+if(ANIMAL_DEV_TOOLS)
+    list(APPEND ANIMAL_GAME_SOURCES
+        src/dev/dev_tools.cpp)
+else()
+    list(APPEND ANIMAL_GAME_SOURCES src/dev/dev_tools_off.cpp)
+endif()
+
 add_executable(animal_game ${ANIMAL_GAME_SOURCES})
 animal_set_compile_options(animal_game)
+target_include_directories(animal_game PRIVATE src)
 target_link_libraries(animal_game PRIVATE animal::framework)
+if(ANIMAL_DEV_TOOLS)
+    target_link_libraries(animal_game PRIVATE animal::devtools)
+    target_compile_definitions(animal_game PRIVATE ANIMAL_DEV_TOOLS=1)
+endif()
 
 set_target_properties(animal_game PROPERTIES
     OUTPUT_NAME AnimalGame

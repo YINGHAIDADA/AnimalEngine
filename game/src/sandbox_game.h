@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cave_room.h"
+#include "dev/dev_tools.h"
 
 #include <animal/app/application.h>
 #include <animal/framework/action_map.h>
@@ -46,9 +47,12 @@ protected:
     void onRender(animal::EngineContext& context, animal::Renderer2D& renderer) override;
     void onScreen(animal::EngineContext& context, animal::Renderer2D& renderer) override;
     void onDebugText(animal::EngineContext& context, std::vector<std::string>& lines) override;
+    void onToolsPass(animal::EngineContext& context, animal::rhi::CommandList& commands) override;
     void onShutdown(animal::EngineContext& context) override;
 
 private:
+    friend struct DevTools::State; // the developer tools inspect and edit the game state
+
     void bindActions();
     void applyDemoInput();
     const animal::Room* roomData(const animal::WorldRoom& worldRoom);
@@ -125,6 +129,8 @@ private:
     animal::Camera2D camera_;
     CaveAssets assets_;
     animal::SpriteMaterial creature_;
+
+    DevTools dev_;
 };
 
 } // namespace game
