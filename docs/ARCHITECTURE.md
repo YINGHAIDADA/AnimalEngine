@@ -11,10 +11,11 @@ framework/       Tile 地图、像素级碰撞、实体、   │
 engine/                                         │ 只能向下依赖
   app/           主循环、固定时间步、调试覆盖层  │
   renderer/      Renderer2D、SpriteBatch、画布   │
+  audio/         SDL3 音频流 + 混音器、WAV / Ogg │
   resources/     图片 / 纹理 / 着色器包加载      │
-  rhi/           图形抽象 + 后端（opengl/ vulkan/）│
-  platform/      SDL3：窗口、输入、事件、时间    │
-  core/          日志、断言、句柄、数学、文件   ─┘
+  rhi/           图形抽象 + 后端（opengl/ vulkan/ null/）
+  platform/      SDL3：窗口、输入、事件、时间、崩溃处理
+  core/          日志（含日志文件）、断言、句柄、数学、文件、资源包、CPU 分区计时 ─┘
 tools/shaderc/   构建期着色器编译器（不进入游戏）
 tools/devtools/  开发工具库（ANIMAL_DEV_TOOLS）：ImGui on RHI、面板组件、文件监视、源资源目录、Tiled 文档编辑
                  （依赖 engine + framework；游戏的 game/src/dev/ 在其上实现面板、热重载与关卡编辑器）
@@ -25,7 +26,9 @@ shaders/         GLSL 450 着色器源码
 
 - `engine/src/rhi/opengl/` 与 `engine/src/rhi/vulkan/` 是仅有的可以包含图形 API 头文件、调用 `gl*` / `vk*` 的目录。
 - RHI 公共头文件（`animal/rhi/*.h`）不暴露任何后端类型。
-- SDL 只出现在 `platform/`、`core/`（日志、文件）、RHI 后端（上下文 / Surface）和 `app/entry_point.h`。
+- SDL 只出现在 `platform/`、`core/`（日志、文件）、`audio/`（音频设备与格式转换）、RHI 后端（上下文 / Surface）和 `app/entry_point.h`。
+- `rhi/null/` 是无头后端（`--headless`）：接受全部 RHI 调用、不绘制，用于自动通关测试（ADR-0032）。
+- 音频线程只运行混音器（`AudioSystem::mix`）；游戏线程的调用与之共用一把锁，每次只做很少的工作（ADR-0033）。
 - 引擎不依赖 ImGui 与开发工具：工具通过 `EngineContext::events`、`Application::onToolsPass` 与 `Input::setCaptured` 接入；`ANIMAL_DEV_TOOLS=OFF` 时整个工具层不编译（ADR-0026）。
 
 ## 2. 帧流程（光照细节见 ADR-0007）
@@ -177,13 +180,14 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | `Look` | 观感预设：光照、边缘光、泛光与调色、烟雾颜色的扁平字段表；`*.look.json` 可继承（`base`）、严格校验；房间用 Tiled `look` / `look.*` 引用与覆盖；`mixLooks` 用于房间切换过渡（ADR-0015）。 |
 | `TriggerSet` | 矩形触发区域；`update(碰撞框)` 返回本步刚进入的触发器，离开后重新进入会再次触发，`once` 只触发一次（ADR-0011）。 |
 | `stepPatrol` | 地面巡逻：着地时前方脚下没有实心 Tile（可关闭）或撞墙就转身，悬空时按重力下落；逐像素碰撞同 `Body`。 |
-| `SaveData` / `readSave` / `writeSave` | 版本化 JSON 存档（房间、位置、标志集合）；原子写入（临时文件 + 重命名）；格式、版本、字段错误时拒绝并给出原因（ADR-0011）。 |
+| `SaveData` / `loadSave` / `writeSave` | 版本化 JSON 存档（房间、位置、标志集合、已访问房间、游戏时间）；写入前保留上一份有效存档为 `.bak`，再原子写入；读取时迁移旧版本，损坏时用备份恢复，新版本存档拒绝且不覆盖（ADR-0011、ADR-0032）。 |
+| `layoutWorldMap` | 把整个世界布局缩放进屏幕区域（整像素、相邻房间共用边），地图界面用它绘制已访问的房间。 |
 | `level`（Tiled） | `loadWorld` / `loadRoom` 读取 `.world` / `.tmj` / `.tsj`；`Room` 含 `TileMap`（实心来自 Tile 属性）、按 Tile id 的属性、对象与地图属性；错误带文件名与字段（ADR-0010）。 |
 | `Influence` | 推动植被与粒子的对象（包围盒 + 速度 + 是否刚落地），由游戏每步提供；模拟与绘制分离，框架不依赖渲染器。 |
 
 ## 7. 运行时数据路径
 
-开发期数据在可执行文件旁的 `data/`（`build/<preset>/bin/<Config>/data/`），由 CMake 生成 / 复制：`data/shaders/*.ashd` 来自 `shaders/`，`data/textures/*` 来自 `assets/source/textures/`，`data/world/*` 来自 `assets/source/world/`。路径通过 `SDL_GetBasePath()` 计算，不依赖工作目录。
+开发期数据在可执行文件旁的 `data/`（`build/<preset>/bin/<Config>/data/`），由 CMake 生成 / 复制：`data/shaders/*.ashd` 来自 `shaders/`，`data/textures/*` 来自 `assets/source/textures/`，`data/world/*` 来自 `assets/source/world/`，`data/sounds/*` 来自 `assets/source/sounds/`。路径通过 `SDL_GetBasePath()` 计算，不依赖工作目录。
 
 发行版的数据是 Asset Cooker 生成的 `data.pak`（ADR-0031）：启动时挂载在同一个数据目录上，此后该目录下的所有读取只走资源包（`core/file` 的挂载层），加载代码与散文件模式完全相同；材质来自共享图集（`textures/atlas.json` 列出区域）。
 

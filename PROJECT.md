@@ -334,15 +334,17 @@ ctest --test-dir build/<preset> --output-on-failure
   - ADR-0029 内嵌关卡编辑器：直接编辑 Tiled 文档、经游戏解析器实时生效、撤销 / 保存 / 试玩、输入脚本测试（Accepted）。
   - ADR-0030 动画导入：Aseprite 精灵表导出驱动动画片段，逐帧时长，热重载（Accepted）。
   - ADR-0031 资源包与 Asset Cooker：确定性的 `data.pak`（zstd、去重、哈希校验、文件层挂载）、沿引用收集并用游戏解析器校验、紧凑 JSON、纹理图集、包体报告与发行布局（Accepted）。
+  - ADR-0032 稳定性与自动化验证：无头运行（RHI Null 后端）与 `--expect` 自动通关测试、存档版本 2（备份、损坏恢复、迁移、新版本不覆盖）、CPU 分区计时、轮转日志与崩溃报告（Accepted）。
+  - ADR-0033 音频：SDL3 音频流 + 自有混音器（声部、分组、声像、变速、淡入淡出、限幅），WAV / Ogg Vorbis（stb_vorbis），资源包与热重载（Accepted）。
 
 ## 13. 当前待确认项（不阻塞 M0）
 
 - macOS 最低系统版本（预设中暂定 13.3，libc++ 的 `std::format` 需要）、是否需要 Universal Binary（arm64 + x86_64）；Windows 最低版本。
 - 是否评估 SDL3 自带的 GPU API（SDL_GPU，支持 Vulkan / Metal / D3D12）作为 RHI 的一个后端或替代方案。
 - ~~CI 平台~~：已采用 GitHub Actions 的 macOS + Windows 矩阵（构建、单元测试、发行布局与资源包确定性）。
-- 音频模块采用 SDL3 音频能力还是单独音频库。
+- ~~音频模块采用 SDL3 音频能力还是单独音频库~~：SDL3 音频流 + 自有混音器（ADR-0033）。
 - 流体模拟最终使用 GPU 还是 CPU；以原型性能测试为准。
-- 音频格式；纹理压缩格式（M5 采用原始 RGBA8 + zstd，像素美术不使用有损块压缩）。资源包压缩已定为 zstd（ADR-0031）。
+- ~~音频格式~~：WAV 与 Ogg Vorbis（ADR-0033）；纹理压缩格式（M5 采用原始 RGBA8 + zstd，像素美术不使用有损块压缩）。资源包压缩已定为 zstd（ADR-0031）。
 - 是否需要游戏逻辑 DLL 热重载；优先实现资源和着色器热重载。
 - 目标帧率、最低硬件规格和发行包体预算；先在 M0/M1 建立测量基线。
 

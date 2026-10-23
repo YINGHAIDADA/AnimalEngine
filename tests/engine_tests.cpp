@@ -2,6 +2,7 @@
 
 #include <animal/core/handle.h>
 #include <animal/core/math.h>
+#include <animal/core/profiler.h>
 #include <animal/renderer/camera2d.h>
 #include <animal/renderer/pixel_canvas.h>
 #include <animal/rhi/command_list.h>
@@ -208,6 +209,32 @@ TEST(command_list_records_timer_scopes) {
     CHECK(list.commands().size() == 4);
     CHECK(std::holds_alternative<rhi::cmd::BeginTimer>(list.commands()[0]));
     CHECK(std::holds_alternative<rhi::cmd::EndTimer>(list.commands()[3]));
+}
+
+// --- Profiler zones (ADR-0032) ---------------------------------------------------
+
+TEST(profiler_nests_and_sums_zones_per_frame) {
+    profiler::beginFrame();
+    {
+        ANIMAL_PROFILE_ZONE("update");
+        for (int step = 0; step < 3; ++step) {
+            ANIMAL_PROFILE_ZONE("step");
+        }
+    }
+    {
+        ANIMAL_PROFILE_ZONE("render");
+    }
+    profiler::endFrame();
+    const std::vector<profiler::ZoneTiming>& zones = profiler::lastFrame();
+    CHECK(zones.size() == 3);
+    CHECK(std::string(zones[0].name) == "update" && zones[0].depth == 0 && zones[0].calls == 1);
+    CHECK(std::string(zones[1].name) == "step" && zones[1].depth == 1 && zones[1].calls == 3);
+    CHECK(std::string(zones[2].name) == "render" && zones[2].depth == 0);
+    CHECK(zones[0].milliseconds >= zones[1].milliseconds && zones[1].milliseconds >= 0.0);
+
+    profiler::beginFrame();
+    profiler::endFrame();
+    CHECK(profiler::lastFrame().empty()); // only the last finished frame is kept
 }
 
 } // namespace

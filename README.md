@@ -4,7 +4,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**M0–M5 已完成**（macOS 与 Windows）——M5 资源烘焙与发行优化：Asset Cooker、确定性的资源包 `data.pak`（zstd、去重、校验）、纹理图集、包体报告与发行布局。下一步是 M6 完整纵向切片与稳定性。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
+当前阶段：**M0–M5 已完成**（macOS 与 Windows），**M6 完整纵向切片与稳定性进行中**——引擎部分已完成：无头运行与自动通关测试、存档备份与恢复、CPU 分区计时、日志文件与崩溃报告（ADR-0032），音频（ADR-0033），地图界面；接下来是 8–12 个房间的示例区域。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 
@@ -92,8 +92,17 @@ cmake --build --preset windows-ninja-debug
 | `--tools[=窗口,...]` | （开发构建）启动时显示开发工具并打开指定窗口：`performance` `rendering` `rooms` `look` `effects` `plants` `tuning` `animations` `console` `demo` |
 | `--pack=data.pak` | 从资源包读取数据（不加时，可执行文件旁有 `data.pak` 就自动使用，否则读 `data/` 散文件；ADR-0031） |
 | `--input-script=path.txt` | 在指定帧注入按键 / 鼠标（画布像素坐标）/ 文本事件，用于自动化 UI 测试与演示；格式见 `engine/src/app/input_script.h` |
+| `--headless` | 不开窗口、不绘制（RHI Null 后端），模拟照常运行；配合 `--demo --deterministic --frames=N` 做自动通关测试（ADR-0032） |
+| `--expect=room:NAME,gems:N,visited:N,grounded:true,respawns:N` | （示例游戏）退出时检查结果，未满足时退出码 3 |
+| `--strict` | RHI 校验层报告任何错误时运行失败（退出码 4） |
+| `--mute` | 不打开音频设备（音频系统照常运行但不出声；无头运行自动静音） |
+| `--crash-test=segv\|abort\|exception` | 启动后故意崩溃，检查崩溃报告；`--crash-dir=路径` 改变报告目录 |
 
-玩法：收集散落在三个房间中的 7 颗宝石（右上角计数）；紫色甲虫在地面巡逻，碰到会被弹开；走进提示区域时屏幕下方显示提示；烟雾深坑右下角有水池（上方有一道 GPU 粒子瀑布），掉进去会漂浮在水面，按跳跃出水。拾取宝石、进入新房间后第一次站稳时自动保存，下次启动从该处继续（存档位置见 ADR-0011；`--demo` / `--deterministic` 不读写存档）。
+玩法：收集散落在三个房间中的 7 颗宝石（右上角计数）；按 M（手柄 Back）打开地图：显示进入过的房间、其中还没拾取的宝石和自己的位置，打开时游戏暂停；紫色甲虫在地面巡逻，碰到会被弹开；走进提示区域时屏幕下方显示提示；烟雾深坑右下角有水池（上方有一道 GPU 粒子瀑布），掉进去会漂浮在水面，按跳跃出水。拾取宝石、进入新房间后第一次站稳时与退出游戏时自动保存，下次启动从该处继续（存档位置见 ADR-0011；`--demo` / `--deterministic` 不读写存档）。存档写入前会保留上一份为 `save.json.bak`：存档损坏时自动用备份恢复，来自更新版本的存档不会被覆盖（ADR-0032）。
+
+音效：跳跃、落地、抓藤蔓、宝石、被撞、入水，以及洞穴环境声（ADR-0033）；源文件在 `assets/source/sounds/`（WAV 或 Ogg Vorbis，当前是 `tools/scripts/make_placeholder_audio.py` 生成的占位音效，同名替换即可），音量分组在参数表中（`audio.*`）。
+
+诊断：日志写到用户数据目录下的 `logs/Sandbox.log`（保留最近 5 次）；崩溃时在 `crashes/` 写崩溃报告（原因、调用栈、日志位置；Windows 另有 minidump）。macOS 上用户数据目录是 `~/Library/Application Support/AnimalEngine/Sandbox/`，Windows 上是 `%APPDATA%\AnimalEngine\Sandbox\`。
 
 ## 开发工具（M4）
 
@@ -101,7 +110,7 @@ cmake --build --preset windows-ninja-debug
 
 | 窗口（View 菜单） | 作用 |
 |---|---|
-| Performance | 帧时间与各 GPU pass 耗时的历史曲线、精灵 / 绘制 / 光源 / 粒子计数 |
+| Performance | 帧时间、各 GPU pass 与 CPU 分区（`ANIMAL_PROFILE_ZONE`）耗时的历史曲线，精灵 / 绘制 / 光源 / 粒子计数，音频声部与峰值 |
 | Rendering | F2–F10 的开关，重读观感，重建房间 |
 | Rooms | 世界中的房间，双击传送 |
 | World | 世界布局：拖动房间（吸附整房间或 8 px，重叠时拒绝）、新建空房间或复制当前房间、从世界中移除房间、撤销布局修改（ADR-0029） |
@@ -110,7 +119,7 @@ cmake --build --preset windows-ninja-debug
 | Animations | 角色精灵表（Aseprite 导出）的标签、帧率与实时预览（ADR-0030） |
 | Console | 日志；有未读警告 / 错误时菜单栏出现提示 |
 
-**热重载**（ADR-0028，开发构建默认开启，Reload 菜单可关闭）：保存 `assets/source/` 或 `shaders/` 下的文件，游戏在约半秒内载入——着色器由 `animal_shaderc` 重新编译后原地替换（资源绑定变了则整个渲染器重建），纹理原地更新（改了尺寸也可以），后加的 `_n` / `_e` 贴图自动挂到材质上，房间 / Tileset / 世界布局 / 观感 / 效果 / 植物 / 参数 / 精灵表重新载入。文件有错误时（JSON 语法、字段类型、着色器编译失败或用了代码没有提供的绑定……）控制台给出原因、屏幕底部提示 `RELOAD FAILED`，游戏继续使用旧版本；修好再保存即可。`--deterministic` / `--demo` 下不监视文件。
+**热重载**（ADR-0028，开发构建默认开启，Reload 菜单可关闭）：保存 `assets/source/` 或 `shaders/` 下的文件，游戏在约半秒内载入——着色器由 `animal_shaderc` 重新编译后原地替换（资源绑定变了则整个渲染器重建），纹理原地更新（改了尺寸也可以），后加的 `_n` / `_e` 贴图自动挂到材质上，房间 / Tileset / 世界布局 / 观感 / 效果 / 植物 / 参数 / 精灵表 / 音效重新载入。文件有错误时（JSON 语法、字段类型、着色器编译失败或用了代码没有提供的绑定……）控制台给出原因、屏幕底部提示 `RELOAD FAILED`，游戏继续使用旧版本；修好再保存即可。`--deterministic` / `--demo` 下不监视文件。
 
 **关卡编辑器**（Tab，ADR-0029）：编辑当前房间，保存后 Tiled 照常可以打开。
 
@@ -166,7 +175,7 @@ $B/AnimalCooker --verify=data.pak --manifest=assets/cook.json
 ctest --preset macos-ninja-debug        # 或 windows-vs2022-debug / windows-ninja-debug / macos-xcode-debug
 ```
 
-持续集成（[`.github/workflows/ci.yml`](.github/workflows/ci.yml)）：每次推送到 `main` 和每个 PR，在 GitHub 的 macOS 与 Windows 机器上构建 Debug、Release 与关闭开发工具的 Release（`ANIMAL_DEV_TOOLS=OFF`），编译警告视为错误，并运行单元测试。托管机器没有 GPU，渲染回归仍在开发机上运行（见下）。
+持续集成（[`.github/workflows/ci.yml`](.github/workflows/ci.yml)）：每次推送到 `main` 和每个 PR，在 GitHub 的 macOS 与 Windows 机器上构建 Debug、Release 与关闭开发工具的 Release（`ANIMAL_DEV_TOOLS=OFF`），编译警告视为错误，并运行单元测试、无头自动通关（`demo_playthrough`：到达烟雾深坑、拾取 2 颗宝石、进入 3 个房间、没有掉出世界）与崩溃报告测试（`crash_report_*`）。托管机器没有 GPU，渲染回归仍在开发机上运行（见下）。
 
 渲染回归（在两个后端上跑 6 个固定游戏场景（读回 320×180 最终画布）和 RHI 功能一致性图（`AnimalRhiConformance`，逐项覆盖 RHI 功能，见 ADR-0025）：两后端必须逐像素相同，并与 `tests/golden/` 中的基准截图逐像素相同；Vulkan 验证层必须零报错）：
 
@@ -193,6 +202,8 @@ R=build/macos-ninja-release/bin/Release/AnimalGame
 $R --backend=vulkan --demo --deterministic --no-vsync --hide-overlay --profile --frames=600
 $R --backend=vulkan --demo --deterministic --no-vsync --hide-overlay --profile --frames=600 --stress-lights=256
 ```
+
+`--profile` 同时打印 CPU 分区（事件、更新、模拟及其子项、渲染、提交、呈现）的平均 / 最大耗时（ADR-0032）。
 
 ## M0 验收条件
 
@@ -308,3 +319,18 @@ $R --backend=vulkan --demo --deterministic --no-vsync --hide-overlay --profile -
 | 可比较优化前后的体积与加载性能 | 源数据 166 KB → `data.pak` 48.8 KB；启动数据加载（含渲染器初始化）OpenGL 约 21 → 20 ms、Vulkan 约 16 → 13 ms（Apple M2，Release，多次取中位数） | ✅ |
 | Release 构建 | `animal_package`：可执行文件 + `data.pak` 的独立目录，不依赖 `data/`；CI 在两个平台上打包并保存产物 | ✅ |
 | 发行资源与开发资源画面一致 | `render_regression.py --pack`：7 个场景两后端与基准逐像素一致 | ✅ |
+
+## M6 进度
+
+M6 验收条件：从启动到通关一段完整区域无需开发者手动修补；干净构建可重复；已知问题有清单。引擎部分已完成，示例区域（8–12 个房间）与已知问题清单尚未开始。
+
+| 项目 | 内容与验证方式 | 状态 |
+|---|---|---|
+| 自动化验证 | `--headless`（RHI Null 后端）+ `--expect` + `--strict`；ctest `demo_playthrough` 在 CI 六个构建中跑完演示路线（ADR-0032） | ✅ |
+| 存档健壮性 | 存档版本 2（已访问房间、游戏时间）与版本 1 迁移；`.bak` 备份、损坏时从备份恢复、新版本存档不覆盖、退出时保存；单元测试覆盖（ADR-0032） | ✅ |
+| 性能分析 | CPU 分区计时：性能面板曲线与 `--profile` 报告；演示路线每帧模拟约 0.16 ms（ADR-0032） | ✅ |
+| 崩溃诊断 | 轮转日志文件；崩溃报告（信号 / 未处理异常 / 未捕获的 C++ 异常，调用栈，Windows minidump）；ctest `crash_report_*` 在两个平台上检查（ADR-0032） | ✅ |
+| 音频 | SDL3 设备 + 自有混音器（32 声部、分组、声像、变速、淡入淡出、限幅），WAV / Ogg Vorbis，资源包与热重载，游戏音效与环境声（占位）；32 声部混音约占一个核心的 1.2%（ADR-0033） | ✅ |
+| 地图探索 | 已访问房间记录在存档中；M / Back 打开地图（按世界布局缩放，显示剩余宝石与玩家位置）；`--expect=visited:N` | ✅ |
+| 完整区域 | 8–12 个房间的示例区域，更多生物 / 机关 | 待定 |
+| 已知问题清单 | — | 待定 |
