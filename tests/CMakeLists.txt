@@ -11,7 +11,8 @@ add_executable(animal_tests
     wind_tests.cpp
     rhi_validation_tests.cpp
     tuning_tests.cpp
-    animation_import_tests.cpp)
+    animation_import_tests.cpp
+    pack_tests.cpp)
 animal_set_compile_options(animal_tests)
 if(ANIMAL_DEV_TOOLS)
     target_sources(animal_tests PRIVATE devtools_tests.cpp)

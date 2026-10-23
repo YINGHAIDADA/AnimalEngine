@@ -6,6 +6,7 @@ set(ANIMAL_ENGINE_HEADERS
     include/animal/core/handle.h
     include/animal/core/log.h
     include/animal/core/math.h
+    include/animal/core/pack.h
     include/animal/core/random.h
     include/animal/platform/input.h
     include/animal/platform/platform.h
@@ -33,6 +34,8 @@ set(ANIMAL_ENGINE_SOURCES
     src/core/assert.cpp
     src/core/file.cpp
     src/core/log.cpp
+    src/core/pack.cpp
+    src/core/pack_writer.cpp
     src/platform/gamepads.h
     src/platform/input.cpp
     src/platform/platform.cpp
@@ -69,7 +72,7 @@ target_include_directories(animal_engine
     PRIVATE src)
 target_link_libraries(animal_engine
     PUBLIC SDL3::SDL3-static
-    PRIVATE animal_stb animal_gl_headers)
+    PRIVATE animal_stb animal_gl_headers animal_zstd)
 
 if(ANIMAL_ENABLE_VULKAN)
     set(ANIMAL_VULKAN_SOURCES

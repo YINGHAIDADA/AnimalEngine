@@ -15,6 +15,7 @@ git submodule update --init --depth 1
 | volk | 运行时加载 Vulkan 函数 | 子模块 `volk`，tag `vulkan-sdk-1.4.363.0` | MIT | 是（静态链接） |
 | Vulkan Memory Allocator | Vulkan 显存子分配（单头文件，函数经 volk 获取） | 子模块 `VulkanMemoryAllocator`，tag `v3.4.0` | MIT | 是（静态链接） |
 | Dear ImGui | 开发工具：调试面板、参数热调、内嵌关卡编辑器（ADR-0026） | 子模块 `imgui`，tag `v1.93.0` | MIT | 否（`ANIMAL_DEV_TOOLS=OFF` 时不编译） |
+| zstd | 资源包压缩（运行时解压，Asset Cooker 压缩；ADR-0031） | 子模块 `zstd`，tag `v1.5.7` | BSD-3-Clause（双许可 GPLv2，选用 BSD） | 是（静态链接） |
 | nlohmann/json | 读取 Tiled 关卡（.tmj / .tsj / .world） | `nlohmann/json.hpp` v3.12.0，nlohmann/json@65ee684 | MIT | 是（M5 烘焙后可能仅工具使用） |
 | stb_image | 开发期纹理解码（PNG） | `stb/stb_image.h` v2.30，nothings/stb@a7d4c21 | MIT / Public Domain | 是（M5 后可能仅工具使用） |
 | stb_image_write | 截图与渲染回归输出 PNG | `stb/stb_image_write.h`，nothings/stb@a7d4c21 | MIT / Public Domain | 是（开发功能） |

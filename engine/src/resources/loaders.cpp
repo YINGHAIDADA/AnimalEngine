@@ -165,7 +165,7 @@ std::optional<SpriteMaterial> loadMaterial(rhi::Device& device, const std::strin
     // companion's path: drawing is the same as without one, and a file added later hot-reloads into it.
     auto loadCompanion = [&](const std::string& suffix, Color neutral) -> rhi::TextureHandle {
         const std::string path = basePath + suffix + ".png";
-        if (SDL_GetPathInfo(path.c_str(), nullptr)) {
+        if (fileExists(path)) {
             if (const auto texture = loadTexture(device, path, AlphaMode::Keep)) {
                 if (texture->width == albedo->width && texture->height == albedo->height) {
                     return texture->handle;

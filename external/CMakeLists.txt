@@ -95,6 +95,20 @@ if(ANIMAL_DEV_TOOLS)
     animal_set_folder(external animal_imgui)
 endif()
 
+# --- zstd (resource packs: decompression at runtime, compression in the cooker) ----
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/zstd/lib/zstd.h")
+    message(FATAL_ERROR "Missing submodule external/zstd. Run: git submodule update --init --depth 1")
+endif()
+file(GLOB ANIMAL_ZSTD_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/zstd/lib/common/*.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/zstd/lib/compress/*.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/zstd/lib/decompress/*.c")
+add_library(animal_zstd STATIC ${ANIMAL_ZSTD_SOURCES})
+target_include_directories(animal_zstd SYSTEM PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/zstd/lib")
+# Portable C only (no x86 assembly), single-threaded: identical output on every platform.
+target_compile_definitions(animal_zstd PRIVATE ZSTD_DISABLE_ASM=1 XXH_NAMESPACE=ZSTD_)
+animal_set_folder(external animal_zstd)
+
 add_library(animal_json INTERFACE)
 target_include_directories(animal_json SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/nlohmann")
 
