@@ -15,6 +15,9 @@
 
 namespace {
 
+// Cleanup must not throw (Windows refuses to delete files that are still open).
+std::error_code cleanupError;
+
 using namespace animal;
 
 // Saving a preset from the editor must not reformat a hand-written file.
@@ -135,7 +138,7 @@ TEST(devtools_tiled_world_round_trips_and_edits_the_layout) {
 TEST(devtools_file_watcher_reports_settled_changes_once) {
     namespace fs = std::filesystem;
     const fs::path dir = fs::temp_directory_path() / "animal_watcher_test";
-    fs::remove_all(dir);
+    fs::remove_all(dir, cleanupError);
     fs::create_directories(dir / "sub");
     const auto write = [](const fs::path& path, const std::string& text) {
         const std::u8string u8 = path.generic_u8string();
@@ -166,7 +169,7 @@ TEST(devtools_file_watcher_reports_settled_changes_once) {
     write(dir / ".hidden", "x");
     write(dir / "c.json.tmp", "x");
     CHECK(watcher.poll().empty() && watcher.poll().empty());
-    fs::remove_all(dir);
+    fs::remove_all(dir, cleanupError);
 }
 
 } // namespace

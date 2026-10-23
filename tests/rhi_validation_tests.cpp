@@ -13,6 +13,9 @@
 
 namespace {
 
+// Cleanup must not throw (Windows refuses to delete files that are still open).
+std::error_code cleanupError;
+
 using namespace animal;
 using namespace animal::rhi;
 
@@ -200,7 +203,7 @@ TEST(rhi_validation_rejects_bad_descriptions) {
 TEST(loaders_reload_tracked_files_and_refuse_bad_ones) {
     namespace fs = std::filesystem;
     const fs::path dir = fs::temp_directory_path() / "animal_reload_test";
-    fs::remove_all(dir);
+    fs::remove_all(dir, cleanupError);
     fs::create_directories(dir);
     const auto pathOf = [&dir](const char* name) {
         const std::u8string u8 = (dir / name).generic_u8string();
@@ -251,7 +254,7 @@ TEST(loaders_reload_tracked_files_and_refuse_bad_ones) {
     forgetLoaded(texture->handle);
     forgetLoaded(shader);
     CHECK(reloadShaderFile(device, ashd) == ReloadResult::NotLoaded);
-    fs::remove_all(dir);
+    fs::remove_all(dir, cleanupError);
 }
 
 } // namespace

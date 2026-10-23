@@ -11,6 +11,9 @@
 
 namespace {
 
+// Cleanup must not throw (Windows refuses to delete files that are still open).
+std::error_code cleanupError;
+
 using namespace animal;
 namespace fs = std::filesystem;
 
@@ -51,12 +54,12 @@ TEST(pack_round_trips_dedupes_and_is_deterministic) {
     CHECK(stats.storedBytes < stats.inputBytes);
 
     const fs::path dir = fs::temp_directory_path() / "animal_pack_test";
-    fs::remove_all(dir);
+    fs::remove_all(dir, cleanupError);
     fs::create_directories(dir);
     const std::string file = pathString(dir / "data.pak");
     CHECK(writeFileAtomic(file, pack.data(), pack.size()));
     std::string error;
-    const std::unique_ptr<Pack> opened = Pack::open(file, &error);
+    std::unique_ptr<Pack> opened = Pack::open(file, &error);
     CHECK(opened != nullptr);
     if (!opened) {
         return;
@@ -75,13 +78,14 @@ TEST(pack_round_trips_dedupes_and_is_deterministic) {
     CHECK(a && copy && a->offset == copy->offset && a->compression == PackCompression::Zstd);
     CHECK(opened->find("textures/noise.bin")->compression == PackCompression::None);
     CHECK(!opened->find("world/rooms/missing.tmj"));
-    fs::remove_all(dir);
+    opened.reset(); // close the file before deleting it
+    fs::remove_all(dir, cleanupError);
 }
 
 TEST(pack_detects_damage_and_other_versions) {
     const std::vector<std::byte> pack = writePack(sampleInputs(), "test-1");
     const fs::path dir = fs::temp_directory_path() / "animal_pack_damage";
-    fs::remove_all(dir);
+    fs::remove_all(dir, cleanupError);
     fs::create_directories(dir);
     const std::string file = pathString(dir / "data.pak");
     std::string error;
@@ -109,12 +113,12 @@ TEST(pack_detects_damage_and_other_versions) {
     CHECK(writeFileAtomic(file, damaged.data(), damaged.size()));
     CHECK(!Pack::open(file, &error) && error.find("version") != std::string::npos);
     CHECK(!Pack::open(pathString(dir / "missing.pak"), &error));
-    fs::remove_all(dir);
+    fs::remove_all(dir, cleanupError);
 }
 
 TEST(mounted_pack_serves_its_directory_only) {
     const fs::path dir = fs::temp_directory_path() / "animal_pack_mount";
-    fs::remove_all(dir);
+    fs::remove_all(dir, cleanupError);
     fs::create_directories(dir / "data");
     const std::vector<std::byte> pack = writePack(sampleInputs(), "test-1");
     const std::string file = pathString(dir / "data.pak");
@@ -135,7 +139,7 @@ TEST(mounted_pack_serves_its_directory_only) {
     CHECK(packMountedAt(pathString(dir / "data" / "x")) != nullptr && packMountedAt(outside) == nullptr);
     unmountPacks();
     CHECK(readFile(loose).has_value());
-    fs::remove_all(dir);
+    fs::remove_all(dir, cleanupError);
 }
 
 } // namespace

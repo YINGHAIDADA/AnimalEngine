@@ -12,6 +12,9 @@
 
 namespace {
 
+// Cleanup must not throw (Windows refuses to delete files that are still open).
+std::error_code cleanupError;
+
 using namespace animal;
 namespace fs = std::filesystem;
 
@@ -55,12 +58,12 @@ TEST(cooker_packs_the_real_assets_deterministically) {
         std::fprintf(stderr, "  verify: %s\n", p.c_str());
     }
     CHECK(problems.empty());
-    fs::remove_all(dir);
+    fs::remove_all(dir, cleanupError);
 }
 
 TEST(cooker_reports_missing_references_and_invalid_data) {
     const fs::path dir = fs::temp_directory_path() / "animal_cook_broken";
-    fs::remove_all(dir);
+    fs::remove_all(dir, cleanupError);
     fs::create_directories(dir / "source" / "world" / "looks");
     const auto write = [](const fs::path& p, const std::string& text) {
         writeFileAtomic(p.generic_string(), text.data(), text.size());
@@ -86,7 +89,7 @@ TEST(cooker_reports_missing_references_and_invalid_data) {
     CHECK(mentions("b.look.json")); // invalid field
     CHECK(mentions("nope.frag"));
     CHECK(std::ranges::find(r.unreferenced, "world/notes.txt") != r.unreferenced.end());
-    fs::remove_all(dir);
+    fs::remove_all(dir, cleanupError);
 }
 
 } // namespace
