@@ -41,6 +41,7 @@ struct CommandLine {
     std::string canvasScreenshotPath; // the 320×180 final canvas, independent of window size and DPI
     std::string inputScriptPath;
     std::string recordInputPath; // --record-input: write the keys pressed as an input script
+    std::string dataPath;        // --data: read the data from this directory (tests use their own)
     std::string packPath; // --pack: the resource pack to read the data from
     bool strict = false;  // --strict: RHI validation errors fail the run (exit code 4)
     bool mute = false;     // --mute: no audio device
@@ -87,6 +88,8 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv,
             cl.strict = true;
         } else if (arg.starts_with("--pack=")) {
             cl.packPath = std::string(arg.substr(7));
+        } else if (arg.starts_with("--data=")) {
+            cl.dataPath = std::string(arg.substr(7));
         } else if (arg.starts_with("--record-input=")) {
             cl.recordInputPath = std::string(arg.substr(15));
         } else if (arg.starts_with("--input-script=")) {
@@ -96,7 +99,7 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv,
         } else if (!other(arg)) {
             log::error("Unknown argument '{}'. Options: --backend=opengl|vulkan|null --headless --no-vsync --hide-overlay "
                        "--resize-test --deterministic --demo --profile --frames=N --screenshot=path.png "
-                       "--canvas-screenshot=path.png --input-script=path.txt --record-input=path.txt --pack=data.pak --strict --mute --crash-test=segv|abort|exception --crash-dir=path",
+                       "--canvas-screenshot=path.png --input-script=path.txt --record-input=path.txt --data=dir --pack=data.pak --strict --mute --crash-test=segv|abort|exception --crash-dir=path",
                        arg);
             return std::nullopt;
         }
@@ -351,10 +354,17 @@ int Application::run(int argc, char** argv) {
         context.renderer = &renderer;
         context.audio = &audio;
         context.dataDirectory = platform::executableDirectory() + "data/";
+        if (!commandLine->dataPath.empty()) {
+            context.dataDirectory = commandLine->dataPath;
+            if (context.dataDirectory.back() != '/' && context.dataDirectory.back() != '\\') {
+                context.dataDirectory += '/';
+            }
+            context.customData = true;
+        }
         // A release reads its data from data.pak next to the executable (ADR-0031); --pack picks one.
         const uint64_t loadStart = platform::nowNanoseconds();
         std::string packPath = commandLine->packPath;
-        if (packPath.empty() && fileExists(platform::executableDirectory() + "data.pak")) {
+        if (packPath.empty() && !context.customData && fileExists(platform::executableDirectory() + "data.pak")) {
             packPath = platform::executableDirectory() + "data.pak";
         }
         bool packFailed = false;

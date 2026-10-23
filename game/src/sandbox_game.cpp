@@ -177,7 +177,7 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     checkpointFeet_ = startFeet_;
     save_.room = roomName(startRoom_->path);
     save_.position = startFeet_;
-    if (!context.demo && !context.deterministic && startRoomName_.empty()) {
+    if (!context.demo && !context.deterministic && !context.customData && startRoomName_.empty()) {
         if (const std::string dir = animal::platform::userDataDirectory("AnimalEngine", "Sandbox"); !dir.empty()) {
             savePath_ = dir + "save.json";
             loadProgress();

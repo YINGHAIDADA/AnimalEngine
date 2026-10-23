@@ -48,6 +48,7 @@ struct EngineContext {
     Renderer2D* renderer = nullptr;
     audio::AudioSystem* audio = nullptr; // silent without a device (--mute, headless)
     std::string dataDirectory; // with trailing separator
+    bool customData = false;   // --data: a data directory other than the deployed one (test data)
     FrameStats stats;
     bool demo = false;          // --demo: the game drives itself with scripted input
     bool deterministic = false; // --deterministic: one fixed step per frame (reproducible runs)
