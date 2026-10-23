@@ -161,7 +161,8 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | 模块 | 约定 |
 |---|---|
 | 坐标与单位 | 世界单位 = 像素；速度 px/s；模拟固定 60 Hz。房间 40×22 Tile（8 px），在画布中垂直居中，上下各留 2 px。 |
-| `TileMap` | Tile id 网格 + 每种 id 的“实心”属性表；地图之外视为空（留给出屏切换）。 |
+| `TileMap` | Tile id 网格 + 每种 id 的“实心”与“危险”（尖刺，只在尖端一侧的半格伤害）属性表 + 动态实心矩形（平台、门，对所有物体与实心 Tile 一样生效）；地图之外视为空（留给出屏切换）。 |
+| `PlatformSystem` | 往返移动的平台、被站上后抖动坠落并复位的平台、门；逐像素移动，携带站在上面的玩家、推开挡路的玩家，推不动即报告“压扁”（ADR-0034）。 |
 | `Body` / `moveX` / `moveY` | 整数像素位置 + 小数余量；每次移动 1 px 并检测碰撞，碰到即停（贴合、不穿墙）；先 X 后 Y。 |
 | `EntityWorld` | 代际 `EntityId` + 扁平 `Entity` 记录；销毁延迟到 `flushDestroyed()`。按需加字段，不做通用 ECS。 |
 | `ActionMap` | 游戏动作绑定到键盘键、手柄按键和摇杆方向；每帧在 `onFrame` 中采样，“按下”会锁存到被一个固定步消费（`endFixedStep()`），因此每次按下恰好被一个模拟步看到。 |
@@ -176,6 +177,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | `Tuning` | 代码登记的命名参数（float / int / bool + 滑条范围）；`world/tuning.json` 只记录与内置值不同的项，可试运行校验（ADR-0027）。 |
 | `LightAnimation` | 光源亮度动画（`none` / `flicker` / `pulse`）：只由时间和每个光源的相位计算出倍数，确定、无状态；倍数保持在 1 ± amount 之内（ADR-0013）。 |
 | `WaterBody` / `swimmingParams` | 水域：每像素列的一维表面波（扰动、水面高度、淹没比例）；漂浮：按淹没比例改写平台跳跃参数（重力变浮力、减速）并施加水阻，够深时可起跳出水（ADR-0018）。 |
+| `stepDive` / `applyCurrent` | 下潜：水中双轴自由游动（速度归一化、加速度限制、无输入时缓慢上浮）；水流按淹没比例带动物体（ADR-0034）。 |
 | `EffectSystem` | 粒子效果：`*.effect.json` 预设（发射、运动、外观、随粒子的光，严格校验）+ 房间中的点 / 区域发射器；按发射器保持数量、按速率发射、一次性爆发；可整体开关，报告各效果数量与 CPU 耗时（ADR-0017）。 |
 | `Look` | 观感预设：光照、边缘光、泛光与调色、烟雾颜色的扁平字段表；`*.look.json` 可继承（`base`）、严格校验；房间用 Tiled `look` / `look.*` 引用与覆盖；`mixLooks` 用于房间切换过渡（ADR-0015）。 |
 | `TriggerSet` | 矩形触发区域；`update(碰撞框)` 返回本步刚进入的触发器，离开后重新进入会再次触发，`once` 只触发一次（ADR-0011）。 |

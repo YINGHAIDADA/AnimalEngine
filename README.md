@@ -4,7 +4,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**M0–M5 已完成**（macOS 与 Windows），**M6 完整纵向切片与稳定性进行中**——引擎部分已完成：无头运行与自动通关测试、存档备份与恢复、CPU 分区计时、日志文件与崩溃报告（ADR-0032），音频（ADR-0033），地图界面；接下来是 8–12 个房间的示例区域。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
+当前阶段：**M0–M5 已完成**（macOS 与 Windows），**M6 完整纵向切片与稳定性：内容与系统已完成，待试玩确认**——无头运行与自动通关测试、存档备份与恢复、CPU 分区计时、日志文件与崩溃报告（ADR-0032），音频（ADR-0033），地图界面，机关、下潜与 10 个房间的示例区域及路线测试（ADR-0034）；已知问题见 [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 
@@ -93,12 +93,15 @@ cmake --build --preset windows-ninja-debug
 | `--pack=data.pak` | 从资源包读取数据（不加时，可执行文件旁有 `data.pak` 就自动使用，否则读 `data/` 散文件；ADR-0031） |
 | `--input-script=path.txt` | 在指定帧注入按键 / 鼠标（画布像素坐标）/ 文本事件，用于自动化 UI 测试与演示；格式见 `engine/src/app/input_script.h` |
 | `--headless` | 不开窗口、不绘制（RHI Null 后端），模拟照常运行；配合 `--demo --deterministic --frames=N` 做自动通关测试（ADR-0032） |
-| `--expect=room:NAME,gems:N,visited:N,grounded:true,respawns:N` | （示例游戏）退出时检查结果，未满足时退出码 3 |
+| `--expect=room:NAME,gems:N,visited:N,flag:NAME,finished:true,grounded:true,respawns:N` | （示例游戏）退出时检查结果，未满足时退出码 3 |
+| `--record-input=path.txt` | 把按键录成输入脚本（退出时写入）；配合 `--deterministic` 录制的脚本可逐帧重放 |
+| `--flags=ability:dive,switch:bridge` / `--gems=N` | （示例游戏，测试用）开局即带有这些存档标志 / 已收集 N 颗宝石 |
+| `--trace[=N]` | （示例游戏）每 N 个模拟步在日志中输出玩家所在房间、位置、速度与状态（默认 10） |
 | `--strict` | RHI 校验层报告任何错误时运行失败（退出码 4） |
 | `--mute` | 不打开音频设备（音频系统照常运行但不出声；无头运行自动静音） |
 | `--crash-test=segv\|abort\|exception` | 启动后故意崩溃，检查崩溃报告；`--crash-dir=路径` 改变报告目录 |
 
-玩法：收集散落在三个房间中的 7 颗宝石（右上角计数）；按 M（手柄 Back）打开地图：显示进入过的房间、其中还没拾取的宝石和自己的位置，打开时游戏暂停；紫色甲虫在地面巡逻，碰到会被弹开；走进提示区域时屏幕下方显示提示；烟雾深坑右下角有水池（上方有一道 GPU 粒子瀑布），掉进去会漂浮在水面，按跳跃出水。拾取宝石、进入新房间后第一次站稳时与退出游戏时自动保存，下次启动从该处继续（存档位置见 ADR-0011；`--demo` / `--deterministic` 不读写存档）。存档写入前会保留上一份为 `save.json.bak`：存档损坏时自动用备份恢复，来自更新版本的存档不会被覆盖（ADR-0032）。
+玩法：10 个房间的洞穴（世界布局见 `tools/scripts/make_area.py` 开头），散落着 19 颗宝石（右上角计数）。断桥上有移动平台与坠落平台；坠入深渊就到了尖刺竖井，底部的宝珠赋予**下潜**能力（在水中按住下），旁边的开关打开断桥通往闸门大厅的门；有了下潜，烟雾深坑的水池下面是一片淹没的区域（水流会推着你走，神殿里的开关打开暗流中的小门），淹没隧道向上通往闸门大厅。闸门要 14 颗宝石才开，门后是终点。按 M（手柄 Back）打开地图：显示进入过的房间、其中还没拾取的宝石和自己的位置，打开时游戏暂停；紫色甲虫在地面巡逻，碰到会被弹开；碰到尖刺或被平台挤住会回到检查点（进入房间后第一次站稳的位置）；走进提示区域时屏幕下方显示提示。拾取宝石、按下开关、获得能力、进入新房间后第一次站稳时与退出游戏时自动保存，下次启动从该处继续（存档位置见 ADR-0011；`--demo` / `--deterministic` / `--start-room` 不读写存档）。存档写入前会保留上一份为 `save.json.bak`：存档损坏时自动用备份恢复，来自更新版本的存档不会被覆盖（ADR-0032）。
 
 音效：跳跃、落地、抓藤蔓、宝石、被撞、入水，以及洞穴环境声（ADR-0033）；源文件在 `assets/source/sounds/`（WAV 或 Ogg Vorbis，当前是 `tools/scripts/make_placeholder_audio.py` 生成的占位音效，同名替换即可），音量分组在参数表中（`audio.*`）。
 
@@ -160,11 +163,11 @@ $B/AnimalCooker --verify=data.pak --manifest=assets/cook.json
 
 | 放在哪里 | 名称 | 作用 | 详见 |
 |---|---|---|---|
-| Tileset Tile 属性 | `solid`、`grass`、`light*` | 碰撞、长草（`plants/grass.plant.json`）、发光 Tile | ADR-0010、0013 |
+| Tileset Tile 属性 | `solid`、`grass`、`light*`、`hazard`（`up` / `down` / `full`） | 碰撞、长草（`plants/grass.plant.json`）、发光 Tile、尖刺 | ADR-0010、0013、0034 |
 | 地图属性 | `look`、`look.*` | 观感预设与单项覆盖 | ADR-0015 |
 | 地图属性 | `wind.strength`、`wind.gusts`、`wind.gustInterval`、`wind.gustSpeed` | 微风与阵风 | ADR-0019 |
-| 点对象 | `spawn`、`candle`、`vent`、`vine`、`light`、`lantern`、`gem`、`crawler`、`wind` | 起点、道具、光源、宝石、甲虫、气流 | ADR-0010、0011、0013、0019 |
-| 矩形对象 | `trigger`、`water`、`plants`、`emitter`（也可为点） | 提示区域、水域、植物、粒子发射器 | ADR-0011、0017、0018、0019、0020 |
+| 点对象 | `spawn`、`candle`、`vent`、`vine`、`light`、`lantern`、`gem`、`crawler`、`wind`、`switch`（`flag`）、`ability`（`name` = `dive`）、`entry` | 起点、道具、光源、宝石、甲虫、气流、开关、能力、测试与传送的落点 | ADR-0010、0011、0013、0019、0034 |
+| 矩形对象 | `trigger`、`water`（`currentX` / `currentY` 水流、`deepening` 随深度加深）、`plants`、`emitter`（也可为点）、`platform`（`travelX` / `travelY`、`speed`、`pause`、`phase`、`falls`）、`door`（`flag` 或 `gems`）、`goal` | 提示区域、水域、植物、粒子发射器、移动 / 坠落平台、门与宝石门、终点 | ADR-0011、0017、0018、0019、0020、0034 |
 | 预设文件 | `looks/*.look.json`、`effects/*.effect.json`（`"gpu": true` 走 GPU）、`plants/*.plant.json` | 可复用的观感、粒子效果、植物种类；格式错误会给出文件名与字段 | ADR-0015、0017、0019、0020 |
 | 参数文件 | `world/tuning.json` | 覆盖代码中登记的玩家 / 攀爬 / 游泳 / 烟雾参数（只写与默认值不同的项） | ADR-0027 |
 | 精灵表 | `textures/creature.json`（Aseprite 导出，与 `creature.png` 同名） | 动画帧与标签 `idle` `run` `jump` `fall` `climb` `land` | ADR-0030 |
@@ -176,6 +179,14 @@ ctest --preset macos-ninja-debug        # 或 windows-vs2022-debug / windows-nin
 ```
 
 持续集成（[`.github/workflows/ci.yml`](.github/workflows/ci.yml)）：每次推送到 `main` 和每个 PR，在 GitHub 的 macOS 与 Windows 机器上构建 Debug、Release 与关闭开发工具的 Release（`ANIMAL_DEV_TOOLS=OFF`），编译警告视为错误，并运行单元测试、无头自动通关（`demo_playthrough`：到达烟雾深坑、拾取 2 颗宝石、进入 3 个房间、没有掉出世界）与崩溃报告测试（`crash_report_*`）。托管机器没有 GPU，渲染回归仍在开发机上运行（见下）。
+
+路线测试（ADR-0034）：`tests/routes/*.txt` 是从某个房间出发的逐帧输入，ctest `route_*` 无头回放并检查结束时的房间、开关、能力、宝石与是否通关。修改了路线经过的房间后，测试多半会失败——自己玩一遍重新录制即可（与测试使用相同的起点与参数，见 `game/CMakeLists.txt`）：
+
+```bash
+B=build/macos-ninja-debug/bin/Debug/AnimalGame
+$B --deterministic --start-room=root_bridge --flags=switch:bridge --record-input=tests/routes/bridge_crossing.txt
+$B --headless --deterministic --start-room=root_bridge --flags=switch:bridge --input-script=tests/routes/bridge_crossing.txt --frames=1080 --trace   # 回放并查看轨迹
+```
 
 渲染回归（在两个后端上跑 6 个固定游戏场景（读回 320×180 最终画布）和 RHI 功能一致性图（`AnimalRhiConformance`，逐项覆盖 RHI 功能，见 ADR-0025）：两后端必须逐像素相同，并与 `tests/golden/` 中的基准截图逐像素相同；Vulkan 验证层必须零报错）：
 
@@ -322,7 +333,7 @@ $R --backend=vulkan --demo --deterministic --no-vsync --hide-overlay --profile -
 
 ## M6 进度
 
-M6 验收条件：从启动到通关一段完整区域无需开发者手动修补；干净构建可重复；已知问题有清单。引擎部分已完成，示例区域（8–12 个房间）与已知问题清单尚未开始。
+M6 验收条件：从启动到通关一段完整区域无需开发者手动修补；干净构建可重复；已知问题有清单。全部项目已完成，等待试玩确认后打 `milestone/m6-slice` 标签。
 
 | 项目 | 内容与验证方式 | 状态 |
 |---|---|---|
@@ -332,5 +343,8 @@ M6 验收条件：从启动到通关一段完整区域无需开发者手动修�
 | 崩溃诊断 | 轮转日志文件；崩溃报告（信号 / 未处理异常 / 未捕获的 C++ 异常，调用栈，Windows minidump）；ctest `crash_report_*` 在两个平台上检查（ADR-0032） | ✅ |
 | 音频 | SDL3 设备 + 自有混音器（32 声部、分组、声像、变速、淡入淡出、限幅），WAV / Ogg Vorbis，资源包与热重载，游戏音效与环境声（占位）；32 声部混音约占一个核心的 1.2%（ADR-0033） | ✅ |
 | 地图探索 | 已访问房间记录在存档中；M / Back 打开地图（按世界布局缩放，显示剩余宝石与玩家位置）；`--expect=visited:N` | ✅ |
-| 完整区域 | 8–12 个房间的示例区域，更多生物 / 机关 | 待定 |
-| 已知问题清单 | — | 待定 |
+| 机关与能力 | 移动 / 坠落平台、尖刺、开关与门、宝石门、水流、下潜、终点与通关画面；全部可在关卡编辑器中摆放（ADR-0034） | ✅ |
+| 完整区域 | 10 个房间、19 颗宝石；ctest `route_*` 9 条路线覆盖每个连接与三个门槛，两个平台、六种构建配置一致通过（ADR-0034） | ✅ |
+| 干净构建可重复 | CI：六个构建（警告视为错误）+ 两个平台打包，`data.pak` 逐字节相同 | ✅ |
+| 已知问题清单 | [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | ✅ |
+| 从启动到通关的人工试玩 | 自动测试按路段覆盖；完整一遍需要真人试玩（宝石的可达性只部分有测试） | 待你试玩 |

@@ -336,6 +336,7 @@ ctest --test-dir build/<preset> --output-on-failure
   - ADR-0031 资源包与 Asset Cooker：确定性的 `data.pak`（zstd、去重、哈希校验、文件层挂载）、沿引用收集并用游戏解析器校验、紧凑 JSON、纹理图集、包体报告与发行布局（Accepted）。
   - ADR-0032 稳定性与自动化验证：无头运行（RHI Null 后端）与 `--expect` 自动通关测试、存档版本 2（备份、损坏恢复、迁移、新版本不覆盖）、CPU 分区计时、轮转日志与崩溃报告（Accepted）。
   - ADR-0033 音频：SDL3 音频流 + 自有混音器（声部、分组、声像、变速、淡入淡出、限幅），WAV / Ogg Vorbis（stb_vorbis），资源包与热重载（Accepted）。
+  - ADR-0034 机关、下潜与示例区域：动态实心物（平台、门）、危险 Tile、水流与下潜、开关与能力作为存档标志、10 个房间的示例区域、逐帧录制的路线测试（Accepted）。
 
 ## 13. 当前待确认项（不阻塞 M0）
 
