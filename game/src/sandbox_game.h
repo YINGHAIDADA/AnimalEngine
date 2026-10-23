@@ -139,6 +139,10 @@ private:
     bool usingGamepad_ = false;
     uint32_t stressLights_ = 0; // --stress-lights=N: extra moving shadow-casting lights
     std::string startRoomName_; // --start-room=NAME: begin there (testing; progress is not saved)
+    // --expect=room:NAME,gems:N,...: checked when the run ends (automated playthroughs, ADR-0032).
+    std::vector<std::pair<std::string, std::string>> expectations_;
+    bool checkExpectations();
+    uint32_t respawns_ = 0;
     size_t bandsOverride_ = 0; // F4: index into kBandOverrides (0 = the room's look)
     bool shadowsEnabled_ = true; // F7
     bool effectsEnabled_ = true; // F10

@@ -46,13 +46,14 @@ struct EngineContext {
     bool demo = false;          // --demo: the game drives itself with scripted input
     bool deterministic = false; // --deterministic: one fixed step per frame (reproducible runs)
     bool escapeQuits = true;    // Escape ends the run (games turn this off while it means "back")
+    int exitCode = 0;           // non-zero: the run failed (e.g. a playthrough expectation was not met)
     float overlayTop = 0.0f;    // window pixels kept free above the debug overlay (tool menu bars)
     bool overlaySuppressed = false; // tools that need the whole view hide the debug overlay
     bool quitRequested = false;
 };
 
 // Owns the main loop: fixed-timestep simulation (60 Hz, bounded catch-up) and variable-rate
-// rendering. Command line: --backend=opengl|vulkan  --no-vsync  --hide-overlay  --resize-test
+// rendering. Command line: --backend=opengl|vulkan|null (--headless = null: no window)  --no-vsync  --hide-overlay  --resize-test
 // --deterministic (one fixed step per frame)  --demo (scripted input)  --frames=N  --screenshot=path.png
 class Application {
 public:

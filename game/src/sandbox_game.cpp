@@ -75,6 +75,21 @@ bool SandboxGame::onArgument(std::string_view argument) {
         startRoomName_ = std::string(argument.substr(kStartRoom.size()));
         return true;
     }
+    constexpr std::string_view kExpect = "--expect=";
+    if (argument.starts_with(kExpect)) {
+        std::string_view list = argument.substr(kExpect.size());
+        while (!list.empty()) {
+            const std::string_view item = list.substr(0, list.find(','));
+            const size_t colon = item.find(':');
+            if (colon == std::string_view::npos) {
+                animal::log::error("--expect: '{}' is not name:value", item);
+                return false;
+            }
+            expectations_.emplace_back(std::string(item.substr(0, colon)), std::string(item.substr(colon + 1)));
+            list = item.size() < list.size() ? list.substr(item.size() + 1) : std::string_view();
+        }
+        return true;
+    }
     return dev_.handleArgument(argument);
 }
 
@@ -629,6 +644,7 @@ void SandboxGame::setEffectsEnabled(bool enabled, animal::Renderer2D& renderer) 
 }
 
 void SandboxGame::respawn(animal::Renderer2D& renderer) {
+    ++respawns_;
     enterRoom(*checkpointRoom_, renderer); // rebuilds the room even when already in it
     placePlayerFeet(checkpointFeet_);
     playerState_ = {};
@@ -917,7 +933,46 @@ void SandboxGame::onToolsPass(animal::EngineContext& context, animal::rhi::Comma
     dev_.render(context, commands);
 }
 
+// Expectations: room (the room the player ends in), gems (at least N collected), grounded (true /
+// false), alive (no respawn since the start: the player never fell out of the world).
+bool SandboxGame::checkExpectations() {
+    const size_t collected = static_cast<size_t>(
+        std::ranges::count_if(save_.flags, [this](const std::string& f) { return gemFlags_.count(f) != 0; }));
+    bool ok = true;
+    for (const auto& [name, expected] : expectations_) {
+        std::string actual;
+        bool met = false;
+        if (name == "room") {
+            actual = currentRoom_ ? roomName(currentRoom_->path) : "";
+            met = actual == expected;
+        } else if (name == "gems") {
+            actual = std::to_string(collected);
+            met = collected >= static_cast<size_t>(std::strtoul(expected.c_str(), nullptr, 10));
+        } else if (name == "grounded") {
+            actual = playerState_.grounded ? "true" : "false";
+            met = actual == expected;
+        } else if (name == "respawns") {
+            actual = std::to_string(respawns_);
+            met = actual == expected;
+        } else {
+            animal::log::error("Expectation '{}' is unknown (room, gems, grounded, respawns)", name);
+            ok = false;
+            continue;
+        }
+        if (met) {
+            animal::log::info("Expectation met: {} = {}", name, actual);
+        } else {
+            animal::log::error("Expectation FAILED: {} should be {}, is {}", name, expected, actual);
+            ok = false;
+        }
+    }
+    return ok;
+}
+
 void SandboxGame::onShutdown(animal::EngineContext& context) {
+    if (!expectations_.empty() && !checkExpectations()) {
+        context.exitCode = 3;
+    }
     dev_.shutdown(context);
     animal::destroyMaterial(*context.device, assets_.tileset);
     animal::destroyMaterial(*context.device, assets_.props);

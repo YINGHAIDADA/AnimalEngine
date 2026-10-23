@@ -9,6 +9,7 @@
 #include <animal/renderer/renderer2d.h>
 #include <animal/resources/loaders.h>
 #include <animal/rhi/command_list.h>
+#include <animal/rhi/validation.h>
 
 #include <SDL3/SDL_filesystem.h>
 
@@ -37,6 +38,7 @@ struct CommandLine {
     std::string canvasScreenshotPath; // the 320×180 final canvas, independent of window size and DPI
     std::string inputScriptPath;
     std::string packPath; // --pack: the resource pack to read the data from
+    bool strict = false;  // --strict: RHI validation errors fail the run (exit code 4)
 };
 
 std::optional<CommandLine> parseCommandLine(int argc, char** argv,
@@ -48,6 +50,8 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv,
             cl.backend = rhi::Backend::OpenGL;
         } else if (arg == "--backend=vulkan") {
             cl.backend = rhi::Backend::Vulkan;
+        } else if (arg == "--backend=null" || arg == "--headless") {
+            cl.backend = rhi::Backend::Null;
         } else if (arg == "--no-vsync") {
             cl.noVsync = true;
         } else if (arg == "--hide-overlay") {
@@ -66,6 +70,8 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv,
             cl.canvasScreenshotPath = std::string(arg.substr(20));
         } else if (arg == "--profile") {
             cl.profile = true;
+        } else if (arg == "--strict") {
+            cl.strict = true;
         } else if (arg.starts_with("--pack=")) {
             cl.packPath = std::string(arg.substr(7));
         } else if (arg.starts_with("--input-script=")) {
@@ -73,9 +79,9 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv,
         } else if (arg.starts_with("-psn_")) {
             // Added by macOS when launched from Finder.
         } else if (!other(arg)) {
-            log::error("Unknown argument '{}'. Options: --backend=opengl|vulkan --no-vsync --hide-overlay "
+            log::error("Unknown argument '{}'. Options: --backend=opengl|vulkan|null --headless --no-vsync --hide-overlay "
                        "--resize-test --deterministic --demo --profile --frames=N --screenshot=path.png "
-                       "--canvas-screenshot=path.png --input-script=path.txt --pack=data.pak",
+                       "--canvas-screenshot=path.png --input-script=path.txt --pack=data.pak --strict",
                        arg);
             return std::nullopt;
         }
@@ -273,10 +279,11 @@ int Application::run(int argc, char** argv) {
         windowDesc.api = config.backend == rhi::Backend::Vulkan ? platform::GraphicsApi::Vulkan
                                                                 : platform::GraphicsApi::OpenGL;
         windowDesc.debugContext = kDebugBuild;
-        std::unique_ptr<platform::Window> window = platform::Window::create(windowDesc);
+        const bool headless = config.backend == rhi::Backend::Null;
+        std::unique_ptr<platform::Window> window = headless ? nullptr : platform::Window::create(windowDesc);
 
         std::unique_ptr<rhi::Device> device;
-        if (window) {
+        if (window || headless) {
             device = rhi::createDevice({config.backend, window.get(), config.vsync, kDebugBuild});
         }
 
@@ -317,7 +324,9 @@ int Application::run(int argc, char** argv) {
             log::info("Startup: data loaded in {:.1f} ms ({})",
                       static_cast<double>(platform::nowNanoseconds() - loadStart) * 1e-6,
                       packPath.empty() ? "loose files" : "resource pack");
-            window->show();
+            if (window) {
+                window->show();
+            }
             rhi::CommandList commands;
             FrameTimer timer;
             Profile profile;
@@ -335,8 +344,8 @@ int Application::run(int argc, char** argv) {
                 if (inputScript) {
                     // Canvas pixel centres in window points, from the last frame's layout.
                     const PresentLayout& layout = renderer.presentLayout();
-                    const platform::PixelSize pixels = window->pixelSize();
-                    const platform::PixelSize points = window->sizeInPoints();
+                    const platform::PixelSize pixels = window ? window->pixelSize() : platform::PixelSize{1, 1};
+                    const platform::PixelSize points = window ? window->sizeInPoints() : platform::PixelSize{1, 1};
                     const float density = points.width > 0 && pixels.width > 0
                                               ? static_cast<float>(pixels.width) / static_cast<float>(points.width)
                                               : 1.0f;
@@ -354,7 +363,7 @@ int Application::run(int argc, char** argv) {
                 if (input.pressed(platform::Key::F1)) {
                     overlayVisible = !overlayVisible;
                 }
-                if (commandLine->resizeTest && framesRendered % 30 == 29) {
+                if (window && commandLine->resizeTest && framesRendered % 30 == 29) {
                     // Exercises swapchain recreation; ends on the configured size.
                     static constexpr int kSizes[][2] = {{800, 450}, {1000, 700}, {333, 222}};
                     const uint64_t step = framesRendered / 30;
@@ -445,11 +454,17 @@ int Application::run(int argc, char** argv) {
                 profile.report();
             }
             onShutdown(context);
+            exitCode = std::max(exitCode, context.exitCode);
         }
 
         if (device) {
             device->waitIdle();
             renderer.shutdown();
+            if (const auto* validating = dynamic_cast<const rhi::ValidatingDevice*>(device.get());
+                commandLine->strict && validating && validating->errorCount() > 0) {
+                log::error("--strict: {} RHI validation error(s)", validating->errorCount());
+                exitCode = std::max(exitCode, 4);
+            }
         }
     }
 

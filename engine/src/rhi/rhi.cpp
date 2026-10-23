@@ -5,6 +5,7 @@
 namespace animal::rhi {
 
 std::unique_ptr<Device> createOpenGLDevice(const DeviceDesc& desc);
+std::unique_ptr<Device> createNullDevice();
 #if defined(ANIMAL_RHI_VULKAN)
 std::unique_ptr<Device> createVulkanDevice(const DeviceDesc& desc);
 #endif
@@ -15,6 +16,8 @@ const char* backendName(Backend backend) {
         return "OpenGL";
     case Backend::Vulkan:
         return "Vulkan";
+    case Backend::Null:
+        return "Null";
     }
     return "Unknown";
 }
@@ -22,6 +25,7 @@ const char* backendName(Backend backend) {
 bool isBackendImplemented(Backend backend) {
     switch (backend) {
     case Backend::OpenGL:
+    case Backend::Null:
         return true;
     case Backend::Vulkan:
 #if defined(ANIMAL_RHI_VULKAN)
@@ -50,6 +54,10 @@ uint32_t bytesPerPixel(Format format) {
 }
 
 std::unique_ptr<Device> createDevice(const DeviceDesc& desc) {
+    if (desc.backend == Backend::Null) {
+        std::unique_ptr<Device> device = createNullDevice();
+        return desc.debug ? std::make_unique<ValidatingDevice>(std::move(device)) : std::move(device);
+    }
     if (!desc.window) {
         log::error("createDevice: a window is required");
         return nullptr;

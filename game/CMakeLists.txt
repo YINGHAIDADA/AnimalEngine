@@ -91,3 +91,11 @@ add_custom_target(animal_package
     VERBATIM)
 add_dependencies(animal_package animal_game)
 set_target_properties(animal_package PROPERTIES FOLDER game)
+
+# Headless playthrough (ADR-0032): the scripted demo route must still reach the smoke pit with two
+# gems and no fall; in Debug every recorded command list is validated (--strict).
+if(ANIMAL_BUILD_TESTS)
+    add_test(NAME demo_playthrough
+        COMMAND animal_game --headless --demo --deterministic --strict --frames=900
+                "--expect=room:smoke_pit,gems:2,respawns:0")
+endif()

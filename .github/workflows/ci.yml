@@ -25,10 +25,10 @@ jobs:
         include:
           - { name: macOS Debug, os: macos-15, preset: macos-ninja-debug, tests: true, extra: "" }
           - { name: macOS Release, os: macos-15, preset: macos-ninja-release, tests: true, extra: "" }
-          - { name: macOS Release without dev tools, os: macos-15, preset: macos-ninja-release, tests: false, extra: "-DANIMAL_DEV_TOOLS=OFF" }
+          - { name: macOS Release without dev tools, os: macos-15, preset: macos-ninja-release, tests: true, extra: "-DANIMAL_DEV_TOOLS=OFF" }
           - { name: Windows Debug, os: windows-2022, preset: windows-ninja-debug, tests: true, extra: "" }
           - { name: Windows Release, os: windows-2022, preset: windows-ninja-release, tests: true, extra: "" }
-          - { name: Windows Release without dev tools, os: windows-2022, preset: windows-ninja-release, tests: false, extra: "-DANIMAL_DEV_TOOLS=OFF" }
+          - { name: Windows Release without dev tools, os: windows-2022, preset: windows-ninja-release, tests: true, extra: "-DANIMAL_DEV_TOOLS=OFF" }
 
     steps:
       - uses: actions/checkout@v4

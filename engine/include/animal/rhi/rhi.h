@@ -42,6 +42,7 @@ inline constexpr uint32_t kMaxVertexAttributes = 8;
 enum class Backend : uint8_t {
     OpenGL,
     Vulkan,
+    Null, // headless: no window, nothing drawn (automated playthroughs)
 };
 
 const char* backendName(Backend backend);

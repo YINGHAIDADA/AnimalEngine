@@ -131,9 +131,10 @@ bool DevTools::handleArgument(std::string_view argument) {
 bool DevTools::init(animal::EngineContext& context, SandboxGame& game) {
     State& s = *state_;
     s.game = &game;
-    if (animal::packMountedAt(context.dataDirectory)) {
-        // Packed data is read-only and has no tool shaders: nothing to edit or reload.
-        animal::log::info("Developer tools are off: the data comes from a resource pack");
+    if (!context.window || animal::packMountedAt(context.dataDirectory)) {
+        // Headless runs have no window; packed data is read-only and has no tool shaders.
+        animal::log::info("Developer tools are off: {}", context.window ? "the data comes from a resource pack"
+                                                                          : "no window (headless)");
         s.enabled = false;
         s.visible = false;
         return true;

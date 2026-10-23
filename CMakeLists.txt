@@ -19,6 +19,10 @@ option(ANIMAL_WARNINGS_AS_ERRORS "Treat compiler warnings as errors in project t
 option(ANIMAL_ENABLE_VULKAN "Build the Vulkan RHI backend" ON)
 option(ANIMAL_DEV_TOOLS "Build the developer tools (debug UI, hot reload, level editor) into the game" ON)
 
+if(ANIMAL_BUILD_TESTS)
+    enable_testing() # before the subdirectories: game/ adds the headless playthrough test
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 include(AnimalCompileOptions)
 
@@ -43,7 +47,6 @@ add_subdirectory(tools/rhi_conformance)
 add_subdirectory(tools/asset_cooker)
 
 if(ANIMAL_BUILD_TESTS)
-    enable_testing()
     add_subdirectory(tests)
 endif()
 

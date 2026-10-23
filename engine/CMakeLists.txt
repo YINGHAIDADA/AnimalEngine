@@ -57,6 +57,7 @@ set(ANIMAL_ENGINE_SOURCES
     src/renderer/water_pass.h
     src/resources/loaders.cpp
     src/rhi/command_list.cpp
+    src/rhi/null/null_device.cpp
     src/rhi/rhi.cpp
     src/rhi/validation.cpp
     src/rhi/opengl/gl_device.cpp
