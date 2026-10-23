@@ -1,5 +1,7 @@
 #include "cave_room.h"
 
+#include <animal/core/profiler.h>
+
 #include <animal/core/log.h>
 #include <animal/renderer/fluid.h>
 #include <animal/renderer/renderer2d.h>
@@ -411,15 +413,28 @@ void CaveRoom::step(float dt, double time, std::span<const animal::Influence> in
         const float wander = 0.5f + 0.5f * std::sin(t * 23.0f + static_cast<float>(i) * 1.7f);
         pools_[s.pool].body.disturb(s.left + (s.right - s.left) * wander, 1.5f, 40.0f);
     }
-    for (Pool& pool : pools_) {
-        pool.body.step(dt);
+    {
+        ANIMAL_PROFILE_ZONE("water");
+        for (Pool& pool : pools_) {
+            pool.body.step(dt);
+        }
     }
-    for (Crawler& crawler : crawlers_) {
-        animal::stepPatrol(crawler.body, crawler.patrol, patrolParams_, tiles_, dt);
-        crawler.walkTime += dt;
+    {
+        ANIMAL_PROFILE_ZONE("creatures");
+        for (Crawler& crawler : crawlers_) {
+            animal::stepPatrol(crawler.body, crawler.patrol, patrolParams_, tiles_, dt);
+            crawler.walkTime += dt;
+        }
     }
-    grass_.step(dt, time, influences, wind_);
-    vines_.step(dt, time, influences, wind_);
+    {
+        ANIMAL_PROFILE_ZONE("plants");
+        grass_.step(dt, time, influences, wind_);
+    }
+    {
+        ANIMAL_PROFILE_ZONE("vines");
+        vines_.step(dt, time, influences, wind_);
+    }
+    ANIMAL_PROFILE_ZONE("particles");
     effects_.step(dt, time, tiles_, influences, wind_);
 }
 

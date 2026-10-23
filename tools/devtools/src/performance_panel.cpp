@@ -1,6 +1,7 @@
 #include <animal/devtools/performance_panel.h>
 
 #include <animal/app/application.h>
+#include <animal/core/profiler.h>
 #include <animal/platform/platform.h>
 #include <animal/renderer/renderer2d.h>
 
@@ -11,13 +12,14 @@
 
 namespace animal::devtools {
 
-PerformancePanel::Series& PerformancePanel::series(const char* name, uint32_t depth) {
-    const auto it = std::ranges::find_if(gpu_, [name](const Series& s) { return s.name == name; });
-    if (it != gpu_.end()) {
+PerformancePanel::Series& PerformancePanel::series(std::vector<Series>& list, const char* name, uint32_t depth) {
+    const auto it =
+        std::ranges::find_if(list, [&](const Series& s) { return s.name == name && s.depth == depth; });
+    if (it != list.end()) {
         return *it;
     }
-    gpu_.push_back({name, depth, {}, 0.0f});
-    return gpu_.back();
+    list.push_back({name, depth, {}, 0.0f});
+    return list.back();
 }
 
 void PerformancePanel::sample(const EngineContext& context) {
@@ -30,13 +32,21 @@ void PerformancePanel::sample(const EngineContext& context) {
     cursor_ = (cursor_ + 1) % kHistory;
     frame_.values[cursor_] = frameMs;
     frame_.last = frameMs;
-    for (Series& s : gpu_) {
-        s.values[cursor_] = 0.0f;
+    for (std::vector<Series>* list : {&gpu_, &cpu_}) {
+        for (Series& s : *list) {
+            s.values[cursor_] = 0.0f;
+            s.last = 0.0f;
+        }
     }
     for (const rhi::GpuTiming& t : context.device->gpuTimings()) {
-        Series& s = series(t.name, t.depth);
+        Series& s = series(gpu_, t.name, t.depth);
         s.values[cursor_] = static_cast<float>(t.milliseconds);
         s.last = static_cast<float>(t.milliseconds);
+    }
+    for (const profiler::ZoneTiming& z : profiler::lastFrame()) {
+        Series& s = series(cpu_, z.name, z.depth);
+        s.values[cursor_] = static_cast<float>(z.milliseconds);
+        s.last = static_cast<float>(z.milliseconds);
     }
 }
 
@@ -60,6 +70,16 @@ void PerformancePanel::draw(const EngineContext& context) {
     };
     ImGui::SeparatorText("CPU frame (wall clock)");
     plot(frame_, 60.0f);
+    if (ImGui::BeginTable("cpu", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp)) {
+        for (const Series& s : cpu_) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("%*s%s", static_cast<int>(s.depth * 2), "", s.name.c_str());
+            ImGui::TableNextColumn();
+            ImGui::Text("%.3f ms", s.last);
+        }
+        ImGui::EndTable();
+    }
 
     ImGui::SeparatorText("GPU passes");
     if (gpu_.empty()) {

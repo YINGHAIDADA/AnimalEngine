@@ -6,6 +6,7 @@
 #include <animal/app/application.h>
 #include <animal/core/file.h>
 #include <animal/core/log.h>
+#include <animal/core/profiler.h>
 #include <animal/platform/input.h>
 #include <animal/platform/platform.h>
 #include <animal/renderer/renderer2d.h>
@@ -159,6 +160,7 @@ void DevTools::frame(animal::EngineContext& context) {
     if (!s.enabled) {
         return;
     }
+    ANIMAL_PROFILE_ZONE("tools");
     s.performance.sample(context);
     DevPanels::hotReload(s, context);
     animal::platform::Input& input = *context.input;

@@ -3,6 +3,7 @@
 #include <animal/app/application.h>
 #include <animal/core/file.h>
 #include <animal/core/log.h>
+#include <animal/core/profiler.h>
 #include <animal/platform/input.h>
 #include <animal/platform/platform.h>
 #include <animal/platform/window.h>
@@ -153,12 +154,20 @@ public:
     static constexpr uint64_t kWarmupFrames = 60;
 
     void sample(uint64_t frame, double frameMilliseconds, const std::vector<rhi::GpuTiming>& timings,
-                uint32_t drawCalls) {
+                uint32_t drawCalls, const std::vector<profiler::ZoneTiming>& zones) {
         if (frame < kWarmupFrames) {
             return;
         }
         cpu_.add(frameMilliseconds);
         draws_.add(drawCalls);
+        for (const profiler::ZoneTiming& z : zones) {
+            auto it = std::find_if(zones_.begin(), zones_.end(), [&z](const Scope& s) { return s.name == z.name; });
+            if (it == zones_.end()) {
+                zones_.push_back({z.name, z.depth, {}});
+                it = zones_.end() - 1;
+            }
+            it->stat.add(z.milliseconds);
+        }
         for (const rhi::GpuTiming& t : timings) {
             auto it = std::find_if(scopes_.begin(), scopes_.end(), [&t](const Scope& s) { return s.name == t.name; });
             if (it == scopes_.end()) {
@@ -177,6 +186,10 @@ public:
         log::info("Profile over {} frames (after {} warm-up): average / max in ms", cpu_.count, kWarmupFrames);
         log::info("  {:<18} {:7.3f} {:7.3f}", "frame (wall)", cpu_.average(), cpu_.max);
         log::info("  {:<18} {:7.1f} {:7.0f}", "draw calls", draws_.average(), draws_.max);
+        for (const Scope& z : zones_) {
+            log::info("  {:<18} {:7.3f} {:7.3f}", std::string(z.depth * 2, ' ') + "cpu " + z.name, z.stat.average(),
+                      z.stat.max);
+        }
         for (const Scope& s : scopes_) {
             log::info("  {:<18} {:7.3f} {:7.3f}", std::string(s.depth * 2, ' ') + "gpu " + s.name, s.stat.average(),
                       s.stat.max);
@@ -203,6 +216,7 @@ private:
     Stat cpu_;
     Stat draws_;
     std::vector<Scope> scopes_;
+    std::vector<Scope> zones_; // CPU zones of the frame (ANIMAL_PROFILE_ZONE)
 };
 
 void drawOverlay(EngineContext& context, Renderer2D& renderer, std::vector<std::string> lines) {
@@ -337,6 +351,8 @@ int Application::run(int argc, char** argv) {
             int screenshotCounter = 0;
 
             while (!context.quitRequested) {
+                profiler::beginFrame();
+                std::optional<profiler::Zone> eventsZone(std::in_place, "events");
                 platform::FrameEvents events = platform::pollEvents();
                 if (events.quitRequested) {
                     break;
@@ -374,21 +390,26 @@ int Application::run(int argc, char** argv) {
                     }
                 }
 
+                eventsZone.reset();
                 const uint64_t now = platform::nowNanoseconds();
                 const double realFrameTime = std::min(static_cast<double>(now - lastTime) * 1e-9, 0.25);
                 lastTime = now;
                 timer.tick(realFrameTime, context.stats);
                 if (commandLine->profile) {
                     profile.sample(framesRendered, realFrameTime * 1000.0, device->gpuTimings(),
-                                   renderer.stats().drawCalls);
+                                   renderer.stats().drawCalls, profiler::lastFrame());
                 }
                 // Deterministic runs advance exactly one fixed step per frame (reproducible captures).
                 const double frameTime = commandLine->deterministic ? kFixedTimestep : realFrameTime;
-                onFrame(context);
+                {
+                    ANIMAL_PROFILE_ZONE("update");
+                    onFrame(context);
+                }
 
                 accumulator += frameTime;
                 int steps = 0;
                 while (accumulator >= kFixedTimestep && steps < kMaxStepsPerFrame) {
+                    ANIMAL_PROFILE_ZONE("simulation");
                     onFixedUpdate(context, kFixedTimestep);
                     accumulator -= kFixedTimestep;
                     ++steps;
@@ -406,7 +427,11 @@ int Application::run(int argc, char** argv) {
                     screenshotPath = std::format("screenshots/screenshot_{:03}.png", ++screenshotCounter);
                 }
 
-                if (device->beginFrame()) {
+                std::optional<profiler::Zone> acquireZone(std::in_place, "acquire");
+                const bool frameStarted = device->beginFrame();
+                acquireZone.reset();
+                if (frameStarted) {
+                    std::optional<profiler::Zone> renderZone(std::in_place, "render");
                     commands.reset();
                     renderer.beginFrame(commands);
                     onRender(context, renderer);
@@ -433,7 +458,11 @@ int Application::run(int argc, char** argv) {
                     renderer.endScreen();
                     onToolsPass(context, commands);
                     renderer.endFrame();
-                    device->submit(commands);
+                    renderZone.reset();
+                    {
+                        ANIMAL_PROFILE_ZONE("submit");
+                        device->submit(commands);
+                    }
                     if (!screenshotPath.empty()) {
                         saveScreenshot(*device, device->swapchainTexture(), device->swapchainExtent(), screenshotPath);
                     }
@@ -441,9 +470,13 @@ int Application::run(int argc, char** argv) {
                         saveScreenshot(*device, renderer.finalCanvas(), Renderer2D::kCanvasExtent,
                                        commandLine->canvasScreenshotPath);
                     }
-                    device->endFrame();
+                    {
+                        ANIMAL_PROFILE_ZONE("present"); // includes waiting for vsync
+                        device->endFrame();
+                    }
                     ++framesRendered;
                 }
+                profiler::endFrame();
 
                 if (lastFrame) {
                     break;

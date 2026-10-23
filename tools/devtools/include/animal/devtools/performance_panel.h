@@ -31,12 +31,13 @@ private:
         float last = 0.0f;
     };
 
-    Series& series(const char* name, uint32_t depth);
+    static Series& series(std::vector<Series>& list, const char* name, uint32_t depth);
 
     uint64_t lastTime_ = 0;
     size_t cursor_ = 0;
     Series frame_{"frame (CPU)", 0, {}, 0.0f};
     std::vector<Series> gpu_;
+    std::vector<Series> cpu_; // CPU zones (ANIMAL_PROFILE_ZONE)
     bool paused_ = false;
 };
 

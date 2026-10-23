@@ -7,6 +7,7 @@ set(ANIMAL_ENGINE_HEADERS
     include/animal/core/log.h
     include/animal/core/math.h
     include/animal/core/pack.h
+    include/animal/core/profiler.h
     include/animal/core/random.h
     include/animal/platform/input.h
     include/animal/platform/platform.h
@@ -36,6 +37,7 @@ set(ANIMAL_ENGINE_SOURCES
     src/core/log.cpp
     src/core/pack.cpp
     src/core/pack_writer.cpp
+    src/core/profiler.cpp
     src/platform/gamepads.h
     src/platform/input.cpp
     src/platform/platform.cpp

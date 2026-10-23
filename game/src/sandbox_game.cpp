@@ -2,6 +2,7 @@
 
 #include <animal/core/file.h>
 #include <animal/core/log.h>
+#include <animal/core/profiler.h>
 #include <animal/core/random.h>
 #include <animal/platform/input.h>
 #include <animal/platform/platform.h>
@@ -15,6 +16,7 @@
 #include <filesystem>
 #include <format>
 #include <iterator>
+#include <optional>
 
 namespace game {
 
@@ -801,6 +803,7 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
     messageTime_ = std::max(0.0f, messageTime_ - step);
     animal::Entity* player = entities_.get(player_);
     const bool editing = dev_.editing(); // the level editor freezes the player; the room keeps moving
+    std::optional<animal::profiler::Zone> playerZone(std::in_place, "player");
     if (player && !editing) {
         const bool control = stunned_ <= 0.0f;
         const float moveX = control ? actions_.strength(MoveRight) - actions_.strength(MoveLeft) : 0.0f;
@@ -833,6 +836,8 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
         }
     }
 
+    playerZone.reset();
+    ANIMAL_PROFILE_ZONE("room");
     std::vector<animal::Influence> influences;
     if (player && !editing) {
         animal::Influence influence{player->body.worldCollider(), playerState_.velocity, false};
@@ -849,6 +854,7 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
 }
 
 void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer) {
+    ANIMAL_PROFILE_ZONE("draw room");
     applyCurrentLook(renderer);
     renderer.setGpuParticleStep(gpuParticleTime_, cave_.windAt(kCameraCenter, time_));
     gpuParticleTime_ = 0.0f;
