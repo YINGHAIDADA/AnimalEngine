@@ -38,6 +38,7 @@ set(ANIMAL_ENGINE_SOURCES
     src/core/pack.cpp
     src/core/pack_writer.cpp
     src/core/profiler.cpp
+    src/platform/crash.h
     src/platform/gamepads.h
     src/platform/input.cpp
     src/platform/platform.cpp
@@ -93,6 +94,13 @@ if(ANIMAL_ENABLE_VULKAN)
     set_source_files_properties(src/rhi/vulkan/vk_memory.cpp PROPERTIES COMPILE_OPTIONS "$<IF:$<CXX_COMPILER_ID:MSVC>,/w,-w>")
     target_compile_definitions(animal_engine PRIVATE ANIMAL_RHI_VULKAN=1)
     source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${ANIMAL_VULKAN_SOURCES})
+endif()
+
+if(WIN32)
+    target_sources(animal_engine PRIVATE src/platform/crash_windows.cpp)
+    target_link_libraries(animal_engine PRIVATE dbghelp)
+else()
+    target_sources(animal_engine PRIVATE src/platform/crash_posix.cpp)
 endif()
 
 set_target_properties(animal_engine PROPERTIES FOLDER engine)

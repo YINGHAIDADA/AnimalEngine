@@ -62,7 +62,8 @@ std::string roomName(const std::string& path) {
 
 animal::AppConfig SandboxGame::configure() {
     animal::AppConfig config;
-    config.title = "Animal Engine · M1b Sandbox";
+    config.title = "Animal Engine · Sandbox";
+    config.applicationId = "Sandbox";
     return config;
 }
 

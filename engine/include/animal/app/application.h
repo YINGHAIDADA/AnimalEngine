@@ -23,6 +23,7 @@ class Renderer2D;
 
 struct AppConfig {
     std::string title = "Animal Engine";
+    std::string applicationId = "Game"; // the per-user folder (saves, logs/, crashes/)
     int windowWidth = 1280;
     int windowHeight = 720;
     rhi::Backend backend = rhi::Backend::OpenGL;

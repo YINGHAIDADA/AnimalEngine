@@ -34,6 +34,11 @@ struct ProcessResult {
 // Runs a program to completion (blocking) and captures what it prints. arguments[0] is the program.
 ProcessResult runProcess(const std::vector<std::string>& arguments);
 
+// Crash reports (ADR-0032): fatal signals and unhandled exceptions (and std::terminate) write
+// <directory>/crash-<date>-<time>.txt with the reason and the call stack (Windows: also a .dmp
+// minidump) and name the log file. Call once at start-up; returns the report path.
+std::string installCrashHandler(const std::string& directory, const std::string& logPath);
+
 enum class Cursor : uint8_t {
     Arrow,
     TextInput,

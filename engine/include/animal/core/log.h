@@ -2,6 +2,7 @@
 
 #include <format>
 #include <functional>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -22,6 +23,13 @@ void setMinimumLevel(Level level);
 using Sink = std::function<void(Level level, std::string_view message)>;
 int addSink(Sink sink);
 void removeSink(int id);
+
+// Copies every message to <directory>/<name>.log (ADR-0032), keeping the previous `keep` runs as
+// <name>.1.log ... <name>.<keep>.log. Warnings and errors are flushed at once.
+bool startFileLog(const std::string& directory, const std::string& name, int keep = 5);
+void flushFileLog();
+void stopFileLog();
+const std::string& fileLogPath(); // empty when not logging to a file
 
 template <typename... Args>
 void debug(std::format_string<Args...> fmt, Args&&... args) {

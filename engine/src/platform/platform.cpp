@@ -1,3 +1,4 @@
+#include "crash.h"
 #include "gamepads.h"
 
 #include <animal/core/log.h>
@@ -6,6 +7,11 @@
 #include <SDL3/SDL.h>
 
 #include <array>
+#include <chrono>
+#include <cstdlib>
+#include <ctime>
+#include <exception>
+#include <format>
 
 namespace animal::platform {
 
@@ -202,6 +208,36 @@ ProcessResult runProcess(const std::vector<std::string>& arguments) {
     result.exitCode = exitCode;
     SDL_DestroyProcess(process);
     return result;
+}
+
+std::string installCrashHandler(const std::string& directory, const std::string& logPath) {
+    std::string dir = directory;
+    if (!dir.empty() && dir.back() != '/' && dir.back() != '\\') {
+        dir += '/';
+    }
+    SDL_CreateDirectory(dir.c_str());
+    const std::time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    char stamp[32] = {};
+    std::strftime(stamp, sizeof(stamp), "%Y%m%d-%H%M%S", std::localtime(&now));
+    const std::string path = std::format("{}crash-{}-{}.txt", dir, stamp, SDL_GetTicksNS() % 100000);
+    detail::installCrashHandler(path, logPath);
+    std::set_terminate([] {
+        std::string reason = "std::terminate";
+        if (const std::exception_ptr current = std::current_exception()) {
+            try {
+                std::rethrow_exception(current);
+            } catch (const std::exception& e) {
+                reason += std::string(": uncaught exception: ") + e.what();
+            } catch (...) {
+                reason += ": uncaught exception of unknown type";
+            }
+        }
+        log::error("{}", reason);
+        log::flushFileLog();
+        detail::writeCrashReport(reason.c_str());
+        std::_Exit(3);
+    });
+    return path;
 }
 
 void setCursor(Cursor cursor) {

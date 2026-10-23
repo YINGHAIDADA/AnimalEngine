@@ -20,6 +20,7 @@
 #include <format>
 #include <functional>
 #include <optional>
+#include <stdexcept>
 #include <string_view>
 
 namespace animal {
@@ -40,6 +41,8 @@ struct CommandLine {
     std::string inputScriptPath;
     std::string packPath; // --pack: the resource pack to read the data from
     bool strict = false;  // --strict: RHI validation errors fail the run (exit code 4)
+    std::string crashTest; // --crash-test=segv|abort|exception: crash on purpose after start-up
+    std::string crashDirectory; // --crash-dir: where crash reports go (default: <user dir>/crashes)
 };
 
 std::optional<CommandLine> parseCommandLine(int argc, char** argv,
@@ -71,6 +74,10 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv,
             cl.canvasScreenshotPath = std::string(arg.substr(20));
         } else if (arg == "--profile") {
             cl.profile = true;
+        } else if (arg.starts_with("--crash-test=")) {
+            cl.crashTest = std::string(arg.substr(13));
+        } else if (arg.starts_with("--crash-dir=")) {
+            cl.crashDirectory = std::string(arg.substr(12));
         } else if (arg == "--strict") {
             cl.strict = true;
         } else if (arg.starts_with("--pack=")) {
@@ -82,7 +89,7 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv,
         } else if (!other(arg)) {
             log::error("Unknown argument '{}'. Options: --backend=opengl|vulkan|null --headless --no-vsync --hide-overlay "
                        "--resize-test --deterministic --demo --profile --frames=N --screenshot=path.png "
-                       "--canvas-screenshot=path.png --input-script=path.txt --pack=data.pak --strict",
+                       "--canvas-screenshot=path.png --input-script=path.txt --pack=data.pak --strict --crash-test=segv|abort|exception --crash-dir=path",
                        arg);
             return std::nullopt;
         }
@@ -242,6 +249,20 @@ void drawOverlay(EngineContext& context, Renderer2D& renderer, std::vector<std::
 
 } // namespace
 
+// --crash-test: proves that crash reports are written (tests and support).
+[[noreturn]] static void crashOnPurpose(const std::string& mode) {
+    log::error("--crash-test={}: crashing on purpose", mode);
+    if (mode == "abort") {
+        std::abort();
+    }
+    if (mode == "exception") {
+        throw std::runtime_error("crash test");
+    }
+    volatile int* null = nullptr;
+    *null = 1; // segv
+    std::abort();
+}
+
 void Application::onFrame(EngineContext&) {}
 
 void Application::onScreen(EngineContext&, Renderer2D&) {}
@@ -269,6 +290,17 @@ int Application::run(int argc, char** argv) {
         return 2;
     }
     AppConfig config = configure();
+    // Diagnostics first, so start-up problems are captured too (ADR-0032).
+    const std::string userDirectory = platform::userDataDirectory("AnimalEngine", config.applicationId.c_str());
+    if (!userDirectory.empty()) {
+        log::startFileLog(userDirectory + "logs", config.applicationId);
+    }
+    const std::string crashDirectory = !commandLine->crashDirectory.empty() ? commandLine->crashDirectory
+                                       : !userDirectory.empty()            ? userDirectory + "crashes"
+                                                                           : std::string();
+    if (!crashDirectory.empty()) {
+        platform::installCrashHandler(crashDirectory, log::fileLogPath());
+    }
     if (commandLine->backend) {
         config.backend = *commandLine->backend;
     }
@@ -335,6 +367,9 @@ int Application::run(int argc, char** argv) {
             log::error("Startup failed; see the errors above");
             exitCode = 1;
         } else {
+            if (!commandLine->crashTest.empty()) {
+                crashOnPurpose(commandLine->crashTest);
+            }
             log::info("Startup: data loaded in {:.1f} ms ({})",
                       static_cast<double>(platform::nowNanoseconds() - loadStart) * 1e-6,
                       packPath.empty() ? "loose files" : "resource pack");
@@ -503,6 +538,7 @@ int Application::run(int argc, char** argv) {
 
     unmountPacks();
     platform::shutdown();
+    log::stopFileLog();
     return exitCode;
 }
 

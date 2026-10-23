@@ -98,4 +98,11 @@ if(ANIMAL_BUILD_TESTS)
     add_test(NAME demo_playthrough
         COMMAND animal_game --headless --demo --deterministic --strict --frames=900
                 "--expect=room:smoke_pit,gems:2,respawns:0")
+    # Crash reports (ADR-0032) for a fault, abort() and an uncaught exception.
+    foreach(mode segv abort exception)
+        add_test(NAME crash_report_${mode}
+            COMMAND "${CMAKE_COMMAND}" "-DGAME=$<TARGET_FILE:animal_game>"
+                    "-DDIR=${CMAKE_CURRENT_BINARY_DIR}/crash_test_${mode}" -DMODE=${mode}
+                    -P "${PROJECT_SOURCE_DIR}/cmake/CheckCrashReport.cmake")
+    endforeach()
 endif()
