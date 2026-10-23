@@ -67,6 +67,7 @@ rhi::TextureHandle Renderer2D::createSolidTexture(Color color, const char* name)
 
 bool Renderer2D::init(rhi::Device& device, const std::string& dataDirectory) {
     device_ = &device;
+    dataDirectory_ = dataDirectory;
     const std::string shaders = dataDirectory + "shaders/";
 
     SpriteBatchDesc unlit;
@@ -152,6 +153,43 @@ void Renderer2D::shutdown() {
         device_->destroy(texture);
     }
     device_ = nullptr;
+}
+
+bool Renderer2D::rebuild() {
+    ANIMAL_ASSERT(device_ != nullptr && phase_ == Phase::Idle && commands_ == nullptr);
+    Renderer2D fresh;
+    if (!fresh.init(*device_, dataDirectory_)) {
+        fresh.shutdown();
+        log::error("Renderer2D: rebuild failed; the current renderer stays in use");
+        return false;
+    }
+    swapResources(fresh);
+    fresh.shutdown(); // releases the previous resources
+    log::info("Renderer2D: rebuilt from the shader files");
+    return true;
+}
+
+// Everything created by init(); settings and per-frame collections stay with this renderer.
+void Renderer2D::swapResources(Renderer2D& other) {
+    using std::swap;
+    swap(batch_, other.batch_);
+    swap(litBatch_, other.litBatch_);
+    swap(glowBatch_, other.glowBatch_);
+    swap(font_, other.font_);
+    swap(lightingPass_, other.lightingPass_);
+    swap(fluidPass_, other.fluidPass_);
+    swap(postPass_, other.postPass_);
+    swap(waterPass_, other.waterPass_);
+    swap(gpuParticles_, other.gpuParticles_);
+    swap(water_, other.water_);
+    swap(fluidQuietSeconds_, other.fluidQuietSeconds_);
+    for (auto [mine, theirs] : {std::pair{&canvas_, &other.canvas_}, {&final_, &other.final_},
+                                {&albedo_, &other.albedo_}, {&normal_, &other.normal_},
+                                {&emissive_, &other.emissive_}, {&light_, &other.light_},
+                                {&rimLight_, &other.rimLight_}, {&lit_, &other.lit_}, {&flags_, &other.flags_},
+                                {&flatNormal_, &other.flatNormal_}, {&noEmission_, &other.noEmission_}}) {
+        swap(*mine, *theirs);
+    }
 }
 
 void Renderer2D::beginFrame(rhi::CommandList& commands) {

@@ -47,6 +47,11 @@ public:
 
     bool init(rhi::Device& device, const std::string& dataDirectory);
     void shutdown();
+    // Recreates every GPU resource from the shader files on disk (hot reload of a shader whose
+    // resource bindings changed, ADR-0028). Built aside first: on failure nothing changes. Settings
+    // are kept; smoke, GPU particles, occluders, fluid obstacles and GPU emitters start over and must
+    // be set again. Between frames only.
+    bool rebuild();
 
     void beginFrame(rhi::CommandList& commands);
 
@@ -126,7 +131,10 @@ private:
     rhi::TextureHandle createTarget(rhi::Format format, const char* name);
     rhi::TextureHandle createSolidTexture(Color color, const char* name);
 
+    void swapResources(Renderer2D& other);
+
     rhi::Device* device_ = nullptr;
+    std::string dataDirectory_;
     rhi::CommandList* commands_ = nullptr;
     Phase phase_ = Phase::Idle;
 

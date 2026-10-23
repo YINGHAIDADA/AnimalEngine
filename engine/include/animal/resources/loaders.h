@@ -58,14 +58,18 @@ rhi::ShaderHandle loadShader(rhi::Device& device, const std::string& path);
 // Device::textureExtent for the current one). A file that fails to load or would change a shader's
 // bindings leaves the old contents in place.
 enum class ReloadResult {
-    NotLoaded, // nothing was loaded from this path
+    NotLoaded,    // nothing was loaded from this path
     Reloaded,
-    Failed,    // logged; the previous contents stay
+    Failed,       // logged; the previous contents stay
+    Incompatible, // a shader whose stage or resource bindings changed: whoever created pipelines
+                  // with it must rebuild them (e.g. Renderer2D::rebuild); nothing was changed
 };
 ReloadResult reloadShaderFile(rhi::Device& device, const std::string& path);
 ReloadResult reloadTextureFile(rhi::Device& device, const std::string& path);
 // Stop tracking a handle (destroyMaterial does this for its textures).
 void forgetLoaded(rhi::TextureHandle texture);
 void forgetLoaded(rhi::ShaderHandle shader);
+// Destroys a shader from loadShader and stops tracking it.
+void destroyShader(rhi::Device& device, rhi::ShaderHandle shader);
 
 } // namespace animal

@@ -164,7 +164,7 @@ void LightingPass::shutdown() {
     device_->destroy(lightPipeline_);
     device_->destroy(compositePipeline_);
     for (rhi::ShaderHandle shader : {lightVertex_, lightFragment_, compositeVertex_, compositeFragment_}) {
-        device_->destroy(shader);
+        destroyShader(*device_, shader);
     }
     device_->destroy(sampler_);
     device_->destroy(linearSampler_);

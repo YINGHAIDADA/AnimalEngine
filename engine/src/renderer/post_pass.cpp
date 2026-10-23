@@ -121,9 +121,9 @@ void PostPass::shutdown() {
     }
     for (size_t i = 0; i < ProgramCount; ++i) {
         device_->destroy(pipelines_[i]);
-        device_->destroy(fragments_[i]);
+        destroyShader(*device_, fragments_[i]);
     }
-    device_->destroy(vertex_);
+    destroyShader(*device_, vertex_);
     device_->destroy(linear_);
     device_->destroy(nearest_);
     device_ = nullptr;

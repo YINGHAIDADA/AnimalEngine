@@ -231,8 +231,8 @@ void ImGuiLayer::shutdown() {
     device_->destroy(linearSampler_);
     device_->destroy(nearestSampler_);
     device_->destroy(pipeline_);
-    device_->destroy(vertexShader_);
-    device_->destroy(fragmentShader_);
+    destroyShader(*device_, vertexShader_);
+    destroyShader(*device_, fragmentShader_);
     vertexCapacity_ = indexCapacity_ = 0;
     initialized_ = false;
 }

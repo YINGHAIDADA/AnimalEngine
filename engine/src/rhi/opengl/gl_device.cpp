@@ -1012,6 +1012,7 @@ BindGroupHandle GlDevice::createBindGroup(const BindGroupDesc& desc) {
     }
 
     uint32_t provided = 0;
+    std::vector<BindGroupEntry> used;
     for (const BindGroupEntry& entry : desc.entries) {
         const ShaderBinding* layout = nullptr;
         for (const ShaderBinding& b : pipeline->bindings) {
@@ -1020,10 +1021,9 @@ BindGroupHandle GlDevice::createBindGroup(const BindGroupDesc& desc) {
             }
         }
         if (!layout) {
-            log::error("createBindGroup '{}': pipeline has no resource at set {} binding {}", name, desc.set,
-                       entry.binding);
-            return {};
+            continue; // the shader does not use this resource (any more)
         }
+        used.push_back(entry);
         if (layout->kind == BindingKind::UniformBuffer) {
             const GlBuffer* buffer = buffers_.get(entry.buffer);
             if (!buffer || !hasFlag(buffer->usage, BufferUsage::Uniform)) {
@@ -1053,7 +1053,7 @@ BindGroupHandle GlDevice::createBindGroup(const BindGroupDesc& desc) {
         }
     }
 
-    return bindGroups_.insert(GlBindGroup{desc.set, desc.entries});
+    return bindGroups_.insert(GlBindGroup{desc.set, std::move(used)});
 }
 
 void GlDevice::destroy(BufferHandle handle) {

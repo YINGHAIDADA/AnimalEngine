@@ -10,6 +10,7 @@
 #include <animal/core/file.h>
 #include <animal/core/log.h>
 #include <animal/platform/platform.h>
+#include <animal/renderer/renderer2d.h>
 #include <animal/resources/loaders.h>
 
 #include <algorithm>
@@ -99,6 +100,8 @@ void DevPanels::reloadFile(State& s, animal::EngineContext& context, const std::
         }
         dataPath = *deployed;
         if (isShaderSource(changed)) {
+            previous = animal::readFile(dataPath);
+            restoreOnFailure = true; // a refused shader must not stay deployed (startup would load it)
             ok = compileShader(changed, dataPath);
         } else if (name.starts_with("shaders/")) {
             return; // CMakeLists.txt and other files next to the shader sources
@@ -116,7 +119,21 @@ void DevPanels::reloadFile(State& s, animal::EngineContext& context, const std::
     if (ok) {
         const std::string relative = s.sources.displayName(dataPath);
         if (relative.ends_with(".ashd")) {
-            ok = animal::reloadShaderFile(*context.device, dataPath) != animal::ReloadResult::Failed;
+            restoreOnFailure = true;
+            const animal::ReloadResult result = animal::reloadShaderFile(*context.device, dataPath);
+            if (result == animal::ReloadResult::Incompatible) {
+                if (fileName(relative).starts_with("imgui.")) {
+                    animal::log::error("{}: the tools' own shader changed its bindings; restart to apply", name);
+                    ok = false;
+                    restoreOnFailure = false; // valid; it applies at the next start
+                } else {
+                    // New resource layout: rebuild the renderer from the shader files, then give the
+                    // room's GPU state (occluders, obstacles, emitters) to the new one.
+                    ok = context.renderer->rebuild() && g.rebuildRoom(*context.renderer);
+                }
+            } else {
+                ok = result != animal::ReloadResult::Failed;
+            }
         } else if (relative.starts_with("textures/") && relative.ends_with(".png")) {
             ok = animal::reloadTextureFile(*context.device, dataPath) != animal::ReloadResult::Failed;
         } else if (relative.starts_with("world/") || (relative.starts_with("textures/") && relative.ends_with(".json"))) {
@@ -152,7 +169,6 @@ void DevPanels::reloadFile(State& s, animal::EngineContext& context, const std::
         animal::log::info("Hot reload: {}", name);
         g.showMessage("RELOADED " + upper(fileName(name)));
     } else {
-        // A shader or texture that only needs a restart stays deployed: it is valid.
         if (previous && restoreOnFailure) {
             animal::writeFileAtomic(dataPath, previous->data(), previous->size());
         }

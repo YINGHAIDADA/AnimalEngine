@@ -307,9 +307,7 @@ BindGroupHandle VulkanDevice::createBindGroup(const BindGroupDesc& desc) {
         auto layout = std::find_if(pipeline->bindings.begin(), pipeline->bindings.end(),
                                    [&](const ShaderBinding& b) { return b.set == desc.set && b.binding == entry.binding; });
         if (layout == pipeline->bindings.end()) {
-            log::error("createBindGroup '{}': pipeline has no resource at set {} binding {}", name, desc.set,
-                       entry.binding);
-            return {};
+            continue; // the shader does not use this resource (any more)
         }
         VkWriteDescriptorSet write{};
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

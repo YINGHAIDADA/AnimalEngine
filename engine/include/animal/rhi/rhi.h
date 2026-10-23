@@ -265,7 +265,8 @@ struct BindGroupEntry {
 };
 
 // The layout of `set` is taken from `pipeline`; the group is usable with any pipeline
-// that declares an identical layout for that set.
+// that declares an identical layout for that set. Every binding of the set must be given; entries
+// for bindings the shaders do not use are ignored (a shader may stop using a resource).
 struct BindGroupDesc {
     PipelineHandle pipeline;
     uint32_t set = 0;

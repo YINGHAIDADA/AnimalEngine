@@ -148,7 +148,7 @@ void GpuParticlePass::shutdown() {
         device_->destroy(p);
     }
     for (rhi::ShaderHandle s : {fullscreenVertex_, updateFragment_, drawVertex_, litFragment_, glowFragment_}) {
-        device_->destroy(s);
+        destroyShader(*device_, s);
     }
     device_->destroy(sampler_);
     device_ = nullptr;

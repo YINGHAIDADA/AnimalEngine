@@ -74,8 +74,8 @@ void WaterPass::shutdown() {
     device_->destroy(columns_);
     device_->destroy(sampler_);
     device_->destroy(pipeline_);
-    device_->destroy(vertex_);
-    device_->destroy(fragment_);
+    destroyShader(*device_, vertex_);
+    destroyShader(*device_, fragment_);
     device_ = nullptr;
 }
 

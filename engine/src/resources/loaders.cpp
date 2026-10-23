@@ -38,6 +38,8 @@ struct TrackedShader {
     std::string path;
     rhi::Device* device;
     rhi::ShaderHandle handle;
+    rhi::ShaderStage stage;
+    std::vector<rhi::ShaderBinding> bindings;
 };
 
 struct TrackedTexture {
@@ -210,7 +212,7 @@ rhi::ShaderHandle loadShader(rhi::Device& device, const std::string& path) {
     desc.debugName = path.c_str();
     const rhi::ShaderHandle handle = device.createShader(desc);
     if (handle) {
-        gShaders.push_back({normalized(path), &device, handle});
+        gShaders.push_back({normalized(path), &device, handle, package->stage, package->bindings});
     }
     return handle;
 }
@@ -226,6 +228,13 @@ ReloadResult reloadShaderFile(rhi::Device& device, const std::string& path) {
     const std::optional<rhi::ShaderPackage> package = readShaderPackage(path);
     if (!package) {
         return ReloadResult::Failed;
+    }
+    for (const TrackedShader& s : gShaders) {
+        if (s.device == &device && s.path == key &&
+            (s.stage != package->stage || !rhi::sameBindings(s.bindings, package->bindings))) {
+            log::warn("'{}' changed its stage or resource bindings: its pipelines must be rebuilt", path);
+            return ReloadResult::Incompatible;
+        }
     }
     rhi::ShaderDesc desc;
     desc.package = &*package;
@@ -294,6 +303,11 @@ void forgetLoaded(rhi::TextureHandle texture) {
 
 void forgetLoaded(rhi::ShaderHandle shader) {
     std::erase_if(gShaders, [shader](const TrackedShader& s) { return s.handle == shader; });
+}
+
+void destroyShader(rhi::Device& device, rhi::ShaderHandle shader) {
+    forgetLoaded(shader);
+    device.destroy(shader);
 }
 
 } // namespace animal

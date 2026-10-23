@@ -243,8 +243,7 @@ BindGroupHandle ValidatingDevice::createBindGroup(const BindGroupDesc& desc) {
     for (const BindGroupEntry& e : desc.entries) {
         const auto slot = std::find_if(layout.begin(), layout.end(), [&e](const auto& l) { return l.first == e.binding; });
         if (slot == layout.end()) {
-            report(std::format("createBindGroup{}: binding {} is not part of set {}", name, e.binding, desc.set));
-            return {};
+            continue; // allowed: shaders may stop using a resource (hot reload) without code changes
         }
         if (!provided.insert(e.binding).second) {
             report(std::format("createBindGroup{}: binding {} given twice", name, e.binding));

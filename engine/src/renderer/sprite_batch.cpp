@@ -91,8 +91,8 @@ void SpriteBatch::shutdown() {
     device_->destroy(indexBuffer_);
     device_->destroy(vertexBuffer_);
     device_->destroy(pipeline_);
-    device_->destroy(fragmentShader_);
-    device_->destroy(vertexShader_);
+    destroyShader(*device_, fragmentShader_);
+    destroyShader(*device_, vertexShader_);
     device_ = nullptr;
 }
 
