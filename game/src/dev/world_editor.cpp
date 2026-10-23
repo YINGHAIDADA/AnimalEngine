@@ -83,16 +83,16 @@ void clearToFloor(TiledMap& map, const animal::Room& room) {
             background = id + firstGid;
         }
     }
-    for (const std::string& layer : map.tileLayers()) {
+    const std::vector<std::string> layers = map.tileLayers();
+    if (!layers.empty()) { // only the first tile layer gets the floor
         for (int y = 0; y < map.height(); ++y) {
             for (int x = 0; x < map.width(); ++x) {
                 const uint32_t gid = y == map.height() - 1 ? (wall ? wall : ground)
                                      : y == map.height() - 2 ? (ground ? ground : wall)
                                                              : background;
-                map.setTile(layer, x, y, gid);
+                map.setTile(layers.front(), x, y, gid);
             }
         }
-        break; // only the first tile layer gets the floor
     }
     for (JsonDocument& layer : map.document()["layers"]) {
         if (layer.value("type", "") == "objectgroup") {
