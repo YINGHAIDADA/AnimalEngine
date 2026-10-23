@@ -44,6 +44,23 @@ struct ShaderPackage {
     std::string glsl;
 };
 
+// Same resources regardless of declaration order (shader hot reload keeps bind groups valid only then).
+inline bool sameBindings(const std::vector<ShaderBinding>& a, const std::vector<ShaderBinding>& b) {
+    if (a.size() != b.size()) {
+        return false;
+    }
+    for (const ShaderBinding& x : a) {
+        bool found = false;
+        for (const ShaderBinding& y : b) {
+            found = found || (x.set == y.set && x.binding == y.binding && x.kind == y.kind);
+        }
+        if (!found) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // GLSL 410 cannot declare explicit bindings, so resources are renamed to these
 // names by the shader compiler and looked up by the OpenGL backend after linking.
 inline std::string glslResourceName(BindingKind kind, uint32_t set, uint32_t binding) {

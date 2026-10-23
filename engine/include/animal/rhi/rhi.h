@@ -378,6 +378,12 @@ public:
     virtual PipelineHandle createGraphicsPipeline(const GraphicsPipelineDesc& desc) = 0;
     virtual BindGroupHandle createBindGroup(const BindGroupDesc& desc) = 0;
 
+    // Developer hot reload (ADR-0028): replaces the code of a live shader. Pipelines that use it are
+    // rebuilt in place, so every handle (shader, pipelines, bind groups) stays valid. The package
+    // must keep the stage and the resource bindings; on any failure (compilation, linking, changed
+    // bindings) nothing changes, the reason is logged and false is returned.
+    virtual bool reloadShader(ShaderHandle shader, const ShaderDesc& desc) = 0;
+
     // Resources may still be referenced by frames in flight; backends defer the release.
     virtual void destroy(BufferHandle handle) = 0;
     virtual void destroy(TextureHandle handle) = 0;

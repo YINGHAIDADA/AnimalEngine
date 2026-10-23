@@ -64,31 +64,31 @@ void Tuning::resetToBuiltIn() {
     }
 }
 
-std::vector<std::string> Tuning::apply(std::string_view text, const std::string& path) {
+Tuning::ApplyResult Tuning::apply(std::string_view text, const std::string& path, bool dryRun) {
     Json json;
     try {
         json = Json::parse(text);
     } catch (const Json::exception& e) {
-        return {path + ": not valid JSON (" + e.what() + ")"};
+        return {false, {path + ": not valid JSON (" + e.what() + ")"}};
     }
     if (!json.is_object() || !json.contains("format") || json["format"] != kFormat) {
-        return {path + ": not a tuning file (\"format\" must be \"" + kFormat + "\")"};
+        return {false, {path + ": not a tuning file (\"format\" must be \"" + kFormat + "\")"}};
     }
     if (!json.contains("version") || !json["version"].is_number_integer() || json["version"].get<int>() != kVersion) {
-        return {path + ": unsupported version (expected " + std::to_string(kVersion) + ")"};
+        return {false, {path + ": unsupported version (expected " + std::to_string(kVersion) + ")"}};
     }
-    std::vector<std::string> problems;
+    if (json.contains("values") && !json["values"].is_object()) {
+        return {false, {path + ": \"values\" must be an object"}};
+    }
+    ApplyResult result{true, {}};
+    std::vector<std::string>& problems = result.problems;
     for (const auto& [key, value] : json.items()) {
         if (key != "format" && key != "version" && key != "values") {
             problems.push_back(path + ": unknown field \"" + key + "\"");
         }
     }
     if (!json.contains("values")) {
-        return problems;
-    }
-    if (!json["values"].is_object()) {
-        problems.push_back(path + ": \"values\" must be an object");
-        return problems;
+        return result;
     }
     for (const auto& [name, value] : json["values"].items()) {
         const auto it = std::ranges::find_if(entries_, [&](const Entry& e) { return e.name == name; });
@@ -97,32 +97,27 @@ std::vector<std::string> Tuning::apply(std::string_view text, const std::string&
             continue;
         }
         const bool ok = std::visit(
-            [&value](auto* p) {
+            [&value, dryRun](auto* p) {
                 using T = std::remove_reference_t<decltype(*p)>;
+                bool typed = false;
                 if constexpr (std::is_same_v<T, bool>) {
-                    if (value.is_boolean()) {
-                        *p = value.template get<bool>();
-                        return true;
-                    }
+                    typed = value.is_boolean();
                 } else if constexpr (std::is_same_v<T, int>) {
-                    if (value.is_number_integer()) {
-                        *p = value.template get<int>();
-                        return true;
-                    }
+                    typed = value.is_number_integer();
                 } else {
-                    if (value.is_number()) {
-                        *p = value.template get<float>();
-                        return true;
-                    }
+                    typed = value.is_number();
                 }
-                return false;
+                if (typed && !dryRun) {
+                    *p = value.template get<T>();
+                }
+                return typed;
             },
             it->target);
         if (!ok) {
             problems.push_back(path + ": \"" + name + "\" has the wrong type");
         }
     }
-    return problems;
+    return result;
 }
 
 std::string Tuning::toJson() const {

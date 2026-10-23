@@ -165,6 +165,7 @@ bool savePreset(DevTools::State& s, PresetEditor& editor) {
         animal::log::error("Save failed: {}", error);
         return false;
     }
+    acknowledgeWrite(s, editor.path);
     editor.dirty = false;
     animal::log::info("Saved {}", s.sources.displayName(editor.path));
     return true;
@@ -320,6 +321,7 @@ void DevPanels::tuning(State& s, animal::EngineContext&) {
     if (ImGui::Button("Save")) {
         std::string error;
         if (s.sources.write(g.tuningPath_, g.tuning_.toJson(), &error)) {
+            acknowledgeWrite(s, g.tuningPath_);
             s.tuningDirty = false;
             animal::log::info("Saved {}", s.sources.displayName(g.tuningPath_));
         } else {

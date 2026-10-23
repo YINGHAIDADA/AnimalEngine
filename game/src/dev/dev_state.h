@@ -5,6 +5,7 @@
 #include "dev/dev_tools.h"
 
 #include <animal/devtools/console.h>
+#include <animal/devtools/file_watcher.h>
 #include <animal/devtools/imgui_layer.h>
 #include <animal/devtools/json_editor.h>
 #include <animal/devtools/performance_panel.h>
@@ -52,12 +53,20 @@ struct DevTools::State {
     PresetEditor effect;
     PresetEditor plant;
     bool tuningDirty = false;
+
+    // Hot reload (ADR-0028)
+    animal::devtools::FileWatcher watcher;
+    bool hotReload = true;
+    uint32_t reloads = 0;
+    uint32_t reloadFailures = 0;
 };
 
 // Reads `path` into the editor (replacing its document); false (and editor.error) on failure.
 bool openPreset(PresetEditor& editor, const std::string& path);
 // Writes the document to its source and deployed files.
 bool savePreset(DevTools::State& state, PresetEditor& editor);
+// The tools wrote a deployed data file (and its source): the watcher must not report it.
+void acknowledgeWrite(DevTools::State& state, const std::string& dataPath);
 
 // The windows; a friend of SandboxGame (they inspect and edit its state).
 struct DevPanels {
@@ -69,6 +78,11 @@ struct DevPanels {
     static void plants(State& state, animal::EngineContext& context);
     static void tuning(State& state, animal::EngineContext& context);
     static void rooms(State& state, animal::EngineContext& context);
+
+    // Hot reload (hot_reload.cpp): starts watching, then applies changed files every frame.
+    static void startWatching(State& state);
+    static void hotReload(State& state, animal::EngineContext& context);
+    static void reloadFile(State& state, animal::EngineContext& context, const std::string& changed);
 };
 
 } // namespace game

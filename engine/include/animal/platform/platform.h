@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace animal::platform {
 
@@ -25,6 +26,13 @@ std::string userDataDirectory(const char* organization, const char* application)
 // System clipboard (UTF-8 text); empty when it holds no text.
 std::string clipboardText();
 void setClipboardText(const std::string& text);
+
+struct ProcessResult {
+    int exitCode = -1;  // -1: the program could not be started
+    std::string output; // standard output and standard error, interleaved
+};
+// Runs a program to completion (blocking) and captures what it prints. arguments[0] is the program.
+ProcessResult runProcess(const std::vector<std::string>& arguments);
 
 enum class Cursor : uint8_t {
     Arrow,

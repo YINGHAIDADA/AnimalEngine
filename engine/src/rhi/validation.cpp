@@ -192,6 +192,19 @@ PipelineHandle ValidatingDevice::createGraphicsPipeline(const GraphicsPipelineDe
     return handle;
 }
 
+// A failed reload is a content problem (the backend logs why), not API misuse: only bad calls count.
+bool ValidatingDevice::reloadShader(ShaderHandle shader, const ShaderDesc& desc) {
+    if (!desc.package) {
+        report(std::format("reloadShader{}: no shader package", label(desc.debugName)));
+        return false;
+    }
+    if (!shaders_.contains(shader.key())) {
+        report("reloadShader: invalid shader handle");
+        return false;
+    }
+    return inner_->reloadShader(shader, desc);
+}
+
 BindGroupHandle ValidatingDevice::createBindGroup(const BindGroupDesc& desc) {
     const std::string name = label(desc.debugName);
     const auto pipeline = pipelines_.find(desc.pipeline.key());

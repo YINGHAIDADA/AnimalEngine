@@ -60,6 +60,9 @@ struct GlShader {
 
 struct GlPipeline {
     GLuint program = 0;
+    ShaderHandle vertexShader;   // relinked when either shader is reloaded
+    ShaderHandle fragmentShader;
+    std::string name;
     std::vector<VertexBufferLayout> vertexBuffers;
     std::vector<VertexAttribute> vertexAttributes;
     GLenum topology = GL_TRIANGLES;
@@ -229,6 +232,7 @@ public:
     SamplerHandle createSampler(const SamplerDesc& desc) override;
     ShaderHandle createShader(const ShaderDesc& desc) override;
     PipelineHandle createGraphicsPipeline(const GraphicsPipelineDesc& desc) override;
+    bool reloadShader(ShaderHandle shader, const ShaderDesc& desc) override;
     BindGroupHandle createBindGroup(const BindGroupDesc& desc) override;
 
     void destroy(BufferHandle handle) override;
@@ -777,23 +781,71 @@ SamplerHandle GlDevice::createSampler(const SamplerDesc& desc) {
     return samplers_.insert(sampler);
 }
 
+namespace {
+
+// Links a program and points its resources at the flattened binding slots; 0 on failure (logged).
+GLuint linkProgram(GLuint vs, GLuint fs, const std::vector<ShaderBinding>& bindings, const std::string& label) {
+    const GLuint program = glCreateProgram();
+    glAttachShader(program, vs);
+    glAttachShader(program, fs);
+    glLinkProgram(program);
+    glDetachShader(program, vs);
+    glDetachShader(program, fs);
+
+    GLint linked = GL_FALSE;
+    glGetProgramiv(program, GL_LINK_STATUS, &linked);
+    if (linked != GL_TRUE) {
+        log::error("OpenGL: link failed for {}:\n{}", label, programInfoLog(program));
+        glDeleteProgram(program);
+        return 0;
+    }
+
+    glUseProgram(program);
+    for (const ShaderBinding& b : bindings) {
+        const std::string resourceName = glslResourceName(b.kind, b.set, b.binding);
+        const GLuint slot = bindingSlot(b.set, b.binding);
+        if (b.kind == BindingKind::UniformBuffer) {
+            const GLuint blockIndex = glGetUniformBlockIndex(program, resourceName.c_str());
+            if (blockIndex != GL_INVALID_INDEX) {
+                glUniformBlockBinding(program, blockIndex, slot);
+            }
+        } else {
+            const GLint location = glGetUniformLocation(program, resourceName.c_str());
+            if (location >= 0) {
+                glUniform1i(location, static_cast<GLint>(slot));
+            }
+        }
+    }
+    glUseProgram(0);
+    return program;
+}
+
+GLuint compileShader(const ShaderPackage& package, const char* name) {
+    const GLenum type = package.stage == ShaderStage::Vertex ? GL_VERTEX_SHADER : GL_FRAGMENT_SHADER;
+    const GLuint id = glCreateShader(type);
+    const char* source = package.glsl.c_str();
+    glShaderSource(id, 1, &source, nullptr);
+    glCompileShader(id);
+    GLint compiled = GL_FALSE;
+    glGetShaderiv(id, GL_COMPILE_STATUS, &compiled);
+    if (compiled != GL_TRUE) {
+        log::error("OpenGL: GLSL compilation of '{}' failed:\n{}", name, shaderInfoLog(id));
+        glDeleteShader(id);
+        return 0;
+    }
+    return id;
+}
+
+} // namespace
+
 ShaderHandle GlDevice::createShader(const ShaderDesc& desc) {
     const char* name = nameOr(desc.debugName, "unnamed");
     if (!desc.package || desc.package->glsl.empty()) {
         log::error("createShader '{}': package has no GLSL code", name);
         return {};
     }
-    const GLenum type = desc.package->stage == ShaderStage::Vertex ? GL_VERTEX_SHADER : GL_FRAGMENT_SHADER;
-    const GLuint id = glCreateShader(type);
-    const char* source = desc.package->glsl.c_str();
-    glShaderSource(id, 1, &source, nullptr);
-    glCompileShader(id);
-
-    GLint compiled = GL_FALSE;
-    glGetShaderiv(id, GL_COMPILE_STATUS, &compiled);
-    if (compiled != GL_TRUE) {
-        log::error("createShader '{}': GLSL compilation failed:\n{}", name, shaderInfoLog(id));
-        glDeleteShader(id);
+    const GLuint id = compileShader(*desc.package, name);
+    if (id == 0) {
         return {};
     }
 
@@ -842,43 +894,16 @@ PipelineHandle GlDevice::createGraphicsPipeline(const GraphicsPipelineDesc& desc
         }
     }
 
-    const GLuint program = glCreateProgram();
-    glAttachShader(program, vs->id);
-    glAttachShader(program, fs->id);
-    glLinkProgram(program);
-    glDetachShader(program, vs->id);
-    glDetachShader(program, fs->id);
-
-    GLint linked = GL_FALSE;
-    glGetProgramiv(program, GL_LINK_STATUS, &linked);
-    if (linked != GL_TRUE) {
-        log::error("createGraphicsPipeline '{}': link failed ({} + {}):\n{}", name, vs->name, fs->name,
-                   programInfoLog(program));
-        glDeleteProgram(program);
+    const GLuint program = linkProgram(vs->id, fs->id, bindings, std::format("{} ({} + {})", name, vs->name, fs->name));
+    if (program == 0) {
         return {};
     }
 
-    glUseProgram(program);
-    for (const ShaderBinding& b : bindings) {
-        const std::string resourceName = glslResourceName(b.kind, b.set, b.binding);
-        const GLuint slot = bindingSlot(b.set, b.binding);
-        if (b.kind == BindingKind::UniformBuffer) {
-            const GLuint blockIndex = glGetUniformBlockIndex(program, resourceName.c_str());
-            if (blockIndex != GL_INVALID_INDEX) {
-                glUniformBlockBinding(program, blockIndex, slot);
-            }
-        } else {
-            const GLint location = glGetUniformLocation(program, resourceName.c_str());
-            if (location >= 0) {
-                glUniform1i(location, static_cast<GLint>(slot));
-            }
-        }
-    }
-    glUseProgram(0);
-    checkErrors("createGraphicsPipeline");
-
     GlPipeline pipeline;
     pipeline.program = program;
+    pipeline.vertexShader = desc.vertexShader;
+    pipeline.fragmentShader = desc.fragmentShader;
+    pipeline.name = name;
     pipeline.vertexBuffers = desc.vertexBuffers;
     pipeline.vertexAttributes = desc.vertexAttributes;
     pipeline.topology = toGl(desc.topology);
@@ -887,6 +912,60 @@ PipelineHandle GlDevice::createGraphicsPipeline(const GraphicsPipelineDesc& desc
     pipeline.colorTargets = desc.colorTargets;
     pipeline.bindings = std::move(bindings);
     return pipelines_.insert(std::move(pipeline));
+}
+
+bool GlDevice::reloadShader(ShaderHandle handle, const ShaderDesc& desc) {
+    GlShader* shader = shaders_.get(handle);
+    const char* name = shader ? shader->name.c_str() : "?";
+    if (!shader || !desc.package || desc.package->glsl.empty()) {
+        log::error("reloadShader '{}': invalid shader or package", name);
+        return false;
+    }
+    if (desc.package->stage != shader->stage || !sameBindings(desc.package->bindings, shader->bindings)) {
+        log::error("reloadShader '{}': the stage or the resource bindings changed; restart to apply", name);
+        return false;
+    }
+    const GLuint id = compileShader(*desc.package, name);
+    if (id == 0) {
+        return false;
+    }
+    // Relink every pipeline that uses the shader; commit only if all succeed.
+    std::vector<std::pair<GlPipeline*, GLuint>> relinked;
+    bool ok = true;
+    pipelines_.forEach([&](GlPipeline& pipeline) {
+        if (!ok || (pipeline.vertexShader != handle && pipeline.fragmentShader != handle)) {
+            return;
+        }
+        const GlShader* vs = shaders_.get(pipeline.vertexShader);
+        const GlShader* fs = shaders_.get(pipeline.fragmentShader);
+        if (!vs || !fs) {
+            return; // its other shader is gone; the pipeline keeps its program
+        }
+        const GLuint program = linkProgram(pipeline.vertexShader == handle ? id : vs->id,
+                                           pipeline.fragmentShader == handle ? id : fs->id, pipeline.bindings,
+                                           std::format("{} (reloading {})", pipeline.name, name));
+        if (program == 0) {
+            ok = false;
+            return;
+        }
+        relinked.emplace_back(&pipeline, program);
+    });
+    if (!ok) {
+        for (const auto& [pipeline, program] : relinked) {
+            glDeleteProgram(program);
+        }
+        glDeleteShader(id);
+        return false;
+    }
+    for (const auto& [pipeline, program] : relinked) {
+        glDeleteProgram(pipeline->program);
+        pipeline->program = program;
+    }
+    glDeleteShader(shader->id);
+    shader->id = id;
+    checkErrors("reloadShader");
+    log::info("Reloaded shader '{}' ({} pipeline(s))", name, relinked.size());
+    return true;
 }
 
 BindGroupHandle GlDevice::createBindGroup(const BindGroupDesc& desc) {

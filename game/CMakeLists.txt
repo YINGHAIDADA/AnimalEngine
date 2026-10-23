@@ -10,6 +10,7 @@ if(ANIMAL_DEV_TOOLS)
     list(APPEND ANIMAL_GAME_SOURCES
         src/dev/dev_state.h
         src/dev/dev_tools.cpp
+        src/dev/hot_reload.cpp
         src/dev/panels.cpp)
 else()
     list(APPEND ANIMAL_GAME_SOURCES src/dev/dev_tools_off.cpp)
@@ -20,7 +21,8 @@ animal_set_compile_options(animal_game)
 target_include_directories(animal_game PRIVATE src)
 if(ANIMAL_DEV_TOOLS)
     target_link_libraries(animal_game PRIVATE animal::devtools) # brings animal::framework
-    target_compile_definitions(animal_game PRIVATE ANIMAL_DEV_TOOLS=1)
+    # Hot reload compiles changed shaders with the build's own compiler.
+    target_compile_definitions(animal_game PRIVATE ANIMAL_DEV_TOOLS=1 ANIMAL_SHADERC_PATH="$<TARGET_FILE:animal_shaderc>")
 else()
     target_link_libraries(animal_game PRIVATE animal::framework)
 endif()

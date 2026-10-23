@@ -1,6 +1,7 @@
 # Developer tools (ADR-0026): debug UI, hot reload, editor support. Only built with ANIMAL_DEV_TOOLS.
 set(ANIMAL_DEVTOOLS_HEADERS
     include/animal/devtools/console.h
+    include/animal/devtools/file_watcher.h
     include/animal/devtools/imgui_layer.h
     include/animal/devtools/json_editor.h
     include/animal/devtools/performance_panel.h
@@ -9,6 +10,7 @@ set(ANIMAL_DEVTOOLS_HEADERS
 
 set(ANIMAL_DEVTOOLS_SOURCES
     src/console.cpp
+    src/file_watcher.cpp
     src/imgui_layer.cpp
     src/json_editor.cpp
     src/performance_panel.cpp

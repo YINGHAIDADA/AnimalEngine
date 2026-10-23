@@ -51,4 +51,18 @@ void destroyMaterial(rhi::Device& device, SpriteMaterial& material);
 // Loads a compiled .ashd shader package. Logs and returns an invalid handle on failure.
 rhi::ShaderHandle loadShader(rhi::Device& device, const std::string& path);
 
+// Hot reload (ADR-0028). Shaders and textures loaded above are remembered by path, so a changed file
+// can be reloaded into the live handles (nothing else needs to know). A file that fails to load or
+// would change a handle's shape (shader bindings, texture size) leaves the old contents in place.
+enum class ReloadResult {
+    NotLoaded, // nothing was loaded from this path
+    Reloaded,
+    Failed,    // logged; the previous contents stay
+};
+ReloadResult reloadShaderFile(rhi::Device& device, const std::string& path);
+ReloadResult reloadTextureFile(rhi::Device& device, const std::string& path);
+// Stop tracking a handle (destroyMaterial does this for its textures).
+void forgetLoaded(rhi::TextureHandle texture);
+void forgetLoaded(rhi::ShaderHandle shader);
+
 } // namespace animal

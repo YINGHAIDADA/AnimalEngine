@@ -25,9 +25,53 @@
 #include <SDL3/SDL_filesystem.h>
 #include <SDL3/SDL_iostream.h>
 
+#include <algorithm>
 #include <cstring>
+#include <filesystem>
 
 namespace animal {
+
+namespace {
+
+struct TrackedShader {
+    std::string path;
+    rhi::Device* device;
+    rhi::ShaderHandle handle;
+};
+
+struct TrackedTexture {
+    std::string path;
+    rhi::Device* device;
+    rhi::TextureHandle handle;
+    AlphaMode alpha;
+    uint32_t width;
+    uint32_t height;
+};
+
+std::vector<TrackedShader> gShaders;
+std::vector<TrackedTexture> gTextures;
+
+std::string normalized(const std::string& path) {
+    const std::filesystem::path p(std::u8string(path.begin(), path.end()));
+    const std::u8string s = p.lexically_normal().generic_u8string();
+    return {s.begin(), s.end()};
+}
+
+std::optional<rhi::ShaderPackage> readShaderPackage(const std::string& path) {
+    std::string error;
+    const auto bytes = readFile(path, &error);
+    if (!bytes) {
+        log::error("Failed to read shader '{}': {}", path, error);
+        return std::nullopt;
+    }
+    std::optional<rhi::ShaderPackage> package = rhi::parseShaderPackage(*bytes, &error);
+    if (!package) {
+        log::error("Invalid shader package '{}': {}", path, error);
+    }
+    return package;
+}
+
+} // namespace
 
 std::optional<Image> loadImage(const std::string& path, std::string* error) {
     std::string readError;
@@ -102,6 +146,7 @@ std::optional<LoadedTexture> loadTexture(rhi::Device& device, const std::string&
         return std::nullopt;
     }
     device.writeTexture(handle, {0, 0, image->width, image->height}, image->pixels.data(), image->width * 4);
+    gTextures.push_back({normalized(path), &device, handle, alpha, image->width, image->height});
     return LoadedTexture{handle, image->width, image->height};
 }
 
@@ -125,6 +170,7 @@ std::optional<SpriteMaterial> loadMaterial(rhi::Device& device, const std::strin
         if (texture->width != albedo->width || texture->height != albedo->height) {
             log::error("'{}' is {}x{} but its albedo is {}x{}; ignoring it", path, texture->width, texture->height,
                        albedo->width, albedo->height);
+            forgetLoaded(texture->handle);
             device.destroy(texture->handle);
             return {};
         }
@@ -136,6 +182,9 @@ std::optional<SpriteMaterial> loadMaterial(rhi::Device& device, const std::strin
 }
 
 void destroyMaterial(rhi::Device& device, SpriteMaterial& material) {
+    forgetLoaded(material.albedo.handle);
+    forgetLoaded(material.normal);
+    forgetLoaded(material.emissive);
     device.destroy(material.albedo.handle);
     device.destroy(material.normal);
     device.destroy(material.emissive);
@@ -143,21 +192,89 @@ void destroyMaterial(rhi::Device& device, SpriteMaterial& material) {
 }
 
 rhi::ShaderHandle loadShader(rhi::Device& device, const std::string& path) {
-    std::string error;
-    const auto bytes = readFile(path, &error);
-    if (!bytes) {
-        log::error("Failed to read shader '{}': {}", path, error);
-        return {};
-    }
-    const std::optional<rhi::ShaderPackage> package = rhi::parseShaderPackage(*bytes, &error);
+    const std::optional<rhi::ShaderPackage> package = readShaderPackage(path);
     if (!package) {
-        log::error("Invalid shader package '{}': {}", path, error);
         return {};
     }
     rhi::ShaderDesc desc;
     desc.package = &*package;
     desc.debugName = path.c_str();
-    return device.createShader(desc);
+    const rhi::ShaderHandle handle = device.createShader(desc);
+    if (handle) {
+        gShaders.push_back({normalized(path), &device, handle});
+    }
+    return handle;
+}
+
+ReloadResult reloadShaderFile(rhi::Device& device, const std::string& path) {
+    const std::string key = normalized(path);
+    const bool loaded = std::ranges::any_of(gShaders, [&](const TrackedShader& s) {
+        return s.device == &device && s.path == key;
+    });
+    if (!loaded) {
+        return ReloadResult::NotLoaded;
+    }
+    const std::optional<rhi::ShaderPackage> package = readShaderPackage(path);
+    if (!package) {
+        return ReloadResult::Failed;
+    }
+    rhi::ShaderDesc desc;
+    desc.package = &*package;
+    desc.debugName = path.c_str();
+    bool ok = true;
+    for (const TrackedShader& s : gShaders) {
+        if (s.device == &device && s.path == key) {
+            ok = device.reloadShader(s.handle, desc) && ok;
+        }
+    }
+    return ok ? ReloadResult::Reloaded : ReloadResult::Failed;
+}
+
+ReloadResult reloadTextureFile(rhi::Device& device, const std::string& path) {
+    const std::string key = normalized(path);
+    bool loaded = false;
+    bool ok = true;
+    std::optional<Image> straight;
+    for (const TrackedTexture& t : gTextures) {
+        if (t.device != &device || t.path != key) {
+            continue;
+        }
+        if (!loaded) {
+            loaded = true;
+            std::string error;
+            straight = loadImage(path, &error);
+            if (!straight) {
+                log::error("Failed to reload texture '{}': {}", path, error);
+                return ReloadResult::Failed;
+            }
+        }
+        if (straight->width != t.width || straight->height != t.height) {
+            log::error("'{}' is now {}x{} (was {}x{}); restart to load a texture of another size", path,
+                       straight->width, straight->height, t.width, t.height);
+            ok = false;
+            continue;
+        }
+        Image image = *straight;
+        if (t.alpha == AlphaMode::Premultiply) {
+            premultiplyAlpha(image);
+        }
+        device.writeTexture(t.handle, {0, 0, image.width, image.height}, image.pixels.data(), image.width * 4);
+    }
+    if (!loaded) {
+        return ReloadResult::NotLoaded;
+    }
+    if (ok) {
+        log::info("Reloaded texture '{}'", path);
+    }
+    return ok ? ReloadResult::Reloaded : ReloadResult::Failed;
+}
+
+void forgetLoaded(rhi::TextureHandle texture) {
+    std::erase_if(gTextures, [texture](const TrackedTexture& t) { return t.handle == texture; });
+}
+
+void forgetLoaded(rhi::ShaderHandle shader) {
+    std::erase_if(gShaders, [shader](const TrackedShader& s) { return s.handle == shader; });
 }
 
 } // namespace animal

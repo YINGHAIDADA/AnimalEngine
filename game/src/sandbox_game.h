@@ -83,6 +83,11 @@ private:
     bool rebuildRoom(animal::Renderer2D& renderer);
     // Moves the player into a room (spawn point, or the test position every room has floor at).
     bool teleport(const animal::WorldRoom& worldRoom, animal::Renderer2D& renderer);
+    // Hot reload (ADR-0028) of a changed file under data/world: validated first, so a broken file
+    // leaves everything as it was (and returns false, with the reason logged).
+    bool reloadData(const std::string& path, animal::Renderer2D& renderer);
+    bool reloadWorld(const std::string& path, animal::Renderer2D& renderer);
+    void collectGemFlags(const animal::WorldRoom& worldRoom, const animal::Room& room);
 
     animal::World world_;
     std::map<std::string, animal::Room> rooms_; // loaded room data by path

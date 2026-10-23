@@ -43,8 +43,13 @@ void VulkanDevice::destroyHostBuffer(HostBuffer& buffer) {
     buffer = {};
 }
 
+// A slot's deletions run once its fence has signalled, when the slot is reused. During a frame that
+// is the current slot. Between frames frameIndex_ already names the next slot, whose fence belongs
+// to an older frame, so the release waits for the most recently submitted frame instead.
 void VulkanDevice::defer(std::function<void()> fn) {
-    frames_[frameIndex_].deletions.push_back(std::move(fn));
+    const auto count = static_cast<uint32_t>(frames_.size());
+    const uint32_t slot = frameActive_ ? frameIndex_ : (frameIndex_ + count - 1) % count;
+    frames_[slot].deletions.push_back(std::move(fn));
 }
 
 VkCommandBuffer VulkanDevice::acquireCommandBuffer() {

@@ -1,10 +1,13 @@
 // Backend-independent RHI validation (ADR-0021), run against a device that does nothing.
 
+#include <animal/core/file.h>
 #include <animal/core/handle.h>
+#include <animal/resources/loaders.h>
 #include <animal/rhi/validation.h>
 
 #include "test_harness.h"
 
+#include <filesystem>
 #include <memory>
 #include <string>
 
@@ -29,6 +32,7 @@ public:
     ShaderHandle createShader(const ShaderDesc&) override { return shaders_.insert(0); }
     PipelineHandle createGraphicsPipeline(const GraphicsPipelineDesc&) override { return pipelines_.insert(0); }
     BindGroupHandle createBindGroup(const BindGroupDesc&) override { return groups_.insert(0); }
+    bool reloadShader(ShaderHandle h, const ShaderDesc&) override { return shaders_.get(h) != nullptr; }
     void destroy(BufferHandle h) override { buffers_.take(h); }
     void destroy(TextureHandle h) override { textures_.take(h); }
     void destroy(SamplerHandle h) override { samplers_.take(h); }
@@ -187,6 +191,53 @@ TEST(rhi_validation_rejects_bad_descriptions) {
     std::vector<uint8_t> pixels(4 * 16 * 16);
     rig.device.writeTexture(rig.image, {8, 8, 16, 16}, pixels.data(), 64);
     CHECK(mentions(rig.device, "does not fit"));
+}
+
+// Hot reload through the loaders (ADR-0028): files are tracked by path; a reload that would change a
+// handle's shape or cannot be read fails and leaves the handle alone.
+TEST(loaders_reload_tracked_files_and_refuse_bad_ones) {
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() / "animal_reload_test";
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+    const auto pathOf = [&dir](const char* name) {
+        const std::u8string u8 = (dir / name).generic_u8string();
+        return std::string(u8.begin(), u8.end());
+    };
+    const std::vector<uint8_t> small(4 * 4 * 4, 200);
+    const std::vector<uint8_t> large(8 * 4 * 4, 100);
+    const std::string png = pathOf("sprite.png");
+    CHECK(writePng(png, 4, 4, small.data()));
+
+    ValidatingDevice device(std::make_unique<NullDevice>());
+    const auto texture = loadTexture(device, png);
+    CHECK(texture.has_value());
+    CHECK(reloadTextureFile(device, png) == ReloadResult::Reloaded);
+    CHECK(writePng(png, 8, 4, large.data()));
+    CHECK(reloadTextureFile(device, png) == ReloadResult::Failed); // another size needs a restart
+    CHECK(reloadTextureFile(device, pathOf("other.png")) == ReloadResult::NotLoaded);
+    fs::remove(dir / "sprite.png");
+    CHECK(reloadTextureFile(device, png) == ReloadResult::Failed);
+
+    ShaderPackage package;
+    package.stage = ShaderStage::Fragment;
+    package.spirv = {0x07230203u, 0u};
+    package.glsl = "void main() {}";
+    const std::vector<std::byte> bytes = serializeShaderPackage(package);
+    const std::string ashd = pathOf("test.frag.ashd");
+    CHECK(writeFileAtomic(ashd, bytes.data(), bytes.size()));
+    const ShaderHandle shader = loadShader(device, ashd);
+    CHECK(shader.valid());
+    CHECK(reloadShaderFile(device, dir.generic_string() + "/./test.frag.ashd") == ReloadResult::Reloaded);
+    const char garbage[] = "not a shader package";
+    CHECK(writeFileAtomic(ashd, garbage, sizeof(garbage)));
+    CHECK(reloadShaderFile(device, ashd) == ReloadResult::Failed);
+    CHECK(device.errorCount() == 0); // failed reloads are content problems, not API misuse
+
+    forgetLoaded(texture->handle);
+    forgetLoaded(shader);
+    CHECK(reloadShaderFile(device, ashd) == ReloadResult::NotLoaded);
+    fs::remove_all(dir);
 }
 
 } // namespace

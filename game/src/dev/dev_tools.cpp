@@ -50,6 +50,13 @@ void mainMenu(DevTools::State& s, animal::EngineContext& context) {
         ImGui::MenuItem("ImGui demo", nullptr, &w.demo);
         ImGui::EndMenu();
     }
+    if (ImGui::BeginMenu("Reload")) {
+        ImGui::MenuItem("Watch files", nullptr, &s.hotReload);
+        ImGui::TextDisabled("%s", s.sources.available() ? "source tree: assets/source, shaders"
+                                                        : "deployed data only (no source tree)");
+        ImGui::TextDisabled("%u reloaded, %u failed", s.reloads, s.reloadFailures);
+        ImGui::EndMenu();
+    }
     ImGui::TextDisabled("`  hide");
     const float right = ImGui::GetWindowWidth() - ImGui::GetFontSize() * 16.0f;
     ImGui::SameLine(right);
@@ -118,12 +125,18 @@ bool DevTools::init(animal::EngineContext& context, SandboxGame& game) {
         animal::log::error("DevTools: the debug UI could not be initialized");
         return false;
     }
+    if (!context.deterministic && !context.demo) {
+        DevPanels::startWatching(s); // reproducible runs never change under foot
+    } else {
+        s.hotReload = false;
+    }
     return true;
 }
 
 void DevTools::frame(animal::EngineContext& context) {
     State& s = *state_;
     s.performance.sample(context);
+    DevPanels::hotReload(s, context);
     animal::platform::Input& input = *context.input;
     if (input.pressed(Key::Grave)) { // reads as released while a text field has the keyboard
         s.visible = !s.visible;

@@ -27,28 +27,32 @@ Tuning tuningFor(Params& p) {
 TEST(tuning_applies_values_and_reports_problems) {
     Params p;
     Tuning t = tuningFor(p);
-    const auto problems = t.apply(R"({"format": "animal-tuning", "version": 1,
+    const std::string file = R"({"format": "animal-tuning", "version": 1,
         "values": {"player.speed": 90.5, "player.frames": 3, "debug.flag": true,
-                   "player.unknown": 1, "player.frames2": 2}})",
-                                  "tuning.json");
+                   "player.unknown": 1, "player.frames2": 2}})";
+    const auto dry = t.apply(file, "tuning.json", true);
+    CHECK(dry.valid && dry.problems.size() == 2);
+    CHECK(test::near(p.speed, 84.0f) && p.frames == 6 && !p.flag); // a dry run changes nothing
+    const auto result = t.apply(file, "tuning.json");
     CHECK(test::near(p.speed, 90.5f));
     CHECK(p.frames == 3);
     CHECK(p.flag);
-    CHECK(problems.size() == 2);
+    CHECK(result.valid && result.problems.size() == 2);
 }
 
 TEST(tuning_rejects_wrong_types_and_bad_files) {
     Params p;
     Tuning t = tuningFor(p);
-    auto problems = t.apply(R"({"format": "animal-tuning", "version": 1,
+    const auto result = t.apply(R"({"format": "animal-tuning", "version": 1,
         "values": {"player.frames": 2.5, "debug.flag": 1, "player.speed": "fast"}})",
-                            "tuning.json");
-    CHECK(problems.size() == 3);
+                                "tuning.json");
+    CHECK(result.valid && result.problems.size() == 3);
     CHECK(p.frames == 6 && !p.flag && test::near(p.speed, 84.0f));
 
-    CHECK(t.apply("{not json", "tuning.json").size() == 1);
-    CHECK(t.apply(R"({"format": "animal-look", "version": 1})", "tuning.json").size() == 1);
-    CHECK(t.apply(R"({"format": "animal-tuning", "version": 2})", "tuning.json").size() == 1);
+    CHECK(!t.apply("{not json", "tuning.json").valid);
+    CHECK(!t.apply(R"({"format": "animal-look", "version": 1})", "tuning.json").valid);
+    CHECK(!t.apply(R"({"format": "animal-tuning", "version": 2})", "tuning.json").valid);
+    CHECK(!t.apply(R"({"format": "animal-tuning", "version": 1, "values": []})", "tuning.json").valid);
 }
 
 TEST(tuning_file_keeps_only_changed_values_and_round_trips) {
@@ -64,7 +68,8 @@ TEST(tuning_file_keeps_only_changed_values_and_round_trips) {
 
     Params q;
     Tuning u = tuningFor(q);
-    CHECK(u.apply(json, "tuning.json").empty());
+    const auto applied = u.apply(json, "tuning.json");
+    CHECK(applied.valid && applied.problems.empty());
     CHECK(test::near(q.speed, 100.25f) && q.flag && q.frames == 6);
 
     t.resetToBuiltIn();

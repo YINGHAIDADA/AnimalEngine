@@ -35,11 +35,13 @@ public:
     static bool atBuiltIn(const Entry& entry);
     void resetToBuiltIn();
 
+    struct ApplyResult {
+        bool valid = false;                // a readable tuning file (otherwise nothing was applied)
+        std::vector<std::string> problems; // unknown names, wrong types, or why the file is invalid
+    };
     // File format: {"format": "animal-tuning", "version": 1, "values": {"player.runSpeed": 90, ...}}.
-    // Valid values are applied; returns one message per problem (unknown name, wrong type, out of
-    // range is accepted). A file that is not valid JSON / not a tuning file changes nothing and
-    // returns its error.
-    std::vector<std::string> apply(std::string_view json, const std::string& path);
+    // Values of the right type are applied (out of slider range is accepted); `dryRun` only checks.
+    ApplyResult apply(std::string_view json, const std::string& path, bool dryRun = false);
     // Every parameter that differs from its built-in value, in registration order.
     std::string toJson() const;
 

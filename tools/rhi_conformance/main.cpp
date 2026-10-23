@@ -9,8 +9,13 @@
 //   row 2: blend Add, Subtract, ReverseSubtract, Min, Max, alpha, multiply, opaque overwrite
 //   row 3: multiple render targets (second target on the right half), LoadOp::Load across passes
 //
+// Afterwards it checks shader hot reload (ADR-0028): reloading the fragment shader of every pipeline
+// with the same code renders the same image, an alternative shader changes it, switching back
+// restores it exactly, and packages with other bindings or another stage are rejected.
+//
 // usage: AnimalRhiConformance --backend=opengl|vulkan --out=path.png
 
+#include <animal/core/file.h>
 #include <animal/core/log.h>
 #include <animal/platform/platform.h>
 #include <animal/platform/window.h>
@@ -274,9 +279,19 @@ int run(Backend backend, const std::string& out) {
         d.createTexture({kWidth, kHeight, Format::RGBA8_UNorm, TextureUsage::RenderTarget | TextureUsage::Sampled, "second"});
 
     // --- Record ------------------------------------------------------------------------------------
+    const BindGroupHandle checkerNearest = image(checker, nearestClamp);
+    const BindGroupHandle checkerRepeat = image(checker, nearestRepeat);
+    const BindGroupHandle checkerLinear = image(checker, linearClamp);
+    std::array<BindGroupHandle, 4> formatGroups{};
+    const std::array<TextureHandle, 4> formatTextures = {r8, rgba16, rgba32, partial};
+    for (size_t i = 0; i < formatTextures.size(); ++i) {
+        formatGroups[i] = image(formatTextures[i], nearestClamp);
+    }
+    // Both targets side by side (empty on failure).
+    auto render = [&]() -> std::vector<uint8_t> {
     if (!d.beginFrame()) {
         log::error("conformance: beginFrame failed");
-        return 1;
+        return {};
     }
     CommandList list;
     auto use = [&](PipelineHandle p, BindGroupHandle drawGroup, BindGroupHandle imageGroup, BufferHandle instances) {
@@ -288,7 +303,6 @@ int run(Backend backend, const std::string& out) {
             list.setBindGroup(1, imageGroup);
         }
     };
-    const BindGroupHandle checkerNearest = image(checker, nearestClamp);
     list.beginRenderPass(RenderPassDesc::single({target, LoadOp::Clear, StoreOp::Store, {0.05f, 0.05f, 0.15f, 1.0f}}));
     use(triangles, drawGroups[0], checkerNearest, oneInstance);
     list.draw(3, 1, tri);
@@ -309,15 +323,14 @@ int run(Backend backend, const std::string& out) {
     list.draw(6, 1, gradient);
     use(triangles, drawGroups[1], checkerNearest, oneInstance);
     list.draw(6, 1, samplingClamp);
-    use(triangles, drawGroups[1], image(checker, nearestRepeat), oneInstance);
+    use(triangles, drawGroups[1], checkerRepeat, oneInstance);
     list.draw(6, 1, samplingRepeat);
-    use(triangles, drawGroups[1], image(checker, linearClamp), oneInstance);
+    use(triangles, drawGroups[1], checkerLinear, oneInstance);
     list.draw(6, 1, samplingLinear);
     use(triangles, drawGroups[1], checkerNearest, oneInstance);
     list.draw(6, 1, samplingOutside);
-    const std::array<TextureHandle, 4> formatTextures = {r8, rgba16, rgba32, partial};
     for (size_t i = 0; i < formatTextures.size(); ++i) {
-        use(triangles, drawGroups[1], image(formatTextures[i], nearestClamp), oneInstance);
+        use(triangles, drawGroups[1], formatGroups[i], oneInstance);
         list.draw(6, 1, formatQuads[i]);
     }
     for (int i = 0; i < 8; ++i) {
@@ -345,18 +358,52 @@ int run(Backend backend, const std::string& out) {
     d.waitIdle();
     if (left.size() != kWidth * kHeight * 4 || right.size() != left.size()) {
         log::error("conformance: readback failed");
-        return 1;
+        return {};
     }
-    std::vector<uint8_t> image2x(left.size() * 2);
+    std::vector<uint8_t> both2x(left.size() * 2);
     for (uint32_t y = 0; y < kHeight; ++y) {
-        std::memcpy(&image2x[(y * 2 * kWidth) * 4], &left[y * kWidth * 4], kWidth * 4);
-        std::memcpy(&image2x[(y * 2 * kWidth + kWidth) * 4], &right[y * kWidth * 4], kWidth * 4);
+        std::memcpy(&both2x[(y * 2 * kWidth) * 4], &left[y * kWidth * 4], kWidth * 4);
+        std::memcpy(&both2x[(y * 2 * kWidth + kWidth) * 4], &right[y * kWidth * 4], kWidth * 4);
+    }
+    return both2x;
+    };
+    const std::vector<uint8_t> image2x = render();
+    if (image2x.empty()) {
+        return 1;
     }
     if (!writePng(out, kWidth * 2, kHeight, image2x.data())) {
         log::error("conformance: cannot write {}", out);
         return 1;
     }
     log::info("conformance: wrote {}", out);
+
+    // --- Shader hot reload ----------------------------------------------------------------------
+    auto package = [&](const char* file) -> std::optional<ShaderPackage> {
+        const auto bytes = readFile(shaders + file);
+        return bytes ? parseShaderPackage(*bytes) : std::nullopt;
+    };
+    const std::optional<ShaderPackage> original = package("conformance.frag.ashd");
+    const std::optional<ShaderPackage> alternative = package("conformance_alt.frag.ashd");
+    const std::optional<ShaderPackage> otherBindings = package("conformance_mrt.frag.ashd");
+    const std::optional<ShaderPackage> otherStage = package("conformance.vert.ashd");
+    if (!original || !alternative || !otherBindings || !otherStage) {
+        log::error("conformance: cannot read the shader packages for the reload check");
+        return 1;
+    }
+    bool ok = reloadShaderFile(d, shaders + "conformance.frag.ashd") == ReloadResult::Reloaded &&
+              render() == image2x;
+    ok = ok && d.reloadShader(fs, {&*alternative, "alternative"});
+    const std::vector<uint8_t> inverted = render();
+    ok = ok && !inverted.empty() && inverted != image2x;
+    ok = ok && d.reloadShader(fs, {&*original, "original"}) && render() == image2x;
+    log::info("conformance: two rejected reloads follow");
+    ok = ok && !d.reloadShader(fs, {&*otherBindings, "other bindings"}) && !d.reloadShader(fs, {&*otherStage, "vertex"});
+    ok = ok && render() == image2x;
+    if (!ok) {
+        log::error("conformance: shader hot reload check FAILED");
+        return 1;
+    }
+    log::info("conformance: shader hot reload check passed");
     return 0;
 }
 

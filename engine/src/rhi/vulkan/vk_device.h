@@ -131,6 +131,8 @@ struct Pipeline {
     VkPipelineLayout layout = VK_NULL_HANDLE;
     std::array<VkDescriptorSetLayout, kMaxBindGroups> setLayouts{};
     std::vector<ShaderBinding> bindings;
+    GraphicsPipelineDesc desc; // rebuilt from it when one of its shaders is reloaded (debugName cleared)
+    std::string name;
 };
 
 struct BindGroup {
@@ -256,6 +258,7 @@ public:
     SamplerHandle createSampler(const SamplerDesc& desc) override;
     ShaderHandle createShader(const ShaderDesc& desc) override;
     PipelineHandle createGraphicsPipeline(const GraphicsPipelineDesc& desc) override;
+    bool reloadShader(ShaderHandle shader, const ShaderDesc& desc) override;
     BindGroupHandle createBindGroup(const BindGroupDesc& desc) override;
 
     void destroy(BufferHandle handle) override;
@@ -302,6 +305,8 @@ private:
     VkDescriptorSetLayout setLayout(const std::vector<ShaderBinding>& bindings, uint32_t set);
     VkCommandBuffer acquireCommandBuffer();
     void defer(std::function<void()> fn);
+    VkPipeline buildPipeline(const GraphicsPipelineDesc& desc, VkShaderModule vertexModule,
+                             VkShaderModule fragmentModule, VkPipelineLayout layout);
 
     // Uploads: in-frame writes go into the pending upload command buffer.
     VkCommandBuffer uploadCommands();

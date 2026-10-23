@@ -174,9 +174,7 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
             startRoom_ = &worldRoom;
             startFeet_ = spawn->position;
         }
-        for (const animal::LevelObject* gem : room->objectsOfType("gem")) {
-            gemFlags_.insert(CaveRoom::gemFlag(roomName(worldRoom.path), gem->id));
-        }
+        collectGemFlags(worldRoom, *room);
     }
     if (!startRoom_) {
         animal::log::error("No room in the world has a 'spawn' object");
@@ -274,7 +272,7 @@ void SandboxGame::loadTuning() {
         animal::log::error("Cannot read {}", tuningPath_);
         return;
     }
-    for (const std::string& problem : tuning_.apply(*text, tuningPath_)) {
+    for (const std::string& problem : tuning_.apply(*text, tuningPath_).problems) {
         animal::log::warn("Tuning: {}", problem);
     }
 }
@@ -297,6 +295,146 @@ bool SandboxGame::rebuildRoom(animal::Renderer2D& renderer) {
     lookFrom_ = lookTo_ = roomLook(*currentRoom_);
     lookBlend_ = 1.0f;
     return true;
+}
+
+void SandboxGame::collectGemFlags(const animal::WorldRoom& worldRoom, const animal::Room& room) {
+    const std::string prefix = roomName(worldRoom.path) + ":";
+    std::erase_if(gemFlags_, [&prefix](const std::string& flag) { return flag.starts_with(prefix); });
+    for (const animal::LevelObject* gem : room.objectsOfType("gem")) {
+        gemFlags_.insert(CaveRoom::gemFlag(roomName(worldRoom.path), gem->id));
+    }
+}
+
+bool SandboxGame::reloadData(const std::string& path, animal::Renderer2D& renderer) {
+    const auto readValid = [&path]() -> std::optional<std::string> {
+        std::optional<std::string> text = animal::readText(path);
+        if (!text) {
+            animal::log::error("Reload: cannot read {}", path);
+        }
+        return text;
+    };
+    const auto rebuildIfUsed = [&] {
+        return !cave_.presetPaths().contains(path) || rebuildRoom(renderer);
+    };
+
+    if (path.ends_with(".look.json")) {
+        const std::optional<std::string> text = readValid();
+        std::string error;
+        if (!text || !animal::parseLook(*text, path, animal::readText, animal::Look::engineDefaults(), &error)) {
+            animal::log::error("Reload: {}", error.empty() ? path : error);
+            return false;
+        }
+        reloadLooks(); // presets may be bases of others: re-read them all
+        return true;
+    }
+    if (path.ends_with(".effect.json")) {
+        const std::optional<std::string> text = readValid();
+        std::string error;
+        std::optional<animal::EffectPreset> preset = text ? animal::parseEffect(*text, path, &error) : std::nullopt;
+        if (!preset) {
+            animal::log::error("Reload: {}", error.empty() ? path : error);
+            return false;
+        }
+        effects_.set(path, std::move(*preset));
+        return rebuildIfUsed();
+    }
+    if (path.ends_with(".plant.json")) {
+        const std::optional<std::string> text = readValid();
+        std::string error;
+        std::optional<animal::PlantSpecies> species = text ? animal::parsePlant(*text, path, &error) : std::nullopt;
+        if (!species) {
+            animal::log::error("Reload: {}", error.empty() ? path : error);
+            return false;
+        }
+        plants_.set(path, std::move(*species));
+        return rebuildIfUsed();
+    }
+    if (path == tuningPath_) {
+        const std::optional<std::string> text = readValid();
+        if (!text) {
+            return false;
+        }
+        const animal::Tuning::ApplyResult check = tuning_.apply(*text, path, true);
+        if (!check.valid) {
+            animal::log::error("Reload: {}", check.problems.front());
+            return false;
+        }
+        tuning_.resetToBuiltIn();
+        loadTuning();
+        return true;
+    }
+    if (path.ends_with(".tmj") || path.ends_with(".tsj")) {
+        // A room, or a tileset that rooms use: reload every affected cached room, all or nothing.
+        std::map<std::string, animal::Room> reloaded;
+        for (const auto& [roomPath, room] : rooms_) {
+            if (path.ends_with(".tmj") && roomPath != path) {
+                continue;
+            }
+            const animal::WorldRoom* worldRoom = nullptr;
+            for (const animal::WorldRoom& r : world_.rooms) {
+                worldRoom = r.path == roomPath ? &r : worldRoom;
+            }
+            std::optional<animal::Room> fresh = animal::loadRoom(roomPath);
+            if (!fresh) {
+                return false; // loadRoom logged why
+            }
+            if (worldRoom && (fresh->tiles.pixelBounds().width != worldRoom->rect.width ||
+                              fresh->tiles.pixelBounds().height != worldRoom->rect.height)) {
+                animal::log::error("Reload: {}: map size does not match its size in the world file", roomPath);
+                return false;
+            }
+            reloaded.emplace(roomPath, std::move(*fresh));
+        }
+        for (auto& [roomPath, room] : reloaded) {
+            rooms_[roomPath] = std::move(room);
+            for (const animal::WorldRoom& r : world_.rooms) {
+                if (r.path == roomPath) {
+                    collectGemFlags(r, rooms_[roomPath]);
+                }
+            }
+        }
+        return !currentRoom_ || !reloaded.contains(currentRoom_->path) || rebuildRoom(renderer);
+    }
+    if (path.ends_with(".world")) {
+        return reloadWorld(path, renderer);
+    }
+    return true; // not something the game reads
+}
+
+// The world layout: rooms are found again by path; a layout that drops a room in use is refused.
+bool SandboxGame::reloadWorld(const std::string& path, animal::Renderer2D& renderer) {
+    std::optional<animal::World> world = animal::loadWorld(path);
+    if (!world) {
+        return false;
+    }
+    const auto find = [&world](const animal::WorldRoom* room) -> const animal::WorldRoom* {
+        if (!room) {
+            return nullptr;
+        }
+        for (const animal::WorldRoom& r : world->rooms) {
+            if (r.path == room->path) {
+                return &r;
+            }
+        }
+        return nullptr;
+    };
+    const animal::WorldRoom* current = find(currentRoom_);
+    const animal::WorldRoom* start = find(startRoom_);
+    const animal::WorldRoom* checkpoint = find(checkpointRoom_);
+    if ((currentRoom_ && !current) || !start || !checkpoint) {
+        animal::log::error("Reload: {} no longer contains a room in use (current, start or checkpoint)", path);
+        return false;
+    }
+    for (const animal::WorldRoom& r : world->rooms) {
+        if (!roomData(r)) {
+            return false;
+        }
+    }
+    world_ = std::move(*world); // moving the vector keeps its elements where they are
+    currentRoom_ = current;
+    startRoom_ = start;
+    checkpointRoom_ = checkpoint;
+    return rebuildRoom(renderer);
 }
 
 bool SandboxGame::teleport(const animal::WorldRoom& worldRoom, animal::Renderer2D& renderer) {

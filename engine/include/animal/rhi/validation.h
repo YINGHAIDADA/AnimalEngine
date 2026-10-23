@@ -31,6 +31,7 @@ public:
     ShaderHandle createShader(const ShaderDesc& desc) override;
     PipelineHandle createGraphicsPipeline(const GraphicsPipelineDesc& desc) override;
     BindGroupHandle createBindGroup(const BindGroupDesc& desc) override;
+    bool reloadShader(ShaderHandle shader, const ShaderDesc& desc) override;
 
     void destroy(BufferHandle handle) override;
     void destroy(TextureHandle handle) override;

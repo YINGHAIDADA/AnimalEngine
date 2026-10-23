@@ -1,5 +1,7 @@
 // Developer tools that do not need a window: JSON formatting and source / data path mapping.
 
+#include <animal/core/file.h>
+#include <animal/devtools/file_watcher.h>
 #include <animal/devtools/json_editor.h>
 #include <animal/devtools/source_assets.h>
 #include <animal/framework/level.h>
@@ -59,6 +61,43 @@ TEST(devtools_source_assets_map_data_and_source_paths) {
     CHECK(assets.dataOf(src + "assets/source/world/rooms/a.tmj") == std::string("/game/bin/data/world/rooms/a.tmj"));
     CHECK(!assets.dataOf(src + "README.md").has_value());
     CHECK(assets.displayName("/game/bin/data/world/tuning.json") == "world/tuning.json");
+}
+
+TEST(devtools_file_watcher_reports_settled_changes_once) {
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() / "animal_watcher_test";
+    fs::remove_all(dir);
+    fs::create_directories(dir / "sub");
+    const auto write = [](const fs::path& path, const std::string& text) {
+        const std::u8string u8 = path.generic_u8string();
+        writeFileAtomic(std::string(u8.begin(), u8.end()), text.data(), text.size());
+    };
+    const auto name = [](const fs::path& path) {
+        const std::u8string u8 = path.lexically_normal().generic_u8string();
+        return std::string(u8.begin(), u8.end());
+    };
+    write(dir / "a.json", "1");
+    devtools::FileWatcher watcher(0.0);
+    const std::u8string root = dir.generic_u8string();
+    watcher.watchDirectory(std::string(root.begin(), root.end()));
+    CHECK(watcher.poll().empty()); // existing files are not changes
+
+    write(dir / "a.json", "22");
+    write(dir / "sub" / "b.json", "3");
+    CHECK(watcher.poll().empty()); // seen, but not settled yet
+    const std::vector<std::string> changed = watcher.poll();
+    CHECK(changed.size() == 2);
+    CHECK(changed.size() == 2 && changed[0] == name(dir / "a.json") && changed[1] == name(dir / "sub" / "b.json"));
+    CHECK(watcher.poll().empty()); // reported once
+
+    write(dir / "a.json", "333");
+    watcher.acknowledge(name(dir / "a.json")); // written by the tools themselves
+    CHECK(watcher.poll().empty() && watcher.poll().empty());
+
+    write(dir / ".hidden", "x");
+    write(dir / "c.json.tmp", "x");
+    CHECK(watcher.poll().empty() && watcher.poll().empty());
+    fs::remove_all(dir);
 }
 
 } // namespace

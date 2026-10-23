@@ -172,6 +172,38 @@ void setClipboardText(const std::string& text) {
     SDL_SetClipboardText(text.c_str());
 }
 
+ProcessResult runProcess(const std::vector<std::string>& arguments) {
+    ProcessResult result;
+    if (arguments.empty()) {
+        return result;
+    }
+    std::vector<const char*> argv;
+    for (const std::string& a : arguments) {
+        argv.push_back(a.c_str());
+    }
+    argv.push_back(nullptr);
+    const SDL_PropertiesID props = SDL_CreateProperties();
+    SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, argv.data());
+    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
+    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
+    SDL_SetBooleanProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_TO_STDOUT_BOOLEAN, true);
+    SDL_Process* process = SDL_CreateProcessWithProperties(props);
+    SDL_DestroyProperties(props);
+    if (!process) {
+        result.output = SDL_GetError();
+        return result;
+    }
+    size_t size = 0;
+    int exitCode = -1;
+    if (void* data = SDL_ReadProcess(process, &size, &exitCode)) {
+        result.output.assign(static_cast<const char*>(data), size);
+        SDL_free(data);
+    }
+    result.exitCode = exitCode;
+    SDL_DestroyProcess(process);
+    return result;
+}
+
 void setCursor(Cursor cursor) {
     if (cursor == gCurrentCursor) {
         return;

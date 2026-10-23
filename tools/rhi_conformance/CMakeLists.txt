@@ -4,6 +4,7 @@ animal_add_shaders(animal_conformance_shaders
     SOURCES
         conformance.vert
         conformance.frag
+        conformance_alt.frag
         conformance_mrt.frag)
 
 add_executable(animal_rhi_conformance main.cpp)

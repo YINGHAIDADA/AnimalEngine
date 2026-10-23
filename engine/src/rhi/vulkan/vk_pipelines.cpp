@@ -106,14 +106,27 @@ PipelineHandle VulkanDevice::createGraphicsPipeline(const GraphicsPipelineDesc& 
         return {};
     }
 
+    pipeline.pipeline = buildPipeline(desc, vs->module, fs->module, pipeline.layout);
+    if (!pipeline.pipeline) {
+        vkDestroyPipelineLayout(device_, pipeline.layout, nullptr);
+        return {};
+    }
+    pipeline.desc = desc;
+    pipeline.desc.debugName = nullptr;
+    pipeline.name = name;
+    return pipelines_.insert(std::move(pipeline));
+}
+
+VkPipeline VulkanDevice::buildPipeline(const GraphicsPipelineDesc& desc, VkShaderModule vertexModule,
+                                       VkShaderModule fragmentModule, VkPipelineLayout layout) {
     std::array<VkPipelineShaderStageCreateInfo, 2> stages{};
     stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-    stages[0].module = vs->module;
+    stages[0].module = vertexModule;
     stages[0].pName = "main";
     stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    stages[1].module = fs->module;
+    stages[1].module = fragmentModule;
     stages[1].pName = "main";
 
     std::vector<VkVertexInputBindingDescription> vertexBindings;
@@ -202,17 +215,76 @@ PipelineHandle VulkanDevice::createGraphicsPipeline(const GraphicsPipelineDesc& 
     info.pMultisampleState = &multisample;
     info.pColorBlendState = &colorBlend;
     info.pDynamicState = &dynamic;
-    info.layout = pipeline.layout;
+    info.layout = layout;
     const uint64_t begin = platform::nowNanoseconds();
-    const VkResult created = vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &info, nullptr, &pipeline.pipeline);
+    VkPipeline pipeline = VK_NULL_HANDLE;
+    const VkResult created = vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &info, nullptr, &pipeline);
     pipelineMilliseconds_ += static_cast<double>(platform::nowNanoseconds() - begin) * 1e-6;
     if (!check(created, "vkCreateGraphicsPipelines")) {
-        vkDestroyPipelineLayout(device_, pipeline.layout, nullptr);
-        return {};
+        return VK_NULL_HANDLE;
     }
     ++pipelinesCreated_;
-    return pipelines_.insert(std::move(pipeline));
+    return pipeline;
 }
+
+bool VulkanDevice::reloadShader(ShaderHandle handle, const ShaderDesc& desc) {
+    Shader* shader = shaders_.get(handle);
+    const std::string name = shader ? shader->name : "?";
+    if (!shader || !desc.package || desc.package->spirv.empty()) {
+        log::error("reloadShader '{}': invalid shader or package", name);
+        return false;
+    }
+    if (desc.package->stage != shader->stage || !sameBindings(desc.package->bindings, shader->bindings)) {
+        log::error("reloadShader '{}': the stage or the resource bindings changed; restart to apply", name);
+        return false;
+    }
+    VkShaderModuleCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    info.codeSize = desc.package->spirv.size() * sizeof(uint32_t);
+    info.pCode = desc.package->spirv.data();
+    VkShaderModule module = VK_NULL_HANDLE;
+    if (!check(vkCreateShaderModule(device_, &info, nullptr, &module), "vkCreateShaderModule")) {
+        return false;
+    }
+    // Rebuild every pipeline that uses the shader (same layout); commit only if all succeed.
+    std::vector<std::pair<Pipeline*, VkPipeline>> rebuilt;
+    bool ok = true;
+    pipelines_.forEach([&](Pipeline& pipeline) {
+        if (!ok || (pipeline.desc.vertexShader != handle && pipeline.desc.fragmentShader != handle)) {
+            return;
+        }
+        const Shader* vs = shaders_.get(pipeline.desc.vertexShader);
+        const Shader* fs = shaders_.get(pipeline.desc.fragmentShader);
+        if (!vs || !fs) {
+            return; // its other shader is gone; the pipeline stays as it is
+        }
+        const VkPipeline replacement =
+            buildPipeline(pipeline.desc, pipeline.desc.vertexShader == handle ? module : vs->module,
+                          pipeline.desc.fragmentShader == handle ? module : fs->module, pipeline.layout);
+        if (!replacement) {
+            log::error("reloadShader '{}': pipeline '{}' could not be rebuilt", name, pipeline.name);
+            ok = false;
+            return;
+        }
+        rebuilt.emplace_back(&pipeline, replacement);
+    });
+    if (!ok) {
+        for (const auto& [pipeline, replacement] : rebuilt) {
+            vkDestroyPipeline(device_, replacement, nullptr);
+        }
+        vkDestroyShaderModule(device_, module, nullptr);
+        return false;
+    }
+    for (const auto& [pipeline, replacement] : rebuilt) {
+        defer([this, old = pipeline->pipeline] { vkDestroyPipeline(device_, old, nullptr); });
+        pipeline->pipeline = replacement;
+    }
+    defer([this, old = shader->module] { vkDestroyShaderModule(device_, old, nullptr); });
+    shader->module = module;
+    log::info("Reloaded shader '{}' ({} pipeline(s))", name, rebuilt.size());
+    return true;
+}
+
 
 BindGroupHandle VulkanDevice::createBindGroup(const BindGroupDesc& desc) {
     const char* name = nameOr(desc.debugName, "unnamed");
