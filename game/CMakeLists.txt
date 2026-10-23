@@ -8,7 +8,8 @@ set(ANIMAL_GAME_SOURCES
     src/mechanisms.h
     src/progression.cpp
     src/sandbox_game.cpp
-    src/sandbox_game.h)
+    src/sandbox_game.h
+    src/test_runs.cpp)
 
 if(ANIMAL_DEV_TOOLS)
     list(APPEND ANIMAL_GAME_SOURCES

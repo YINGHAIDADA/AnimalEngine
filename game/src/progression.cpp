@@ -1,8 +1,10 @@
-// Progress through the area (ADR-0034): hazards and crushing, switches and doors, the dive ability,
-// currents, the goal and the ending screen.
+// Progress through the area: the save (ADR-0011, ADR-0032); hazards and crushing, switches and doors,
+// the dive ability, currents, the goal and the ending screen (ADR-0034).
 
 #include "sandbox_game.h"
 
+#include <animal/core/file.h>
+#include <animal/core/log.h>
 #include <animal/framework/water.h>
 #include <animal/renderer/renderer2d.h>
 
@@ -21,6 +23,75 @@ constexpr animal::Color kEndHint = animal::Color::rgba(120, 130, 140);
 constexpr const char* kDiveMessage = "YOU CAN DIVE: HOLD DOWN IN WATER";
 
 } // namespace
+
+// Resumes at the saved checkpoint with the saved gems collected; a save naming a room that is
+// no longer in the world keeps its gems but starts at the spawn point.
+void SandboxGame::loadProgress() {
+    animal::SaveLoad load = animal::loadSave(savePath_);
+    switch (load.status) {
+    case animal::SaveLoad::Status::Missing:
+        return;
+    case animal::SaveLoad::Status::TooNew:
+        animal::log::error("{}", load.message);
+        savePath_.clear(); // never overwrite progress from a newer version
+        showMessage("SAVE FROM A NEWER VERSION - NOT SAVING");
+        return;
+    case animal::SaveLoad::Status::Unusable:
+        animal::log::error("{}", load.message);
+        showMessage("SAVE DAMAGED - NEW GAME");
+        return;
+    case animal::SaveLoad::Status::Recovered:
+        animal::log::warn("{}", load.message);
+        showMessage("SAVE RESTORED FROM BACKUP");
+        break;
+    case animal::SaveLoad::Status::Loaded:
+        if (!load.message.empty()) {
+            animal::log::info("{}", load.message);
+        }
+        break;
+    }
+    const animal::SaveData* loaded = &*load.data;
+    save_.flags = loaded->flags;
+    save_.visited = loaded->visited;
+    save_.playSeconds = loaded->playSeconds;
+    for (const animal::WorldRoom& worldRoom : world_.rooms) {
+        if (roomName(worldRoom.path) == loaded->room) {
+            checkpointRoom_ = &worldRoom;
+            checkpointFeet_ = loaded->position;
+            save_.room = loaded->room;
+            save_.position = loaded->position;
+            animal::log::info("Loaded save: room '{}', {} gem(s)", save_.room, save_.flags.size());
+            return;
+        }
+    }
+    animal::log::warn("Save names unknown room '{}'; starting at the spawn point", loaded->room);
+}
+
+void SandboxGame::saveProgress() {
+    if (!savePath_.empty() && !animal::writeSave(savePath_, save_)) {
+        animal::log::warn("Could not write the save file {}", savePath_);
+    }
+}
+
+// F8: forget all progress and start over from the spawn point.
+void SandboxGame::resetProgress(animal::Renderer2D& renderer) {
+    if (!savePath_.empty()) {
+        for (const std::string& file : {savePath_, savePath_ + ".bak"}) { // a backup would bring it back
+            if (animal::fileExists(file)) {
+                animal::deleteFile(file);
+            }
+        }
+    }
+    save_.flags.clear();
+    save_.visited.clear();
+    save_.playSeconds = 0.0;
+    save_.room = roomName(startRoom_->path);
+    save_.position = startFeet_;
+    checkpointRoom_ = startRoom_;
+    checkpointFeet_ = startFeet_;
+    respawn(renderer);
+    showMessage("PROGRESS RESET");
+}
 
 size_t SandboxGame::collectedGems() const {
     return static_cast<size_t>(

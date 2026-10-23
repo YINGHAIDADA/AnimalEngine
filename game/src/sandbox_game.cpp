@@ -67,55 +67,6 @@ animal::AppConfig SandboxGame::configure() {
     return config;
 }
 
-bool SandboxGame::onArgument(std::string_view argument) {
-    constexpr std::string_view kStress = "--stress-lights=";
-    if (argument.starts_with(kStress)) {
-        stressLights_ = static_cast<uint32_t>(std::strtoul(std::string(argument.substr(kStress.size())).c_str(), nullptr, 10));
-        return true;
-    }
-    constexpr std::string_view kStartRoom = "--start-room=";
-    if (argument.starts_with(kStartRoom)) {
-        startRoomName_ = std::string(argument.substr(kStartRoom.size()));
-        return true;
-    }
-    constexpr std::string_view kExpect = "--expect=";
-    if (argument.starts_with(kExpect)) {
-        std::string_view list = argument.substr(kExpect.size());
-        while (!list.empty()) {
-            const std::string_view item = list.substr(0, list.find(','));
-            const size_t colon = item.find(':');
-            if (colon == std::string_view::npos) {
-                animal::log::error("--expect: '{}' is not name:value", item);
-                return false;
-            }
-            expectations_.emplace_back(std::string(item.substr(0, colon)), std::string(item.substr(colon + 1)));
-            list = item.size() < list.size() ? list.substr(item.size() + 1) : std::string_view();
-        }
-        return true;
-    }
-    // Test runs (with --start-room): progress to begin with, and a trace of the player.
-    constexpr std::string_view kFlags = "--flags=";
-    if (argument.starts_with(kFlags)) {
-        std::string_view list = argument.substr(kFlags.size());
-        while (!list.empty()) {
-            const std::string_view item = list.substr(0, list.find(','));
-            testFlags_.emplace(item);
-            list = item.size() < list.size() ? list.substr(item.size() + 1) : std::string_view();
-        }
-        return true;
-    }
-    constexpr std::string_view kGems = "--gems=";
-    if (argument.starts_with(kGems)) {
-        testGems_ = std::strtoul(std::string(argument.substr(kGems.size())).c_str(), nullptr, 10);
-        return true;
-    }
-    if (argument == "--trace" || argument.starts_with("--trace=")) {
-        traceEvery_ = argument.size() > 8 ? std::max(1ul, std::strtoul(std::string(argument.substr(8)).c_str(), nullptr, 10)) : 10;
-        return true;
-    }
-    return dev_.handleArgument(argument);
-}
-
 // Performance testing: lights wandering over the whole room on fixed pseudo-random orbits.
 void SandboxGame::addStressLights(animal::Renderer2D& renderer) const {
     for (uint32_t i = 0; i < stressLights_; ++i) {
@@ -592,17 +543,6 @@ void SandboxGame::applyCurrentLook(animal::Renderer2D& renderer) const {
     renderer.lighting().shadows = renderer.lighting().shadows && shadowsEnabled_;
 }
 
-// --demo: a short tour driven by simulation time (reproducible with --deterministic): run right,
-// grab the long vine in the entrance and climb a little while swinging, jump off, continue
-// along the tunnel into the crystal gallery, and drop through its pit into the smoke pit.
-void SandboxGame::applyDemoInput() {
-    actions_.applyStrength(MoveRight, time_ < 7.5 ? 1.0f : 0.0f);
-    actions_.applyStrength(MoveLeft, 0.0f);
-    actions_.applyStrength(MoveUp, time_ >= 0.5 && time_ < 1.3 ? 1.0f : 0.0f);
-    actions_.applyStrength(MoveDown, 0.0f);
-    actions_.applyStrength(Jump, time_ >= 1.35 && time_ < 1.55 ? 1.0f : 0.0f);
-}
-
 bool SandboxGame::setupAnimations() {
     animator_ = {};
     const auto add = [this](const char* tag, animal::Animator::ClipId& id) {
@@ -719,75 +659,6 @@ void SandboxGame::respawn(animal::Renderer2D& renderer) {
     checkpointPending_ = false;
     respawnPending_ = false;
     diving_ = false;
-}
-
-// Resumes at the saved checkpoint with the saved gems collected; a save naming a room that is
-// no longer in the world keeps its gems but starts at the spawn point.
-void SandboxGame::loadProgress() {
-    animal::SaveLoad load = animal::loadSave(savePath_);
-    switch (load.status) {
-    case animal::SaveLoad::Status::Missing:
-        return;
-    case animal::SaveLoad::Status::TooNew:
-        animal::log::error("{}", load.message);
-        savePath_.clear(); // never overwrite progress from a newer version
-        showMessage("SAVE FROM A NEWER VERSION - NOT SAVING");
-        return;
-    case animal::SaveLoad::Status::Unusable:
-        animal::log::error("{}", load.message);
-        showMessage("SAVE DAMAGED - NEW GAME");
-        return;
-    case animal::SaveLoad::Status::Recovered:
-        animal::log::warn("{}", load.message);
-        showMessage("SAVE RESTORED FROM BACKUP");
-        break;
-    case animal::SaveLoad::Status::Loaded:
-        if (!load.message.empty()) {
-            animal::log::info("{}", load.message);
-        }
-        break;
-    }
-    const animal::SaveData* loaded = &*load.data;
-    save_.flags = loaded->flags;
-    save_.visited = loaded->visited;
-    save_.playSeconds = loaded->playSeconds;
-    for (const animal::WorldRoom& worldRoom : world_.rooms) {
-        if (roomName(worldRoom.path) == loaded->room) {
-            checkpointRoom_ = &worldRoom;
-            checkpointFeet_ = loaded->position;
-            save_.room = loaded->room;
-            save_.position = loaded->position;
-            animal::log::info("Loaded save: room '{}', {} gem(s)", save_.room, save_.flags.size());
-            return;
-        }
-    }
-    animal::log::warn("Save names unknown room '{}'; starting at the spawn point", loaded->room);
-}
-
-void SandboxGame::saveProgress() {
-    if (!savePath_.empty() && !animal::writeSave(savePath_, save_)) {
-        animal::log::warn("Could not write the save file {}", savePath_);
-    }
-}
-
-// F8: forget all progress and start over from the spawn point.
-void SandboxGame::resetProgress(animal::Renderer2D& renderer) {
-    if (!savePath_.empty()) {
-        for (const std::string& file : {savePath_, savePath_ + ".bak"}) { // a backup would bring it back
-            if (animal::fileExists(file)) {
-                animal::deleteFile(file);
-            }
-        }
-    }
-    save_.flags.clear();
-    save_.visited.clear();
-    save_.playSeconds = 0.0;
-    save_.room = roomName(startRoom_->path);
-    save_.position = startFeet_;
-    checkpointRoom_ = startRoom_;
-    checkpointFeet_ = startFeet_;
-    respawn(renderer);
-    showMessage("PROGRESS RESET");
 }
 
 void SandboxGame::playSound(animal::audio::SoundHandle sound, float x, float volume) {
@@ -1088,52 +959,6 @@ void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::s
 
 void SandboxGame::onToolsPass(animal::EngineContext& context, animal::rhi::CommandList& commands) {
     dev_.render(context, commands);
-}
-
-// Expectations: room (the room the player ends in), gems (at least N collected), visited (at least N
-// rooms entered), flag (a save flag is set: switch:NAME, ability:NAME), finished (the goal was
-// reached), grounded (true / false), respawns (how often the player was sent back to a checkpoint).
-bool SandboxGame::checkExpectations() {
-    const size_t collected = static_cast<size_t>(
-        std::ranges::count_if(save_.flags, [this](const std::string& f) { return gemFlags_.count(f) != 0; }));
-    bool ok = true;
-    for (const auto& [name, expected] : expectations_) {
-        std::string actual;
-        bool met = false;
-        if (name == "room") {
-            actual = currentRoom_ ? roomName(currentRoom_->path) : "";
-            met = actual == expected;
-        } else if (name == "gems") {
-            actual = std::to_string(collected);
-            met = collected >= static_cast<size_t>(std::strtoul(expected.c_str(), nullptr, 10));
-        } else if (name == "grounded") {
-            actual = playerState_.grounded ? "true" : "false";
-            met = actual == expected;
-        } else if (name == "flag") {
-            met = save_.flags.contains(expected);
-            actual = met ? expected : "(not set)";
-        } else if (name == "finished") {
-            actual = save_.flags.contains(kFinishedFlag) ? "true" : "false";
-            met = actual == expected;
-        } else if (name == "visited") {
-            actual = std::to_string(save_.visited.size());
-            met = save_.visited.size() >= static_cast<size_t>(std::strtoul(expected.c_str(), nullptr, 10));
-        } else if (name == "respawns") {
-            actual = std::to_string(respawns_);
-            met = actual == expected;
-        } else {
-            animal::log::error("Expectation '{}' is unknown (room, gems, visited, flag, finished, grounded, respawns)", name);
-            ok = false;
-            continue;
-        }
-        if (met) {
-            animal::log::info("Expectation met: {} = {}", name, actual);
-        } else {
-            animal::log::error("Expectation FAILED: {} should be {}, is {}", name, expected, actual);
-            ok = false;
-        }
-    }
-    return ok;
 }
 
 void SandboxGame::onShutdown(animal::EngineContext& context) {
