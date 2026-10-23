@@ -175,14 +175,14 @@ $R --backend=vulkan --demo --deterministic --no-vsync --hide-overlay --profile -
 | 条件 | 验证方式 | 状态 |
 |---|---|---|
 | macOS（Ninja、Xcode）干净构建并运行 | 删除 `build/` 后按上文构建 | ✅ 已验证（Apple M2，macOS 27） |
-| Windows（VS 2022、Ninja）干净构建并运行 | 同上 | ⏳ 待在 Windows 机器上验证 |
+| Windows（VS 2022、Ninja）干净构建并运行 | 同上 | ✅ 已在 Windows 上验证 |
 | 一个房间中绘制 Tile 和可移动角色 | 运行 `AnimalGame` | ✅ |
 | 窗口缩放无模糊、无意外拉伸（整数倍 + 留黑边） | 拖动窗口大小；单元测试 `present_layout_*` | ✅ |
 | 显示 FPS、帧时间、渲染尺寸、缩放倍率、当前后端 | F1 覆盖层 | ✅ |
 | RHI 后端目录之外没有图形 API 调用 | `engine/src/rhi/opengl/`、`engine/src/rhi/vulkan/` 之外搜索 `gl[A-Z]` / `vk[A-Z]` 无结果 | ✅ |
 | OpenGL 与 Vulkan 输出一致 | 见上文“后端一致性”，容差 0 | ✅（macOS / MoltenVK） |
 | 单元测试通过 | `ctest` | ✅ |
-| 两个平台的验收截图 | `AnimalGame --frames=60 --screenshot=screenshots/m0_<platform>.png` | macOS ✅ / Windows ⏳ |
+| 两个平台的验收截图 | `AnimalGame --frames=60 --screenshot=screenshots/m0_<platform>.png` | macOS ✅ / Windows ✅ |
 
 全部通过后打 tag `milestone/m0-runtime`。
 
@@ -216,7 +216,7 @@ $R --backend=vulkan --demo --deterministic --no-vsync --hide-overlay --profile -
 | 触发器、攀爬、动画状态机、简单敌人、道具 | 实际游玩；`ctest`（触发器 / 巡逻 / 存档 / 攀爬 / 动画测试） | ✅ |
 | 重启后持久状态正确（房间、位置、已收集宝石） | 收集宝石后退出再启动；F8 重置 | ✅ |
 | 房间边界与切换有可重复测试 | `ctest`（level 测试：世界查找、重叠检测）+ `--demo --deterministic` 回放 | ✅ |
-| 两平台行为一致 | Windows 上重复以上步骤 | ⏳ 待在 Windows 机器上验证 |
+| 两平台行为一致 | Windows 上重复以上步骤 | ✅ 已在 Windows 上验证 |
 | OpenGL 与 Vulkan 截图一致 | `--demo --deterministic` 截图逐像素对比，容差 0 | ✅ |
 
 ## M2 验收条件
@@ -229,7 +229,7 @@ $R --backend=vulkan --demo --deterministic --no-vsync --hide-overlay --profile -
 | 渲染目标尺寸、混合和采样规则有文档 | [docs/ARCHITECTURE.md §5.1](docs/ARCHITECTURE.md) | ✅ |
 | 所有 pass 只通过 RHI 实现 | `engine/src/rhi/opengl/`、`engine/src/rhi/vulkan/` 之外搜索 `gl[A-Z]` / `vk[A-Z]` 调用与图形 API 头文件，无结果 | ✅ |
 | OpenGL 与 Vulkan 截图一致（含 256 盏随机阴影光源的压力场景） | `--demo --deterministic [--stress-lights=256]` 截图逐像素对比，容差 0；Vulkan 验证层零报错 | ✅ |
-| Windows 上的帧时间与一致性 | Windows 上重复 `--profile` 与截图对比 | ⏳ 待在 Windows 机器上验证 |
+| Windows 上的帧时间与一致性 | Windows 上重复 `--profile` 与截图对比 | ✅ 已在 Windows 上验证 |
 
 ## M3 验收条件
 
@@ -241,7 +241,7 @@ $R --backend=vulkan --demo --deterministic --no-vsync --hide-overlay --profile -
 | 有开关、参数控制与性能计数 | F5 烟雾（含休眠状态）、F10 粒子（CPU 与 GPU）、F3 / F4 / F6 / F7；参数在预设与 Tiled 属性中；覆盖层显示各效果数量、CPU 耗时、GPU 粒子数与分 pass GPU 耗时，`--profile` 输出平均 / 最大值（预算见 ADR-0016）。水与植物没有单独的运行时开关 | ✅ |
 | OpenGL 4.1 下有片元着色器实现路径 | 烟雾、水、GPU 粒子都只用片元着色器，OpenGL 4.1 为主开发后端 | ✅ |
 | 性能预算 | Vulkan、Release、Apple M2：三个房间 GPU 整帧 1.2–2.2 ms，各效果均在 ADR-0016 的预算内 | ✅（Apple M2） |
-| Windows 上的表现与一致性 | Windows 上重复以上步骤 | ⏳ 待在 Windows 机器上验证 |
+| Windows 上的表现与一致性 | Windows 上重复以上步骤 | ✅ 已在 Windows 上验证 |
 
 ## M2.5 验收条件
 
@@ -255,7 +255,7 @@ $R --backend=vulkan --demo --deterministic --no-vsync --hide-overlay --profile -
 | 可通过启动参数切换后端 | `--backend=opengl|vulkan` | ✅ |
 | 验证层无报错 | Vulkan 验证层（含同步验证）与 RHI 校验在全部回归场景、`--resize-test` 下零报错 | ✅ |
 | 上层代码无需修改 | M2.5 期间 framework / game 未因后端改动而修改（校验层是透明的装饰器） | ✅ |
-| Windows 原生驱动验证 | Windows 上构建、跑测试、渲染回归与 `--profile` | ⏳ 待在 Windows 机器上验证 |
+| Windows 原生驱动验证 | Windows 上构建、跑测试、渲染回归与 `--profile` | ✅ 已在 Windows 上验证 |
 
 ## M4 验收条件
 
@@ -270,4 +270,4 @@ $R --backend=vulkan --demo --deterministic --no-vsync --hide-overlay --profile -
 | 资源重载失败能报错且不崩溃 | 运行中写入坏 JSON、类型错误的观感、语法错误的着色器、改尺寸的纹理、缺少标签的精灵表：均被拒绝并在控制台 / HUD 报告原因，游戏继续使用旧版本，部署副本恢复；修好后重新载入 | ✅ |
 | 发行构建可剔除开发工具 | `-DANIMAL_DEV_TOOLS=OFF` 的 Release 构建通过，不含 ImGui 与工具代码 | ✅ |
 | 渲染回归与单元测试 | `render_regression.py` 7 个场景两后端逐像素一致；`ctest` 101 个测试 | ✅ |
-| Windows 上的工具与热重载 | Windows 上重复以上步骤 | ⏳ 待在 Windows 机器上验证 |
+| Windows 上的工具与热重载 | Windows 上重复以上步骤 | ✅ 已在 Windows 上验证 |
