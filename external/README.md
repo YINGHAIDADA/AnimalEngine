@@ -18,6 +18,7 @@ git submodule update --init --depth 1
 | zstd | 资源包压缩（运行时解压，Asset Cooker 压缩；ADR-0031） | 子模块 `zstd`，tag `v1.5.7` | BSD-3-Clause（双许可 GPLv2，选用 BSD） | 是（静态链接） |
 | nlohmann/json | 读取 Tiled 关卡（.tmj / .tsj / .world） | `nlohmann/json.hpp` v3.12.0，nlohmann/json@65ee684 | MIT | 是（M5 烘焙后可能仅工具使用） |
 | stb_image | 开发期纹理解码（PNG） | `stb/stb_image.h` v2.30，nothings/stb@a7d4c21 | MIT / Public Domain | 是（M5 后可能仅工具使用） |
+| stb_vorbis | OGG Vorbis 解码（音频，ADR-0033） | `stb/stb_vorbis.c` v1.22，nothings/stb@a7d4c21 | MIT / Public Domain | 是（静态链接） |
 | stb_image_write | 截图与渲染回归输出 PNG | `stb/stb_image_write.h`，nothings/stb@a7d4c21 | MIT / Public Domain | 是（开发功能） |
 | glcorearb.h | OpenGL Core 函数类型声明 | `gl/include/GL/glcorearb.h`，KhronosGroup/OpenGL-Registry@6af574a | MIT（Khronos） | 头文件，不单独分发 |
 | khrplatform.h | Khronos 平台类型 | `gl/include/KHR/khrplatform.h`，KhronosGroup/EGL-Registry@e964211 | MIT（Khronos） | 头文件，不单独分发 |

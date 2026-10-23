@@ -19,6 +19,10 @@ namespace rhi {
 class CommandList;
 }
 
+namespace audio {
+class AudioSystem;
+}
+
 class Renderer2D;
 
 struct AppConfig {
@@ -42,6 +46,7 @@ struct EngineContext {
     platform::Input* input = nullptr;
     const platform::FrameEvents* events = nullptr; // this frame's OS events (valid during onFrame)
     Renderer2D* renderer = nullptr;
+    audio::AudioSystem* audio = nullptr; // silent without a device (--mute, headless)
     std::string dataDirectory; // with trailing separator
     FrameStats stats;
     bool demo = false;          // --demo: the game drives itself with scripted input

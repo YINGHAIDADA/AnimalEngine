@@ -21,6 +21,7 @@ struct Root {
 constexpr Root kRoots[] = {
     {"world/", "assets/source/world/", ""},
     {"textures/", "assets/source/textures/", ""},
+    {"sounds/", "assets/source/sounds/", ""},
     {"shaders/", "shaders/", ".ashd"},
 };
 

@@ -4,6 +4,8 @@
 #include "dev/dev_tools.h"
 
 #include <animal/app/application.h>
+#include <animal/audio/audio.h>
+#include <animal/core/random.h>
 #include <animal/framework/action_map.h>
 #include <animal/framework/animation.h>
 #include <animal/framework/climbing.h>
@@ -18,6 +20,7 @@
 #include <animal/renderer/camera2d.h>
 #include <animal/resources/loaders.h>
 
+#include <array>
 #include <map>
 #include <set>
 #include <string>
@@ -70,6 +73,8 @@ private:
     void saveProgress();
     void updateGameplay(animal::Entity& player);
     void showMessage(std::string text);
+    // A sound at a room position (panned by where it is on screen), slightly varied in pitch.
+    void playSound(animal::audio::SoundHandle sound, float x, float volume = 1.0f);
     animal::Look roomLook(const animal::WorldRoom& worldRoom);
     animal::Look currentLook() const;
     void applyCurrentLook(animal::Renderer2D& renderer) const;
@@ -157,6 +162,15 @@ private:
     animal::Camera2D camera_;
     CaveAssets assets_;
     animal::SpriteMaterial creature_;
+
+    // Audio (ADR-0033)
+    animal::audio::AudioSystem* audio_ = nullptr;
+    struct Sounds {
+        animal::audio::SoundHandle jump, land, gem, hit, splash, grab, ambience;
+    } sounds_{};
+    animal::audio::VoiceHandle ambienceVoice_;
+    animal::Random soundRandom_{0x50D};           // pitch variation only: never touches the simulation
+    std::array<float, 3> busVolumes_{1.0f, 0.5f, 1.0f}; // effects, ambience, music (tuning)
 
     DevTools dev_;
 };

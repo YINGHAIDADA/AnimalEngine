@@ -1,6 +1,7 @@
 #include "input_script.h"
 
 #include <animal/app/application.h>
+#include <animal/audio/audio.h>
 #include <animal/core/file.h>
 #include <animal/core/log.h>
 #include <animal/core/profiler.h>
@@ -41,6 +42,7 @@ struct CommandLine {
     std::string inputScriptPath;
     std::string packPath; // --pack: the resource pack to read the data from
     bool strict = false;  // --strict: RHI validation errors fail the run (exit code 4)
+    bool mute = false;     // --mute: no audio device
     std::string crashTest; // --crash-test=segv|abort|exception: crash on purpose after start-up
     std::string crashDirectory; // --crash-dir: where crash reports go (default: <user dir>/crashes)
 };
@@ -78,6 +80,8 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv,
             cl.crashTest = std::string(arg.substr(13));
         } else if (arg.starts_with("--crash-dir=")) {
             cl.crashDirectory = std::string(arg.substr(12));
+        } else if (arg == "--mute") {
+            cl.mute = true;
         } else if (arg == "--strict") {
             cl.strict = true;
         } else if (arg.starts_with("--pack=")) {
@@ -89,7 +93,7 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv,
         } else if (!other(arg)) {
             log::error("Unknown argument '{}'. Options: --backend=opengl|vulkan|null --headless --no-vsync --hide-overlay "
                        "--resize-test --deterministic --demo --profile --frames=N --screenshot=path.png "
-                       "--canvas-screenshot=path.png --input-script=path.txt --pack=data.pak --strict --crash-test=segv|abort|exception --crash-dir=path",
+                       "--canvas-screenshot=path.png --input-script=path.txt --pack=data.pak --strict --mute --crash-test=segv|abort|exception --crash-dir=path",
                        arg);
             return std::nullopt;
         }
@@ -335,11 +339,14 @@ int Application::run(int argc, char** argv) {
 
         Renderer2D renderer;
         platform::Input input;
+        audio::AudioSystem audio;
+        audio.init(!headless && !commandLine->mute);
         EngineContext context;
         context.window = window.get();
         context.device = device.get();
         context.input = &input;
         context.renderer = &renderer;
+        context.audio = &audio;
         context.dataDirectory = platform::executableDirectory() + "data/";
         // A release reads its data from data.pak next to the executable (ADR-0031); --pack picks one.
         const uint64_t loadStart = platform::nowNanoseconds();

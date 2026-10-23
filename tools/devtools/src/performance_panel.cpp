@@ -1,6 +1,7 @@
 #include <animal/devtools/performance_panel.h>
 
 #include <animal/app/application.h>
+#include <animal/audio/audio.h>
 #include <animal/core/profiler.h>
 #include <animal/platform/platform.h>
 #include <animal/renderer/renderer2d.h>
@@ -56,6 +57,10 @@ void PerformancePanel::draw(const EngineContext& context) {
     ImGui::Text("%s | %s", rhi::backendName(context.device->backend()), context.device->caps().deviceName.c_str());
     ImGui::Text("sprites %u  draws %u  lights %u", renderer.stats().quads, renderer.stats().drawCalls,
                 renderer.lightCount());
+    if (context.audio) {
+        const audio::AudioSystem::Stats a = context.audio->stats();
+        ImGui::Text("audio: %u voices  %u sounds  peak %.2f", a.voices, a.sounds, a.peak);
+    }
     ImGui::Checkbox("Pause graphs", &paused_);
 
     const auto plot = [this](const Series& s, float height) {

@@ -1,5 +1,6 @@
 #include "cooker.h"
 
+#include <animal/audio/audio.h>
 #include <animal/core/file.h>
 #include <animal/core/log.h>
 #include <animal/framework/effects.h>
@@ -26,7 +27,7 @@ namespace {
 namespace fs = std::filesystem;
 using Json = nlohmann::ordered_json;
 
-enum class Kind { World, Room, Tileset, Look, Effect, Plant, Tuning, SpriteSheet, Shader, Json };
+enum class Kind { World, Room, Tileset, Look, Effect, Plant, Tuning, SpriteSheet, Shader, Sound, Json };
 
 struct Item {
     Kind kind = Kind::Json;
@@ -70,6 +71,7 @@ Kind kindOf(const std::string& key) {
     if (key.ends_with(".effect.json")) return Kind::Effect;
     if (key.ends_with(".plant.json")) return Kind::Plant;
     if (key.ends_with("tuning.json")) return Kind::Tuning;
+    if (key.ends_with(".wav") || key.ends_with(".ogg")) return Kind::Sound;
     return Kind::Json;
 }
 
@@ -346,6 +348,12 @@ void Cook::process(const std::string& key) {
         }
         item.cooked = item.source; // already a compiled binary package
         return;
+    case Kind::Sound:
+        if (!audio::decodeSound(item.source.data(), item.source.size(), audio::AudioSystem::kSampleRate, &parseError)) {
+            error(std::format("{}: {}", key, parseError));
+        }
+        item.cooked = item.source; // decoded at load time (WAV / Ogg Vorbis)
+        return;
     }
     // Compact JSON: no whitespace, no editor bookkeeping.
     try {
@@ -486,6 +494,7 @@ void Cook::findUnreferencedAndDuplicates() {
     };
     visit(sourceRoot_ + "world", "", sourceRoot_);
     visit(sourceRoot_ + "textures", "", sourceRoot_);
+    visit(sourceRoot_ + "sounds", "", sourceRoot_);
     visit(shaderDir_, "shaders/", shaderDir_);
     for (auto& [content, keys] : byContent) {
         if (keys.size() > 1) {
@@ -521,6 +530,9 @@ Result Cook::run() {
     }
     for (const Json& f : manifest.value("spriteSheets", Json::array())) {
         enqueue(f.get<std::string>(), Kind::SpriteSheet, options_.manifest);
+    }
+    for (const Json& f : manifest.value("sounds", Json::array())) {
+        enqueue(f.get<std::string>(), Kind::Sound, options_.manifest);
     }
     for (const Json& s : manifest.value("shaders", Json::array())) {
         const std::string name = s.get<std::string>() + ".ashd";
@@ -700,6 +712,13 @@ std::vector<std::string> verifyPack(const std::string& packPath, const std::stri
         std::string parseError;
         if (!data || !rhi::parseShaderPackage(*data, &parseError)) {
             problems.push_back(s.get<std::string>() + ": shader missing or invalid in the pack");
+        }
+    }
+    for (const Json& f : manifest.value("sounds", Json::array())) {
+        const auto data = readFile(root + f.get<std::string>());
+        std::string decodeError;
+        if (!data || !audio::decodeSound(data->data(), data->size(), audio::AudioSystem::kSampleRate, &decodeError)) {
+            problems.push_back(f.get<std::string>() + ": sound missing or unreadable in the pack");
         }
     }
     const std::string atlas = manifest.value("atlas", "textures/atlas");

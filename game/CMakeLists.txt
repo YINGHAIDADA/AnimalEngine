@@ -55,12 +55,21 @@ animal_add_data_files(animal_game_textures
     DESTINATION textures
     FILES ${ANIMAL_GAME_TEXTURE_FILES})
 
+file(GLOB_RECURSE ANIMAL_GAME_SOUND_FILES CONFIGURE_DEPENDS
+    RELATIVE "${PROJECT_SOURCE_DIR}/assets/source/sounds"
+    "${PROJECT_SOURCE_DIR}/assets/source/sounds/*.wav"
+    "${PROJECT_SOURCE_DIR}/assets/source/sounds/*.ogg")
+animal_add_data_files(animal_game_sounds
+    SOURCE_DIR "${PROJECT_SOURCE_DIR}/assets/source/sounds"
+    DESTINATION sounds
+    FILES ${ANIMAL_GAME_SOUND_FILES})
+
 animal_add_data_files(animal_game_world
     SOURCE_DIR "${PROJECT_SOURCE_DIR}/assets/source/world"
     DESTINATION world
     FILES ${ANIMAL_GAME_WORLD_FILES})
 
-add_dependencies(animal_game animal_shaders animal_game_textures animal_game_world)
+add_dependencies(animal_game animal_shaders animal_game_textures animal_game_world animal_game_sounds)
 
 # Release layout (ADR-0031): cmake --build <dir> --target animal_package
 #   build/<preset>/package/<Config>/AnimalGame + data.pak (+ cook report)
@@ -71,6 +80,9 @@ foreach(rel IN LISTS ANIMAL_GAME_WORLD_FILES)
 endforeach()
 foreach(rel IN LISTS ANIMAL_GAME_TEXTURE_FILES)
     list(APPEND ANIMAL_COOK_INPUTS "${PROJECT_SOURCE_DIR}/assets/source/textures/${rel}")
+endforeach()
+foreach(rel IN LISTS ANIMAL_GAME_SOUND_FILES)
+    list(APPEND ANIMAL_COOK_INPUTS "${PROJECT_SOURCE_DIR}/assets/source/sounds/${rel}")
 endforeach()
 add_custom_command(
     OUTPUT "${ANIMAL_PACKAGE_DIR}/data.pak"

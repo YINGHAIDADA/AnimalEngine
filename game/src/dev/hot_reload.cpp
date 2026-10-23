@@ -7,6 +7,7 @@
 #include "sandbox_game.h"
 
 #include <animal/app/application.h>
+#include <animal/audio/audio.h>
 #include <animal/core/file.h>
 #include <animal/core/log.h>
 #include <animal/platform/platform.h>
@@ -67,8 +68,9 @@ void DevPanels::startWatching(State& s) {
     const std::string root = s.sources.available() ? s.sources.sourceDirectory() : s.sources.dataDirectory();
     const std::vector<std::string> directories =
         s.sources.available()
-            ? std::vector<std::string>{root + "assets/source/world", root + "assets/source/textures", root + "shaders"}
-            : std::vector<std::string>{root + "world", root + "textures", root + "shaders"};
+            ? std::vector<std::string>{root + "assets/source/world", root + "assets/source/textures",
+                                       root + "assets/source/sounds", root + "shaders"}
+            : std::vector<std::string>{root + "world", root + "textures", root + "sounds", root + "shaders"};
     for (const std::string& directory : directories) {
         s.watcher.watchDirectory(directory);
     }
@@ -134,6 +136,8 @@ void DevPanels::reloadFile(State& s, animal::EngineContext& context, const std::
             } else {
                 ok = result != animal::ReloadResult::Failed;
             }
+        } else if (relative.starts_with("sounds/")) {
+            ok = context.audio->reload(dataPath);
         } else if (relative.starts_with("textures/") && relative.ends_with(".png")) {
             ok = animal::reloadTextureFile(*context.device, dataPath) != animal::ReloadResult::Failed;
         } else if (relative.starts_with("world/") || (relative.starts_with("textures/") && relative.ends_with(".json"))) {

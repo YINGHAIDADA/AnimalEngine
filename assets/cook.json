@@ -20,6 +20,15 @@
   "spriteSheets": [
     "textures/creature.json"
   ],
+  "sounds": [
+    "sounds/jump.wav",
+    "sounds/land.wav",
+    "sounds/gem.wav",
+    "sounds/hit.wav",
+    "sounds/splash.wav",
+    "sounds/grab.wav",
+    "sounds/cave_ambience.wav"
+  ],
   "shaders": [
     "sprite.vert",
     "sprite.frag",

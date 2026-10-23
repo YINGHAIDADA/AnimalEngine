@@ -1,6 +1,7 @@
 set(ANIMAL_ENGINE_HEADERS
     include/animal/app/application.h
     include/animal/app/entry_point.h
+    include/animal/audio/audio.h
     include/animal/core/assert.h
     include/animal/core/file.h
     include/animal/core/handle.h
@@ -32,6 +33,7 @@ set(ANIMAL_ENGINE_SOURCES
     src/app/application.cpp
     src/app/input_script.cpp
     src/app/input_script.h
+    src/audio/audio.cpp
     src/core/assert.cpp
     src/core/file.cpp
     src/core/log.cpp

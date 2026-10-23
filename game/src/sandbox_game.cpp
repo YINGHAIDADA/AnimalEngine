@@ -238,6 +238,13 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     }
     placePlayerFeet(checkpointFeet_);
     bindActions();
+    audio_ = context.audio;
+    const std::string sounds = context.dataDirectory + "sounds/";
+    sounds_ = {audio_->load(sounds + "jump.wav"),   audio_->load(sounds + "land.wav"),
+               audio_->load(sounds + "gem.wav"),    audio_->load(sounds + "hit.wav"),
+               audio_->load(sounds + "splash.wav"), audio_->load(sounds + "grab.wav"),
+               audio_->load(sounds + "cave_ambience.wav")};
+    ambienceVoice_ = audio_->play(sounds_.ambience, {1.0f, 0.0f, 1.0f, true, animal::audio::Bus::Ambience, 2.0f});
     creatureSheetPath_ = textures + "creature.json";
     std::optional<animal::SpriteSheet> sheet = animal::loadSpriteSheet(creatureSheetPath_);
     if (!sheet) {
@@ -282,6 +289,9 @@ void SandboxGame::registerTuning(animal::Renderer2D& renderer) {
     tuning_.add("swim.fallSpeedScale", &s.fallSpeedScale, 0.05f, 1.0f);
     tuning_.add("swim.drag", &s.drag, 0.0f, 10.0f);
     tuning_.add("swim.jumpDepth", &s.jumpDepth, 0.0f, 1.0f);
+    tuning_.add("audio.effects", &busVolumes_[0], 0.0f, 1.0f);
+    tuning_.add("audio.ambience", &busVolumes_[1], 0.0f, 1.0f);
+    tuning_.add("audio.music", &busVolumes_[2], 0.0f, 1.0f);
     animal::FluidSettings& f = renderer.fluid();
     tuning_.add("smoke.velocityKeepPerSecond", &f.velocityKeepPerSecond, 0.0f, 1.0f);
     tuning_.add("smoke.smokeKeepPerSecond", &f.smokeKeepPerSecond, 0.0f, 1.0f);
@@ -589,6 +599,11 @@ void SandboxGame::updateAnimation(float dt) {
 
 void SandboxGame::onFrame(animal::EngineContext& context) {
     dev_.frame(context);
+    if (audio_) {
+        audio_->setBusVolume(animal::audio::Bus::Effects, busVolumes_[0]);
+        audio_->setBusVolume(animal::audio::Bus::Ambience, busVolumes_[1]);
+        audio_->setBusVolume(animal::audio::Bus::Music, busVolumes_[2]);
+    }
     const animal::platform::Input& input = *context.input;
     if (context.demo) {
         applyDemoInput();
@@ -725,6 +740,14 @@ void SandboxGame::resetProgress(animal::Renderer2D& renderer) {
     showMessage("PROGRESS RESET");
 }
 
+void SandboxGame::playSound(animal::audio::SoundHandle sound, float x, float volume) {
+    if (!audio_) {
+        return;
+    }
+    const float pan = std::clamp((x - kCameraCenter.x) / kCameraCenter.x * 0.7f, -0.7f, 0.7f);
+    audio_->play(sound, {volume, pan, soundRandom_.range(0.95f, 1.05f), false, animal::audio::Bus::Effects, 0.0f});
+}
+
 void SandboxGame::showMessage(std::string text) {
     message_ = std::move(text);
     messageTime_ = kMessageSeconds;
@@ -733,23 +756,30 @@ void SandboxGame::showMessage(std::string text) {
 // Gems, crawler hits, triggers and checkpoints, after the player has moved this step.
 void SandboxGame::updateGameplay(animal::Entity& player) {
     const animal::IntRect collider = player.body.worldCollider();
+    const float playerX = static_cast<float>(collider.x) + collider.width * 0.5f;
+    const float wasSubmerged = submersion_;
     submersion_ = cave_.updatePlayerInWater(collider, playerState_.velocity, submersion_);
+    if (wasSubmerged <= 0.0f && submersion_ > 0.0f) {
+        playSound(sounds_.splash, playerX, std::clamp(std::fabs(playerState_.velocity.y) / 200.0f, 0.3f, 1.0f));
+    }
     const std::vector<std::string> gems = cave_.collectGems(collider);
     save_.flags.insert(gems.begin(), gems.end());
     if (!gems.empty()) {
+        playSound(sounds_.gem, playerX);
         saveProgress();
     }
 
     if (invulnerable_ <= 0.0f) {
         if (const std::optional<animal::Vec2> crawler = cave_.touchingCrawler(collider)) {
-            const float playerX = static_cast<float>(collider.x) + collider.width * 0.5f;
             const float away = playerX < crawler->x ? -1.0f : (playerX > crawler->x ? 1.0f : (facingLeft_ ? 1.0f : -1.0f));
             playerState_.velocity = {away * kKnockback.x, kKnockback.y};
             playerState_.rising = false; // not a jump: releasing the button must not cut it
             playerState_.grounded = false;
             climb_.climbing = false;
             climb_.cooldown = climbParams_.regrabDelay;
-            invulnerable_ = kInvulnerableSeconds;            stunned_ = kStunSeconds;
+            invulnerable_ = kInvulnerableSeconds;
+            stunned_ = kStunSeconds;
+            playSound(sounds_.hit, playerX);
         }
     }
 
@@ -813,6 +843,13 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
         const bool wasClimbing = climb_.climbing;
         const bool climbing = animal::stepClimb(player->body, playerState_, climb_, {moveX, moveY, jumpPressed},
                                                 climbParams_, cave_.vines(), cave_.tiles(), static_cast<float>(dt));
+        const float playerX = player->body.exactPosition().x + 3.0f;
+        if (climbing && !wasClimbing) {
+            playSound(sounds_.grab, playerX, 0.7f);
+        } else if (!climbing && wasClimbing && jumpPressed) {
+            playSound(sounds_.jump, playerX, 0.8f);
+        }
+        const bool wasRising = playerState_.rising;
         if (!climbing) {
             animal::PlatformerInput input;
             input.moveX = moveX;
@@ -824,6 +861,12 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
             animal::stepPlatformer(player->body, playerState_, input,
                                    animal::swimmingParams(playerParams_, submersion, swimParams_), cave_.tiles(),
                                    static_cast<float>(dt));
+            if (playerState_.rising && !wasRising) {
+                playSound(sounds_.jump, playerX, 0.8f);
+            }
+            if (playerState_.landedThisStep) {
+                playSound(sounds_.land, playerX, std::clamp(playerState_.landingSpeed / 260.0f, 0.15f, 1.0f));
+            }
         }
         if (moveX < 0.0f) {
             facingLeft_ = true;
