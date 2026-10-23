@@ -11,7 +11,7 @@
  "tilewidth": 8,
  "tileheight": 8,
  "nextlayerid": 3,
- "nextobjectid": 25,
+ "nextobjectid": 30,
  "properties": [
   {
    "name": "look",
@@ -137,7 +137,7 @@
     4,
     4,
     4,
-    5,
+    4,
     4,
     4,
     4,
@@ -1059,7 +1059,7 @@
      "point": true,
      "rotation": 0,
      "visible": true,
-     "x": 76,
+     "x": 68,
      "y": 8,
      "width": 0,
      "height": 0
@@ -1214,7 +1214,7 @@
      "rotation": 0,
      "visible": true,
      "x": 176,
-     "y": 2,
+     "y": 4,
      "width": 0,
      "height": 0,
      "properties": [
@@ -1231,17 +1231,12 @@
       {
        "name": "intensity",
        "type": "float",
-       "value": 1.5
+       "value": 1.0
       },
       {
        "name": "height",
        "type": "float",
        "value": 24.0
-      },
-      {
-       "name": "cone",
-       "type": "float",
-       "value": 44.0
       },
       {
        "name": "direction",
@@ -1345,6 +1340,71 @@
        "name": "radius",
        "type": "float",
        "value": 8.0
+      }
+     ]
+    },
+    {
+     "id": 25,
+     "name": "",
+     "type": "lantern",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 36,
+     "y": 56,
+     "width": 0,
+     "height": 0
+    },
+    {
+     "id": 27,
+     "name": "",
+     "type": "candle",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 172,
+     "y": 104,
+     "width": 0,
+     "height": 0
+    },
+    {
+     "id": 28,
+     "name": "",
+     "type": "candle",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 144,
+     "y": 136,
+     "width": 0,
+     "height": 0
+    },
+    {
+     "id": 29,
+     "name": "",
+     "type": "light",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 148,
+     "y": 24,
+     "width": 0,
+     "height": 0,
+     "properties": [
+      {
+       "name": "color",
+       "type": "color",
+       "value": "#ffffd9a0"
+      },
+      {
+       "name": "radius",
+       "type": "float",
+       "value": 60.0
+      },
+      {
+       "name": "intensity",
+       "type": "float",
+       "value": 1.0
       }
      ]
     }

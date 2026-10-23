@@ -11,7 +11,7 @@
  "tilewidth": 8,
  "tileheight": 8,
  "nextlayerid": 3,
- "nextobjectid": 20,
+ "nextobjectid": 24,
  "properties": [
   {
    "name": "look",
@@ -558,9 +558,9 @@
     4,
     4,
     4,
+    4,
+    4,
     5,
-    4,
-    4,
     2,
     2,
     4,
@@ -1055,18 +1055,6 @@
      "height": 0
     },
     {
-     "id": 9,
-     "name": "",
-     "type": "gem",
-     "point": true,
-     "rotation": 0,
-     "visible": true,
-     "x": 252,
-     "y": 12,
-     "width": 0,
-     "height": 0
-    },
-    {
      "id": 10,
      "name": "",
      "type": "gem",
@@ -1195,7 +1183,7 @@
      "rotation": 0,
      "visible": true,
      "x": 268,
-     "y": 132,
+     "y": 112,
      "width": 0,
      "height": 0
     },
@@ -1257,6 +1245,54 @@
        "value": "../effects/mist.effect.json"
       }
      ]
+    },
+    {
+     "id": 20,
+     "name": "",
+     "type": "candle",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 260,
+     "y": 16,
+     "width": 0,
+     "height": 0
+    },
+    {
+     "id": 21,
+     "name": "",
+     "type": "gem",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 284,
+     "y": 32,
+     "width": 0,
+     "height": 0
+    },
+    {
+     "id": 22,
+     "name": "",
+     "type": "lantern",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 180,
+     "y": 44,
+     "width": 0,
+     "height": 0
+    },
+    {
+     "id": 23,
+     "name": "",
+     "type": "lantern",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 60,
+     "y": 52,
+     "width": 0,
+     "height": 0
     }
    ]
   }
