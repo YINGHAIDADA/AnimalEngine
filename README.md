@@ -4,7 +4,7 @@
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**M0–M5 已完成**（macOS 与 Windows），**M6 完整纵向切片与稳定性：内容与系统已完成，待试玩确认**——无头运行与自动通关测试、存档备份与恢复、CPU 分区计时、日志文件与崩溃报告（ADR-0032），音频（ADR-0033），地图界面，机关、下潜与 10 个房间的示例区域及路线测试（ADR-0034）；已知问题见 [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
+当前阶段：**M0–M5 已完成**（macOS 与 Windows），**M6 完整纵向切片与稳定性：内容与系统已完成，待试玩确认**——无头运行与自动通关测试、存档备份与恢复、CPU 分区计时、日志文件与崩溃报告（ADR-0032），音频（ADR-0033），地图界面，机关、下潜与 10 个房间的示例区域（ADR-0034），测试使用独立的测试数据（ADR-0035）；已知问题见 [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 
@@ -95,6 +95,7 @@ cmake --build --preset windows-ninja-debug
 | `--headless` | 不开窗口、不绘制（RHI Null 后端），模拟照常运行；配合 `--demo --deterministic --frames=N` 做自动通关测试（ADR-0032） |
 | `--expect=room:NAME,gems:N,visited:N,flag:NAME,finished:true,health:N,grounded:true,respawns:N` | （示例游戏）退出时检查结果，未满足时退出码 3 |
 | `--record-input=path.txt` | 把按键录成输入脚本（退出时写入）；配合 `--deterministic` 录制的脚本可逐帧重放 |
+| `--data=dir` | 从指定目录读取数据（测试用 `test_data`，ADR-0035）；此时开发工具关闭、不读写存档 |
 | `--flags=ability:dive,switch:bridge` / `--gems=N` | （示例游戏，测试用）开局即带有这些存档标志 / 已收集 N 颗宝石 |
 | `--trace[=N]` | （示例游戏）每 N 个模拟步在日志中输出玩家所在房间、位置、速度与状态（默认 10） |
 | `--strict` | RHI 校验层报告任何错误时运行失败（退出码 4） |
@@ -180,21 +181,17 @@ ctest --preset macos-ninja-debug        # 或 windows-vs2022-debug / windows-nin
 
 持续集成（[`.github/workflows/ci.yml`](.github/workflows/ci.yml)）：每次推送到 `main` 和每个 PR，在 GitHub 的 macOS 与 Windows 机器上构建 Debug、Release 与关闭开发工具的 Release（`ANIMAL_DEV_TOOLS=OFF`），编译警告视为错误，并运行单元测试、无头自动通关（`demo_playthrough`：到达烟雾深坑、拾取 2 颗宝石、进入 3 个房间、没有掉出世界）与崩溃报告测试（`crash_report_*`）。托管机器没有 GPU，渲染回归仍在开发机上运行（见下）。
 
-路线测试（ADR-0034）：`tests/routes/*.txt` 是从某个房间出发的逐帧输入，ctest `route_*` 无头回放并检查结束时的房间、开关、能力、宝石与是否通关。修改了路线经过的房间后，测试多半会失败——自己玩一遍重新录制即可（与测试使用相同的起点与参数，见 `game/CMakeLists.txt`）：
+测试只用自己的数据（ADR-0035）：`tests/data/` 是一份独立的数据目录（房间、预设、贴图、音效），构建时部署到 `bin/<Config>/test_data/`，所有游戏测试都带 `--data=…/test_data` 运行。**编辑 `assets/source` 里的内容不会影响任何测试**，也不需要刷新基准截图。测试房间由 `tools/scripts/make_test_data.py` 生成：`render_*` 是渲染场景与演示路线用的房间，`test_*` 每个只测一项能力（ctest `capability_*`：房间切换、平台携带与挤压、坠落平台、尖刺与击倒、甲虫、开关与门、下潜、水流、宝石门与终点、游上进入上方房间）。引擎新增能力时，在 `make_test_data.py` 里加一个测试房间、在 `game/CMakeLists.txt` 里加一条 `animal_add_capability_test`。
 
-```bash
-B=build/macos-ninja-debug/bin/Debug/AnimalGame
-$B --deterministic --start-room=root_bridge --flags=switch:bridge --record-input=tests/routes/bridge_crossing.txt
-$B --headless --deterministic --start-room=root_bridge --flags=switch:bridge --input-script=tests/routes/bridge_crossing.txt --frames=1080 --trace   # 回放并查看轨迹
-```
-
-渲染回归（在两个后端上跑 6 个固定游戏场景（读回 320×180 最终画布）和 RHI 功能一致性图（`AnimalRhiConformance`，逐项覆盖 RHI 功能，见 ADR-0025）：两后端必须逐像素相同，并与 `tests/golden/` 中的基准截图逐像素相同；Vulkan 验证层必须零报错）：
+渲染回归（在两个后端上跑 7 个固定游戏场景（读回 320×180 最终画布）和 RHI 功能一致性图（`AnimalRhiConformance`，逐项覆盖 RHI 功能，见 ADR-0025）：两后端必须逐像素相同，并与 `tests/golden/` 中的基准截图逐像素相同；Vulkan 验证层必须零报错）：
 
 ```bash
 python3 tools/scripts/render_regression.py            # 全部场景
 python3 tools/scripts/render_regression.py --only demo_pit
 python3 tools/scripts/render_regression.py --update   # 有意改变画面后刷新基准截图（提交时可见哪些画面变了）
-python3 tools/scripts/render_regression.py --pack build/macos-ninja-release/package/Release/data.pak   # 从资源包运行，结果也必须与基准相同
+B=build/macos-ninja-release/bin/Release
+$B/AnimalCooker --manifest=tests/data/cook.json --source=tests/data --shaders=$B/data/shaders --out=test_data.pak
+python3 tools/scripts/render_regression.py --binary $B/AnimalGame --pack test_data.pak   # 测试数据的资源包，结果也必须与基准相同
 ```
 
 后端一致性（OpenGL 与 Vulkan 截图逐像素对比）：
@@ -344,7 +341,8 @@ M6 验收条件：从启动到通关一段完整区域无需开发者手动修�
 | 音频 | SDL3 设备 + 自有混音器（32 声部、分组、声像、变速、淡入淡出、限幅），WAV / Ogg Vorbis，资源包与热重载，游戏音效与环境声（占位）；32 声部混音约占一个核心的 1.2%（ADR-0033） | ✅ |
 | 地图探索 | 已访问房间记录在存档中；M / Back 打开地图（按世界布局缩放，显示剩余宝石与玩家位置）；`--expect=visited:N` | ✅ |
 | 机关与能力 | 移动 / 坠落平台、尖刺、开关与门、宝石门、水流、下潜、终点与通关画面；全部可在关卡编辑器中摆放（ADR-0034） | ✅ |
-| 完整区域 | 10 个房间、19 颗宝石；ctest `route_*` 9 条路线覆盖每个连接与三个门槛，两个平台、六种构建配置一致通过（ADR-0034） | ✅ |
+| 完整区域 | 10 个房间、19 颗宝石（ADR-0034）；录制路线逐段走通过，路线测试后来按 ADR-0035 移除（测试不再依赖内容） | ✅ |
+| 能力测试 | 独立测试数据上的 16 个 `capability_*` 测试覆盖每种机关与能力（ADR-0035） | ✅ |
 | 干净构建可重复 | CI：六个构建（警告视为错误）+ 两个平台打包，`data.pak` 逐字节相同 | ✅ |
 | 已知问题清单 | [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | ✅ |
-| 从启动到通关的人工试玩 | 自动测试按路段覆盖；完整一遍需要真人试玩（宝石的可达性只部分有测试） | 待你试玩 |
+| 从启动到通关的人工试玩 | 内容能否通关由试玩判断（自动测试只验证能力） | 待你试玩 |
