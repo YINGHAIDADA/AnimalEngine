@@ -46,7 +46,7 @@ TEST(cooker_packs_the_real_assets_deterministically) {
     CHECK(!hasEntry(a, "shaders/imgui.vert.ashd") && !hasEntry(a, "textures/tileset.png"));
     CHECK(a.atlas.materials == 4 && a.atlas.width > 0);
     CHECK(a.pack.size() < a.categories.at("world").sourceBytes + a.categories.at("shaders").sourceBytes);
-    CHECK(std::ranges::find(a.unreferenced, "shaders/imgui.vert.ashd") != a.unreferenced.end());
+    CHECK(std::ranges::find(a.unreferenced, "shaders/conformance.vert.ashd") != a.unreferenced.end());
 
     // The written pack loads like the game would read it.
     const fs::path dir = fs::temp_directory_path() / "animal_cook_test";
