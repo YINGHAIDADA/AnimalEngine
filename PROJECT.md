@@ -328,6 +328,11 @@ ctest --test-dir build/<preset> --output-on-failure
   - ADR-0023 按用途推导的 Vulkan 屏障：精确阶段 / 访问 / 布局，补上相同布局连续写的依赖（Accepted）。
   - ADR-0024 Vulkan 管线缓存：用户数据目录、文件头校验、原子写回（Accepted）。
   - ADR-0025 RHI 功能一致性测试：逐项覆盖 RHI 功能的离屏测试图，纳入渲染回归；条带图元重启统一（Accepted）。
+  - ADR-0026 开发工具框架：RHI 上的 Dear ImGui、平台输入事件、`ANIMAL_DEV_TOOLS` 开关、源资源目录为唯一真相（Accepted）。
+  - ADR-0027 参数表：代码登记、`world/tuning.json` 只记录差异、调试面板实时调整（Accepted）。
+  - ADR-0028 热重载：RHI 层原地替换着色器、按路径重载纹理与关卡数据、先校验后替换、失败不崩溃（Accepted）。
+  - ADR-0029 内嵌关卡编辑器：直接编辑 Tiled 文档、经游戏解析器实时生效、撤销 / 保存 / 试玩、输入脚本测试（Accepted）。
+  - ADR-0030 动画导入：Aseprite 精灵表导出驱动动画片段，逐帧时长，热重载（Accepted）。
 
 ## 13. 当前待确认项（不阻塞 M0）
 

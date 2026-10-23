@@ -64,7 +64,8 @@ void FileWatcher::scan(bool report, std::vector<std::string>& changed) {
             if (!it->is_regular_file(ec)) {
                 continue;
             }
-            const std::string name = it->path().filename().string();
+            const std::u8string u8 = it->path().filename().u8string();
+            const std::string name(u8.begin(), u8.end());
             if (name.empty() || name[0] == '.' || name.ends_with(".tmp") || name.ends_with("~")) {
                 continue; // hidden, editor backups and atomic-write temporaries
             }

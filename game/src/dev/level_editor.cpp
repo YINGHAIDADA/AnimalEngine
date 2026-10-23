@@ -208,8 +208,9 @@ std::vector<std::string> fileChoices(const std::string& dataDirectory, const std
     std::vector<std::string> choices;
     std::error_code ec;
     const std::string dir = dataDirectory + "world/" + folder;
-    for (const auto& entry : std::filesystem::directory_iterator(std::filesystem::path(dir), ec)) {
-        const std::string name = entry.path().filename().string();
+    for (const auto& entry : std::filesystem::directory_iterator(std::filesystem::path(std::u8string(dir.begin(), dir.end())), ec)) {
+        const std::u8string u8 = entry.path().filename().u8string();
+        const std::string name(u8.begin(), u8.end());
         if (name.ends_with(suffix)) {
             choices.push_back("../" + folder + "/" + name);
         }

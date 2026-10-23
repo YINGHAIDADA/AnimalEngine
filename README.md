@@ -64,10 +64,12 @@ cmake --build --preset windows-ninja-debug
 | F6 | | 开关泛光与调色 |
 | F7 | | 开关阴影 |
 | F8 | | 删除存档，从起点重新开始 |
-| F9 | | 重新读取观感预设（`data/world/looks/*.look.json`，可直接编辑后按 F9 查看） |
+| F9 | | 重新读取观感预设（开发构建中保存源文件即自动热重载，见下文“开发工具”） |
 | F10 | | 开关粒子效果（覆盖层显示各效果数量与 CPU 耗时） |
 | F12 | | 截图到 `screenshots/` |
-| Esc | | 退出 |
+| `` ` `` | | 显示 / 隐藏开发工具（开发构建） |
+| Tab | | 进入 / 退出关卡编辑器（开发构建） |
+| Esc | | 退出（开发工具显示时不退出） |
 
 命令行参数：
 
@@ -85,12 +87,43 @@ cmake --build --preset windows-ninja-debug
 | `--profile` | 退出时打印帧时间与各渲染 pass 的 GPU 耗时（平均 / 最大，跳过 60 帧预热；见 ADR-0016） |
 | `--stress-lights=N` | （示例游戏）额外加入 N 盏游走的阴影光源，用于性能测试 |
 | `--start-room=NAME` | （示例游戏）从指定房间开始（如 `smoke_pit`），用于测试；不读写存档 |
+| `--tools[=窗口,...]` | （开发构建）启动时显示开发工具并打开指定窗口：`performance` `rendering` `rooms` `look` `effects` `plants` `tuning` `animations` `console` `demo` |
+| `--input-script=path.txt` | 在指定帧注入按键 / 鼠标（画布像素坐标）/ 文本事件，用于自动化 UI 测试与演示；格式见 `engine/src/app/input_script.h` |
 
 玩法：收集散落在三个房间中的 7 颗宝石（右上角计数）；紫色甲虫在地面巡逻，碰到会被弹开；走进提示区域时屏幕下方显示提示；烟雾深坑右下角有水池（上方有一道 GPU 粒子瀑布），掉进去会漂浮在水面，按跳跃出水。拾取宝石、进入新房间后第一次站稳时自动保存，下次启动从该处继续（存档位置见 ADR-0011；`--demo` / `--deterministic` 不读写存档）。
 
+## 开发工具（M4）
+
+开发构建（CMake 选项 `ANIMAL_DEV_TOOLS`，默认开启）内置开发工具，按 `` ` `` 显示（ADR-0026）：
+
+| 窗口（View 菜单） | 作用 |
+|---|---|
+| Performance | 帧时间与各 GPU pass 耗时的历史曲线、精灵 / 绘制 / 光源 / 粒子计数 |
+| Rendering | F2–F10 的开关，重读观感，重建房间 |
+| Rooms | 世界中的房间，双击传送 |
+| Look / Effects / Plants | 直接编辑当前房间的观感预设、效果预设、植物种类：每次修改用格式自己的解析器校验，有效则立即生效，错误显示在窗口中；Save 写回源文件 |
+| Tuning | 玩家、攀爬、游泳、烟雾参数的滑条；Save 只把与代码默认值不同的项写入 `world/tuning.json`（ADR-0027） |
+| Animations | 角色精灵表（Aseprite 导出）的标签、帧率与实时预览（ADR-0030） |
+| Console | 日志；有未读警告 / 错误时菜单栏出现提示 |
+
+**热重载**（ADR-0028，开发构建默认开启，Reload 菜单可关闭）：保存 `assets/source/` 或 `shaders/` 下的文件，游戏在约半秒内载入——着色器由 `animal_shaderc` 重新编译后原地替换，纹理（同尺寸）原地更新，房间 / Tileset / 世界布局 / 观感 / 效果 / 植物 / 参数 / 精灵表重新载入。文件有错误时（JSON 语法、字段类型、着色器编译失败、纹理改了尺寸……）控制台给出原因、屏幕底部提示 `RELOAD FAILED`，游戏继续使用旧版本；修好再保存即可。`--deterministic` / `--demo` 下不监视文件。
+
+**关卡编辑器**（Tab，ADR-0029）：编辑当前房间，保存后 Tiled 照常可以打开。
+
+| 操作 | 方式 |
+|---|---|
+| 选择 / 移动 / 改大小 | V；点选对象（点在区域内时优先选小的），拖动移动，拖矩形右下角改大小；吸附 1 / 2 / 4 / 8 px |
+| 放置对象 | O；列表或 1–9 / 0、`[` `]` 选类型（灯、灯笼、蜡烛、触发器、甲虫、宝石、藤蔓、起点、水、发射器、植物、通风口、气流），点击放置 |
+| 画 Tile | B 画笔、R 矩形填充；右键擦除，Alt+点击取色 |
+| 属性 | 检查器：类型、名称、位置、尺寸、带类型的属性（文件属性可从预设列表选择）；“Room properties”编辑 `look`、`look.*`、`wind.*` |
+| 撤销 / 重做 / 保存 | Ctrl+Z、Ctrl+Shift+Z 或 Ctrl+Y、Ctrl+S（macOS 用 Cmd）；Del 删除、Ctrl+D 复制 |
+| 试玩 | 再按 Tab 立即从当前状态继续游戏（无需保存）；编辑时右键“Move the player here”把玩家放到任意位置 |
+
+每次编辑都通过游戏自己的关卡解析器立即生效；保存写入 `assets/source/world/rooms/*.tmj` 与部署副本，新对象的 id 从不复用（宝石的存档键）。
+
 ## 编辑关卡（Tiled）
 
-关卡位于 `assets/source/world/`：用 [Tiled](https://www.mapeditor.org/) 打开 `test.world` 即可看到并编辑所有房间。约定（Tile 属性、对象类型、地图属性）见 [ADR-0010](docs/ADR/ADR-0010-tiled-levels.md)，玩法对象（触发器、宝石、甲虫）见 [ADR-0011](docs/ADR/ADR-0011-gameplay-elements-and-save.md)，房间观感（`look` 预设与 `look.*` 覆盖，预设位于 `looks/`）见 [ADR-0015](docs/ADR/ADR-0015-looks.md)，粒子效果（`emitter` 对象，预设位于 `effects/`）见 [ADR-0017](docs/ADR/ADR-0017-effect-presets.md)，水域（`water` 对象）见 [ADR-0018](docs/ADR/ADR-0018-water.md)，植物（`plants` 对象，种类位于 `plants/`）与风（`wind.*` 地图属性、`wind` 对象）见 [ADR-0019](docs/ADR/ADR-0019-wind-and-plants.md)。保存后重新构建即可部署到 `data/world/`。目前这些文件由 `tools/scripts/make_test_world.py` 生成；开始在 Tiled 中手工编辑后请不要再运行该脚本。
+关卡位于 `assets/source/world/`：用 [Tiled](https://www.mapeditor.org/) 打开 `test.world` 即可看到并编辑所有房间。约定（Tile 属性、对象类型、地图属性）见 [ADR-0010](docs/ADR/ADR-0010-tiled-levels.md)，玩法对象（触发器、宝石、甲虫）见 [ADR-0011](docs/ADR/ADR-0011-gameplay-elements-and-save.md)，房间观感（`look` 预设与 `look.*` 覆盖，预设位于 `looks/`）见 [ADR-0015](docs/ADR/ADR-0015-looks.md)，粒子效果（`emitter` 对象，预设位于 `effects/`）见 [ADR-0017](docs/ADR/ADR-0017-effect-presets.md)，水域（`water` 对象）见 [ADR-0018](docs/ADR/ADR-0018-water.md)，植物（`plants` 对象，种类位于 `plants/`）与风（`wind.*` 地图属性、`wind` 对象）见 [ADR-0019](docs/ADR/ADR-0019-wind-and-plants.md)。开发构建运行时保存即自动热重载（否则重新构建即可部署到 `data/world/`）；也可以用游戏内的关卡编辑器（见上文）。房间最初由 `tools/scripts/make_test_world.py` 生成，该脚本现在拒绝覆盖已存在的文件（`--force` 才覆盖，会丢失编辑结果）。
 
 ### 关卡数据速查
 
@@ -102,6 +135,8 @@ cmake --build --preset windows-ninja-debug
 | 点对象 | `spawn`、`candle`、`vent`、`vine`、`light`、`lantern`、`gem`、`crawler`、`wind` | 起点、道具、光源、宝石、甲虫、气流 | ADR-0010、0011、0013、0019 |
 | 矩形对象 | `trigger`、`water`、`plants`、`emitter`（也可为点） | 提示区域、水域、植物、粒子发射器 | ADR-0011、0017、0018、0019、0020 |
 | 预设文件 | `looks/*.look.json`、`effects/*.effect.json`（`"gpu": true` 走 GPU）、`plants/*.plant.json` | 可复用的观感、粒子效果、植物种类；格式错误会给出文件名与字段 | ADR-0015、0017、0019、0020 |
+| 参数文件 | `world/tuning.json` | 覆盖代码中登记的玩家 / 攀爬 / 游泳 / 烟雾参数（只写与默认值不同的项） | ADR-0027 |
+| 精灵表 | `textures/creature.json`（Aseprite 导出，与 `creature.png` 同名） | 动画帧与标签 `idle` `run` `jump` `fall` `climb` `land` | ADR-0030 |
 
 ## 测试
 
@@ -220,3 +255,18 @@ $R --backend=vulkan --demo --deterministic --no-vsync --hide-overlay --profile -
 | 验证层无报错 | Vulkan 验证层（含同步验证）与 RHI 校验在全部回归场景、`--resize-test` 下零报错 | ✅ |
 | 上层代码无需修改 | M2.5 期间 framework / game 未因后端改动而修改（校验层是透明的装饰器） | ✅ |
 | Windows 原生驱动验证 | Windows 上构建、跑测试、渲染回归与 `--profile` | ⏳ 待在 Windows 机器上验证 |
+
+## M4 验收条件
+
+| 条件 | 验证方式 | 状态 |
+|---|---|---|
+| 调试面板 | `` ` `` 显示：性能（CPU / GPU 历史）、渲染开关、房间、观感 / 效果 / 植物预设编辑、参数、动画、控制台（ADR-0026）；Release + Vulkan 下工具 UI 的 GPU 开销约 0.07 ms | ✅ |
+| 参数热调 | Tuning 窗口实时调整 33 个玩家 / 攀爬 / 游泳 / 烟雾参数，保存到 `world/tuning.json`（ADR-0027）；预设编辑实时生效并可保存 | ✅ |
+| 纹理 / 着色器热重载 | 保存源文件即载入（ADR-0028）；`AnimalRhiConformance` 在两个后端上检查着色器原地替换（相同代码图像不变、替换后改变、换回逐像素恢复、绑定 / 阶段改变被拒绝）；运行中修改纹理与着色器的集成测试，Vulkan 零验证错误 | ✅ |
+| 内嵌关卡编辑器 | Tab：对象放置 / 移动 / 属性、Tile 画笔、撤销、保存为 Tiled 文件（ADR-0029）；未修改的房间往返逐字节相同 | ✅ |
+| 动画导入器 | Aseprite 精灵表导出驱动角色动画，与原硬编码片段逐位一致、渲染基准不变；精灵表热重载（ADR-0030） | ✅ |
+| 不修改引擎代码即可摆放实体、光源、触发器并快速测试 | 输入脚本 `--input-script`：进入编辑器，放置灯、触发器、甲虫并拖动，按 Tab 立即试玩，角色走进新触发器显示提示；保存后的 diff 只包含新增对象（两个后端均验证） | ✅ |
+| 资源重载失败能报错且不崩溃 | 运行中写入坏 JSON、类型错误的观感、语法错误的着色器、改尺寸的纹理、缺少标签的精灵表：均被拒绝并在控制台 / HUD 报告原因，游戏继续使用旧版本，部署副本恢复；修好后重新载入 | ✅ |
+| 发行构建可剔除开发工具 | `-DANIMAL_DEV_TOOLS=OFF` 的 Release 构建通过，不含 ImGui 与工具代码 | ✅ |
+| 渲染回归与单元测试 | `render_regression.py` 7 个场景两后端逐像素一致；`ctest` 101 个测试 | ✅ |
+| Windows 上的工具与热重载 | Windows 上重复以上步骤 | ⏳ 待在 Windows 机器上验证 |

@@ -16,17 +16,22 @@ engine/                                         │ 只能向下依赖
   platform/      SDL3：窗口、输入、事件、时间    │
   core/          日志、断言、句柄、数学、文件   ─┘
 tools/shaderc/   构建期着色器编译器（不进入游戏）
+tools/devtools/  开发工具库（ANIMAL_DEV_TOOLS）：ImGui on RHI、面板组件、文件监视、源资源目录、Tiled 文档编辑
+                 （依赖 engine + framework；游戏的 game/src/dev/ 在其上实现面板、热重载与关卡编辑器）
+tools/rhi_conformance/  RHI 功能一致性与着色器热重载检查
 shaders/         GLSL 450 着色器源码
 ```
 
 - `engine/src/rhi/opengl/` 与 `engine/src/rhi/vulkan/` 是仅有的可以包含图形 API 头文件、调用 `gl*` / `vk*` 的目录。
 - RHI 公共头文件（`animal/rhi/*.h`）不暴露任何后端类型。
 - SDL 只出现在 `platform/`、`core/`（日志、文件）、RHI 后端（上下文 / Surface）和 `app/entry_point.h`。
+- 引擎不依赖 ImGui 与开发工具：工具通过 `EngineContext::events`、`Application::onToolsPass` 与 `Input::setCaptured` 接入；`ANIMAL_DEV_TOOLS=OFF` 时整个工具层不编译（ADR-0026）。
 
 ## 2. 帧流程（光照细节见 ADR-0007）
 
 ```text
-platform::pollEvents → Input::update → 固定步长 onFixedUpdate（60 Hz，每帧最多 5 步，超出丢弃积压）
+platform::pollEvents（+ --input-script 注入的事件）→ Input::update → game.onFrame（开发工具：热重载轮询、ImGui 帧、编辑器）
+  → 固定步长 onFixedUpdate（60 Hz，每帧最多 5 步，超出丢弃积压；关卡编辑时玩家冻结）
 Device::beginFrame（窗口最小化时返回 false，跳过渲染）
   Renderer2D::beginFrame
     game.onRender:  beginWorld(camera) … drawSprite / drawGlow / addLight / addFluidSplat … endWorld
@@ -40,6 +45,7 @@ Device::beginFrame（窗口最小化时返回 false，跳过渲染）
     beginScreen:    最终画布按整数倍居中绘制到 swapchain，剩余留黑边
                     调试覆盖层（drawText / fillRect，窗口像素坐标）
     endScreen
+  game.onToolsPass       → 开发工具 UI（ImGui，交换链 Load/Store 的独立渲染通道，ADR-0026）
   Renderer2D::endFrame   → 一次性上传本帧所有精灵顶点
 Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈现）
 ```
@@ -60,6 +66,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | 一致性 | `AnimalRhiConformance` 为每项 RHI 功能画一个格子，两后端逐像素一致且与基准相同（渲染回归的一部分，ADR-0025）。索引三角形条带不得使用最大索引值（部分后端无法关闭图元重启）。 |
 | 校验 | Debug 构建中 `createDevice` 返回 `ValidatingDevice`：后端无关地检查资源描述与提交的命令列表，两后端报同样的错误（ADR-0021）。 |
 | GPU 计时 | `CommandList::beginTimer` / `endTimer`（渲染通道之外，可嵌套）；`Device::gpuTimings()` 返回最近一个结果就绪帧的各计时域，晚几帧（ADR-0016）。 |
+| 着色器热重载 | `Device::reloadShader` 原地替换着色器代码，重建引用它的管线，所有句柄（着色器、管线、绑定组）保持有效；阶段或资源绑定改变、编译 / 链接失败时什么都不改并返回 false（ADR-0028）。只在两帧之间调用。 |
 
 ### 3.1 OpenGL 4.1 后端如何模拟这些约定
 
@@ -83,7 +90,8 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 - **交换链**：渲染到 RGBA8 离屏图像，`endFrame()` 时 blit 到真实交换链图像再呈现。
 - **内存**：缓冲与图像由 VMA 子分配（设备本地优先）；暂存与读回缓冲为常驻映射的主机一致内存；每帧暂存缓冲初始 1 MiB，某帧溢出时临时单独分配，该帧槽位下次开始时扩容到够用（ADR-0022）。
 - **描述符池**：每个池 128 个 set，用完时新建一个；绑定组记住自己的池以便释放。
-- **销毁**：放入当前帧槽位的删除队列，等该槽位的 fence 完成后释放。
+- **销毁**：帧内销毁放入当前帧槽位的删除队列，两帧之间的销毁放入最近提交那一帧的槽位，等该槽位的 fence 完成后释放（ADR-0028 修正）。
+- **着色器热重载**：管线保存创建描述（去掉调试名），用同一 layout 重建 `VkPipeline`，旧管线与着色器模块延迟销毁。
 - **管线缓存**：用户数据目录中的 `vulkan_pipelines.bin`，文件头与当前设备 / 驱动一致才加载，退出时原子写回（ADR-0024）。
 - **GPU 计时**：每个在途帧一个时间戳查询池，fence 完成后读回。
 - **调试**：Debug 构建开启验证层与同步验证；退出时打印验证错误总数。
@@ -158,7 +166,9 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | `VineSystem` | Verlet 链条，第 0 点固定在锚点。每个固定步拆成 4 个子步，每个子步做正向 + 反向交替的距离约束迭代，使任意位置的推动沿整根藤蔓双向传播（整体摆动，而不是只有末端甩动），且不被重力拉长。风对整根藤蔓施加均匀的力（取锚点处的风值）。与影响者的接触是力而不是位置修正（按穿透深度朝较近的一侧推，并把被碰到的链节速度向影响者速度混合、有上限），所以藤蔓有重量：被推时倾斜到重力与张力平衡，角色中心越过后藤蔓滑到其身后。暂不与 Tile 碰撞，游戏按下方第一个实心 Tile 计算藤蔓长度。 |
 | `ParticleSystem` | 通用粒子（`EffectSystem` 的底层）：恒定加速度、阻力、风、平滑游走、亮度闪烁、颜色随寿命插值与淡入淡出、被 `Influence` 推开、碰到实心 Tile 消失；效果预设用这些参数组合出萤火虫、火星、灰尘。随机数用 `animal::Random`（PCG32，跨平台一致）。 |
 | `stepClimb` | 藤蔓攀爬：按住上且碰撞框附近有藤蔓时抓住（`VineSystem::findGrip`）；沿弧长上下爬、左右输入与体重作为力施加到抓点；角色按精确（亚像素）位置以逐像素碰撞跟随抓点（按整数位置跟随会让角色在两个像素间抖动）；被抓住的藤蔓用更轻的阻尼（`heldDamping`），抓点在约束中视为重物（`climberInverseMass`），所以下方的藤尾跟随角色、左右按键能把摆荡逐渐荡大；攀爬中的角色不作为推动藤蔓的影响者（`Influence::pushesVines`）；跳离时继承藤蔓速度并有再抓冷却；底端按下松手。在平台跳跃步之前调用，攀爬时跳过平台跳跃步。 |
-| `Animator` | 片段 = 帧序列 + 帧率 + 是否循环；`play` 对正在播放的片段无操作。状态机在游戏中：攀爬 → climb（仅移动时播放），落地 → land，地面 → run / idle，空中 → jump / fall。 |
+| `Animator` | 片段 = 帧序列 + 帧率（或逐帧时长）+ 是否循环；`play` 对正在播放的片段无操作。状态机在游戏中：攀爬 → climb（仅移动时播放），落地 → land，地面 → run / idle，空中 → jump / fall。 |
+| `SpriteSheet` | Aseprite 精灵表导出（`.json` + `.png`）：帧矩形 / 裁剪偏移 / 时长与标签；每个标签是一个 `AnimationClip`，时长相同的标签转为固定帧率（ADR-0030）。 |
+| `Tuning` | 代码登记的命名参数（float / int / bool + 滑条范围）；`world/tuning.json` 只记录与内置值不同的项，可试运行校验（ADR-0027）。 |
 | `LightAnimation` | 光源亮度动画（`none` / `flicker` / `pulse`）：只由时间和每个光源的相位计算出倍数，确定、无状态；倍数保持在 1 ± amount 之内（ADR-0013）。 |
 | `WaterBody` / `swimmingParams` | 水域：每像素列的一维表面波（扰动、水面高度、淹没比例）；漂浮：按淹没比例改写平台跳跃参数（重力变浮力、减速）并施加水阻，够深时可起跳出水（ADR-0018）。 |
 | `EffectSystem` | 粒子效果：`*.effect.json` 预设（发射、运动、外观、随粒子的光，严格校验）+ 房间中的点 / 区域发射器；按发射器保持数量、按速率发射、一次性爆发；可整体开关，报告各效果数量与 CPU 耗时（ADR-0017）。 |
@@ -171,4 +181,6 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 
 ## 7. 运行时数据路径
 
-开发期数据在可执行文件旁的 `data/`（`build/<preset>/bin/<Config>/data/`），由 CMake 生成 / 复制：`data/shaders/*.ashd` 来自 `shaders/`，`data/textures/*.png` 来自 `assets/source/textures/`。路径通过 `SDL_GetBasePath()` 计算，不依赖工作目录。M5 起改为 Asset Cooker 生成的资源包。
+开发期数据在可执行文件旁的 `data/`（`build/<preset>/bin/<Config>/data/`），由 CMake 生成 / 复制：`data/shaders/*.ashd` 来自 `shaders/`，`data/textures/*` 来自 `assets/source/textures/`，`data/world/*` 来自 `assets/source/world/`。路径通过 `SDL_GetBasePath()` 计算，不依赖工作目录。M5 起改为 Asset Cooker 生成的资源包。
+
+开发构建中源文件是唯一真相（ADR-0026）：工具（面板保存、关卡编辑器、参数表）同时写源文件与部署副本；热重载监视源文件，变化时复制（或编译着色器）到 `data/` 再载入，被拒绝的数据会恢复部署副本（ADR-0028）。

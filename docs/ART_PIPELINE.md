@@ -32,11 +32,18 @@
 - 只给真正发光的像素上色（火焰、水晶、眼睛等）；发光物体通常还应在游戏中放一个同色点光源照亮周围。
 - 当前为 RGBA8，亮度上限为 1；泛光阶段可能扩展为 HDR。
 
-## 5. 关卡中的光源
+## 5. 动画（Aseprite 导出，ADR-0030）
+
+- 在 Aseprite 中用 “File → Export Sprite Sheet” 导出：Layout 选 Horizontal Strip（或任意布局），Output 勾选 JSON Data（Array 或 Hash 都可），**勾选 Tags**，不要勾选 Rotate。PNG 与 JSON 同名放在 `assets/source/textures/`（如 `creature.png` + `creature.json`），法线 / 自发光贴图用同样的布局导出为 `_n` / `_e`。
+- 每个动画是一个标签（tag）：方向 forward / reverse / ping-pong 都支持；标签属性里的 “Repeat” 设为 1 表示播放一次（如落地），否则循环。帧时长取 Aseprite 中的每帧时长。
+- 角色需要的标签：`idle`、`run`、`jump`、`fall`、`climb`、`land`；缺少任何一个时游戏启动报错（热重载时拒绝新文件）。
+- 开发构建中保存导出文件即热重载，工具的 Animations 窗口可预览每个标签。
+
+## 6. 关卡中的光源
 
 发光 Tile（如水晶）在 Tileset 中用 `light*` 属性声明，自由放置的光源用 `light` 对象（ADR-0010）。
 
-## 6. 光源参数参考（演示房间）
+## 7. 光源参数参考（演示房间）
 
 | 光源 | 颜色 | 半径 | 强度 | 高度 |
 |---|---|---|---|---|
