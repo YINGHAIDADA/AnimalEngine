@@ -49,8 +49,8 @@ PALETTE = {
     "L": ((150, 126, 96, 255), 1.0, None),    # lantern frame highlight
     "y": ((120, 84, 48, 255), 0.9, (100, 62, 26)),       # lantern glass (dark albedo: its own light would wash it out)
     "Y": ((160, 150, 120, 255), 1.0, (255, 232, 180)),   # lantern flame
-    "x": ((120, 124, 140, 255), 0.7, None),   # spike metal
-    "X": ((200, 206, 220, 255), 1.0, None),   # spike highlight
+    "x": ((150, 96, 96, 255), 0.7, (70, 12, 8)),        # spike metal (a faint red glow: hazards read in the dark)
+    "X": ((236, 170, 160, 255), 1.0, (170, 40, 24)),    # spike tip
     "o": ((88, 80, 92, 255), 0.7, None),      # platform stone
     "O": ((140, 130, 138, 255), 1.0, None),   # platform stone highlight
     "q": ((52, 50, 62, 255), 0.6, None),      # door iron

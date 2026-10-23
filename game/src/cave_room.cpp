@@ -40,6 +40,9 @@ animal::Vec3 toVec3(animal::Color c) {
 }
 
 constexpr animal::LightAnimation kCandleFlicker{animal::LightAnimation::Mode::Flicker, 1.0f, 0.13f};
+constexpr animal::Vec3 kHazardGlow{1.0f, 0.22f, 0.14f};
+constexpr animal::LightAnimation kHazardPulse{animal::LightAnimation::Mode::Pulse, 0.5f, 0.2f};
+constexpr int kHazardRun = 3; // tiles lit by one hazard light
 constexpr animal::Color kLanternColor = animal::Color::rgba(255, 214, 150);
 constexpr animal::Color kChainColor = animal::Color::rgba(70, 60, 52);
 
@@ -137,6 +140,28 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
                 lights_.push_back({readLight(p, true, defaults), readLightAnimation(p, true, {}, where),
                                    static_cast<float>(tx)});
             }
+        }
+        // Hazards glow faintly red: one small light per run of up to kHazardRun tiles.
+        for (int tx = 0; tx < tiles_.width();) {
+            const animal::Hazard hazard = tiles_.hazardOf(tiles_.tile(tx, ty));
+            if (hazard == animal::Hazard::None) {
+                ++tx;
+                continue;
+            }
+            int end = tx;
+            while (end < tiles_.width() && end - tx < kHazardRun && tiles_.hazardOf(tiles_.tile(end, ty)) == hazard) {
+                ++end;
+            }
+            const float yOffset = hazard == animal::Hazard::Up ? 6.0f : (hazard == animal::Hazard::Down ? 2.0f : 4.0f);
+            animal::PointLight glow;
+            glow.position = {(tx + end) * 0.5f * kTileSize, ty * 8.0f + yOffset};
+            glow.radius = 10.0f + 4.0f * static_cast<float>(end - tx);
+            glow.color = kHazardGlow;
+            glow.intensity = 0.55f;
+            glow.height = 4.0f;
+            glow.castsShadows = false;
+            lights_.push_back({glow, kHazardPulse, static_cast<float>(tx + ty)});
+            tx = end;
         }
     }
 
