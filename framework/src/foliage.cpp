@@ -217,6 +217,16 @@ const PlantSpecies* PlantLibrary::load(const std::string& path) {
     return it->second ? &*it->second : nullptr;
 }
 
+std::vector<std::string> PlantLibrary::paths() const {
+    std::vector<std::string> result;
+    for (const auto& [path, species] : cache_) {
+        if (species) {
+            result.push_back(path);
+        }
+    }
+    return result;
+}
+
 // --- Grass ---------------------------------------------------------------------------------
 
 void GrassField::clear() {

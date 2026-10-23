@@ -79,6 +79,8 @@ public:
     animal::EffectSystem& effects() { return effects_; }
     const animal::EffectSystem& effects() const { return effects_; }
     size_t crawlerCount() const { return crawlers_.size(); }
+    // Effect and plant preset files the last build() referred to.
+    const std::set<std::string>& presetPaths() const { return presetPaths_; }
 
 private:
     struct Candle {
@@ -127,6 +129,7 @@ private:
                                                                const std::string& file);
 
     animal::TileMap tiles_;
+    std::set<std::string> presetPaths_;
     std::optional<animal::Vec2> spawn_;
     std::vector<Candle> candles_;
     std::vector<Vent> vents_;

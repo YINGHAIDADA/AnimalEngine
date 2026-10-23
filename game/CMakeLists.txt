@@ -8,7 +8,9 @@ set(ANIMAL_GAME_SOURCES
 
 if(ANIMAL_DEV_TOOLS)
     list(APPEND ANIMAL_GAME_SOURCES
-        src/dev/dev_tools.cpp)
+        src/dev/dev_state.h
+        src/dev/dev_tools.cpp
+        src/dev/panels.cpp)
 else()
     list(APPEND ANIMAL_GAME_SOURCES src/dev/dev_tools_off.cpp)
 endif()
@@ -16,10 +18,11 @@ endif()
 add_executable(animal_game ${ANIMAL_GAME_SOURCES})
 animal_set_compile_options(animal_game)
 target_include_directories(animal_game PRIVATE src)
-target_link_libraries(animal_game PRIVATE animal::framework)
 if(ANIMAL_DEV_TOOLS)
-    target_link_libraries(animal_game PRIVATE animal::devtools)
+    target_link_libraries(animal_game PRIVATE animal::devtools) # brings animal::framework
     target_compile_definitions(animal_game PRIVATE ANIMAL_DEV_TOOLS=1)
+else()
+    target_link_libraries(animal_game PRIVATE animal::framework)
 endif()
 
 set_target_properties(animal_game PROPERTIES
@@ -51,6 +54,7 @@ animal_add_data_files(animal_game_world
     DESTINATION world
     FILES
         test.world
+        tuning.json
         tilesets/cave.tsj
         rooms/cave_entrance.tmj
         rooms/crystal_gallery.tmj

@@ -195,16 +195,16 @@ void drawOverlay(EngineContext& context, Renderer2D& renderer, std::vector<std::
     for (const std::string& line : lines) {
         longest = std::max(longest, line.size());
     }
-    renderer.fillRect({margin, margin, static_cast<float>(longest) * 4.0f * scale + 2.0f * margin,
+    const float top = context.overlayTop;
+    renderer.fillRect({margin, top + margin, static_cast<float>(longest) * 4.0f * scale + 2.0f * margin,
                        static_cast<float>(lines.size()) * lineHeight + 2.0f * margin - scale},
                       Color::rgba(0, 0, 0, 160));
 
-    Vec2 position{2.0f * margin, 2.0f * margin};
+    Vec2 position{2.0f * margin, top + 2.0f * margin};
     for (const std::string& line : lines) {
         renderer.drawText(position, line, Color::rgba(240, 240, 220));
         position.y += lineHeight;
     }
-    (void)context;
 }
 
 } // namespace

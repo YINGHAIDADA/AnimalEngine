@@ -91,6 +91,7 @@ animal::Vec2 propTopLeft(const animal::LevelObject& object) {
 bool CaveRoom::build(const animal::Room& room, const std::string& name, const std::set<std::string>& collected,
                      animal::EffectLibrary& effects, animal::PlantLibrary& plants, uint32_t seed) {
     tiles_ = room.tiles;
+    presetPaths_.clear();
     gems_.clear();
     crawlers_.clear();
     triggers_.clear();
@@ -107,6 +108,7 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
     sparkPreset_ = effectPreset(effects, room, kGemPickupEffect);
 
     grass_.clear();
+    presetPaths_.insert(animal::resolvePath(room.path, kGrassPlant));
     if (const animal::PlantSpecies* grass = plants.load(animal::resolvePath(room.path, kGrassPlant))) {
         grass_.addSpecies(*grass);
     }
@@ -225,6 +227,9 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
         } else if (object.type == "plants") {
             // Plants on the exposed tile faces inside the rectangle; "plant" names the species file.
             const std::string file = object.properties.getString("plant");
+            if (!file.empty()) {
+                presetPaths_.insert(animal::resolvePath(room.path, file));
+            }
             const animal::PlantSpecies* species = file.empty() ? nullptr : plants.load(animal::resolvePath(room.path, file));
             if (!species || object.point) {
                 animal::log::warn("{}: plants {} needs a rectangle and a usable \"plant\" file", room.path, object.id);
@@ -316,6 +321,7 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
 
 std::optional<animal::EffectSystem::PresetId> CaveRoom::effectPreset(animal::EffectLibrary& library,
                                                                      const animal::Room& room, const std::string& file) {
+    presetPaths_.insert(animal::resolvePath(room.path, file));
     const animal::EffectPreset* preset = library.load(animal::resolvePath(room.path, file));
     return preset ? effects_.addPreset(*preset) : std::nullopt;
 }

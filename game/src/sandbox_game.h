@@ -12,6 +12,8 @@
 #include <animal/framework/look.h>
 #include <animal/framework/platformer.h>
 #include <animal/framework/save.h>
+#include <animal/framework/tuning.h>
+#include <animal/framework/water.h>
 #include <animal/renderer/camera2d.h>
 #include <animal/resources/loaders.h>
 
@@ -26,6 +28,8 @@ class Renderer2D;
 }
 
 namespace game {
+
+struct DevPanels;
 
 enum Action : animal::ActionId {
     MoveLeft,
@@ -51,7 +55,7 @@ protected:
     void onShutdown(animal::EngineContext& context) override;
 
 private:
-    friend struct DevTools::State; // the developer tools inspect and edit the game state
+    friend struct DevPanels; // the developer tools inspect and edit the game state
 
     void bindActions();
     void applyDemoInput();
@@ -71,6 +75,14 @@ private:
     void addStressLights(animal::Renderer2D& renderer) const;
     void setupAnimations();
     void updateAnimation(float dt);
+    void reloadLooks();
+    void setEffectsEnabled(bool enabled, animal::Renderer2D& renderer);
+    void registerTuning(animal::Renderer2D& renderer);
+    void loadTuning();
+    // Rebuilds the current room from its (possibly changed) data, keeping the player where it is.
+    bool rebuildRoom(animal::Renderer2D& renderer);
+    // Moves the player into a room (spawn point, or the test position every room has floor at).
+    bool teleport(const animal::WorldRoom& worldRoom, animal::Renderer2D& renderer);
 
     animal::World world_;
     std::map<std::string, animal::Room> rooms_; // loaded room data by path
@@ -91,6 +103,9 @@ private:
     animal::PlatformerState playerState_;
     animal::ClimbParams climbParams_;
     animal::ClimbState climb_;
+    animal::SwimParams swimParams_;
+    animal::Tuning tuning_;  // the parameters above, overridable by world/tuning.json (ADR-0027)
+    std::string tuningPath_;
     bool facingLeft_ = false;
     float invulnerable_ = 0.0f; // seconds left after a hit
     float stunned_ = 0.0f;      // seconds of knockback without control

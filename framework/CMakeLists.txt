@@ -17,6 +17,7 @@ set(ANIMAL_FRAMEWORK_HEADERS
     include/animal/framework/save.h
     include/animal/framework/tilemap.h
     include/animal/framework/triggers.h
+    include/animal/framework/tuning.h
     include/animal/framework/water.h)
 
 set(ANIMAL_FRAMEWORK_SOURCES
@@ -36,6 +37,7 @@ set(ANIMAL_FRAMEWORK_SOURCES
     src/save.cpp
     src/tilemap.cpp
     src/triggers.cpp
+    src/tuning.cpp
     src/water.cpp)
 
 add_library(animal_framework STATIC ${ANIMAL_FRAMEWORK_HEADERS} ${ANIMAL_FRAMEWORK_SOURCES})

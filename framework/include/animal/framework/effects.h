@@ -85,7 +85,12 @@ std::optional<EffectPreset> parseEffect(std::string_view json, const std::string
 class EffectLibrary {
 public:
     const EffectPreset* load(const std::string& path);
+    // Invalidates every pointer returned by load(): rebuild what uses them.
     void clear() { cache_.clear(); }
+    // Replaces (or adds) a preset in place: pointers already returned stay valid and see the new
+    // values; systems that copied the preset need a rebuild.
+    void set(const std::string& path, EffectPreset preset) { cache_[path] = std::move(preset); }
+    std::vector<std::string> paths() const; // presets that loaded successfully
 
 private:
     std::map<std::string, std::optional<EffectPreset>> cache_;

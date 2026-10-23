@@ -78,6 +78,11 @@ std::optional<PlantSpecies> parsePlant(std::string_view json, const std::string&
 class PlantLibrary {
 public:
     const PlantSpecies* load(const std::string& path);
+    // Invalidates every pointer returned by load(): rebuild what uses them.
+    void clear() { cache_.clear(); }
+    // Replaces (or adds) a species in place: pointers already returned stay valid.
+    void set(const std::string& path, PlantSpecies species) { cache_[path] = std::move(species); }
+    std::vector<std::string> paths() const; // species that loaded successfully
 
 private:
     std::map<std::string, std::optional<PlantSpecies>> cache_; // node-based: returned pointers stay valid

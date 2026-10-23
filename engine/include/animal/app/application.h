@@ -46,6 +46,7 @@ struct EngineContext {
     bool demo = false;          // --demo: the game drives itself with scripted input
     bool deterministic = false; // --deterministic: one fixed step per frame (reproducible runs)
     bool escapeQuits = true;    // Escape ends the run (games turn this off while it means "back")
+    float overlayTop = 0.0f;    // window pixels kept free above the debug overlay (tool menu bars)
     bool quitRequested = false;
 };
 

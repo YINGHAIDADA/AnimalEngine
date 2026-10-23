@@ -245,6 +245,16 @@ const EffectPreset* EffectLibrary::load(const std::string& path) {
     return it->second ? &*it->second : nullptr;
 }
 
+std::vector<std::string> EffectLibrary::paths() const {
+    std::vector<std::string> result;
+    for (const auto& [path, preset] : cache_) {
+        if (preset) {
+            result.push_back(path);
+        }
+    }
+    return result;
+}
+
 void EffectSystem::reset(uint32_t seed) {
     presets_.clear();
     presetSources_.clear();

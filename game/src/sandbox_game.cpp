@@ -204,6 +204,14 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
         checkpointFeet_ = {4.0f * kTileSize + 4.0f, 20.0f * kTileSize}; // every test room has floor there
     }
 
+    animal::FluidSettings& fluid = context.renderer->fluid();
+    fluid.smokeKeepPerSecond = 0.8f;
+    fluid.velocityKeepPerSecond = 0.7f;
+    fluid.buoyancy = 45.0f;
+    registerTuning(*context.renderer);
+    tuningPath_ = context.dataDirectory + "world/tuning.json";
+    loadTuning();
+
     camera_.center = kCameraCenter;
     player_ = entities_.create(animal::EntityKind::Player);
     entities_.get(player_)->body.collider = kPlayerCollider;
@@ -213,12 +221,98 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     placePlayerFeet(checkpointFeet_);
     bindActions();
     setupAnimations();
-
-    animal::FluidSettings& fluid = context.renderer->fluid();
-    fluid.smokeKeepPerSecond = 0.8f;
-    fluid.velocityKeepPerSecond = 0.7f;
-    fluid.buoyancy = 45.0f;
     return dev_.init(context, *this);
+}
+
+void SandboxGame::registerTuning(animal::Renderer2D& renderer) {
+    animal::PlatformerParams& p = playerParams_;
+    tuning_.add("player.runSpeed", &p.runSpeed, 0.0f, 200.0f);
+    tuning_.add("player.groundAcceleration", &p.groundAcceleration, 0.0f, 3000.0f);
+    tuning_.add("player.groundDeceleration", &p.groundDeceleration, 0.0f, 3000.0f);
+    tuning_.add("player.airAcceleration", &p.airAcceleration, 0.0f, 3000.0f);
+    tuning_.add("player.airDeceleration", &p.airDeceleration, 0.0f, 3000.0f);
+    tuning_.add("player.gravity", &p.gravity, 0.0f, 2000.0f);
+    tuning_.add("player.fallGravityMultiplier", &p.fallGravityMultiplier, 0.5f, 3.0f);
+    tuning_.add("player.apexGravityMultiplier", &p.apexGravityMultiplier, 0.0f, 1.5f);
+    tuning_.add("player.apexSpeedThreshold", &p.apexSpeedThreshold, 0.0f, 100.0f);
+    tuning_.add("player.maxFallSpeed", &p.maxFallSpeed, 50.0f, 500.0f);
+    tuning_.add("player.jumpSpeed", &p.jumpSpeed, 50.0f, 400.0f);
+    tuning_.add("player.jumpCutMultiplier", &p.jumpCutMultiplier, 0.0f, 1.0f);
+    tuning_.add("player.coyoteFrames", &p.coyoteFrames, 0, 20);
+    tuning_.add("player.jumpBufferFrames", &p.jumpBufferFrames, 0, 20);
+    tuning_.add("player.cornerCorrection", &p.cornerCorrection, 0, 4);
+    animal::ClimbParams& c = climbParams_;
+    tuning_.add("climb.climbSpeed", &c.climbSpeed, 0.0f, 120.0f);
+    tuning_.add("climb.swingForce", &c.swingForce, 0.0f, 2000.0f);
+    tuning_.add("climb.weight", &c.weight, 0.0f, 1500.0f);
+    tuning_.add("climb.jumpSpeed", &c.jumpSpeed, 0.0f, 400.0f);
+    tuning_.add("climb.jumpSideSpeed", &c.jumpSideSpeed, 0.0f, 200.0f);
+    tuning_.add("climb.inheritVelocity", &c.inheritVelocity, 0.0f, 1.5f);
+    tuning_.add("climb.regrabDelay", &c.regrabDelay, 0.0f, 1.0f);
+    tuning_.add("climb.grabMargin", &c.grabMargin, 0, 6);
+    animal::SwimParams& s = swimParams_;
+    tuning_.add("swim.floatDepth", &s.floatDepth, 0.1f, 1.0f);
+    tuning_.add("swim.runScale", &s.runScale, 0.1f, 1.0f);
+    tuning_.add("swim.fallSpeedScale", &s.fallSpeedScale, 0.05f, 1.0f);
+    tuning_.add("swim.drag", &s.drag, 0.0f, 10.0f);
+    tuning_.add("swim.jumpDepth", &s.jumpDepth, 0.0f, 1.0f);
+    animal::FluidSettings& f = renderer.fluid();
+    tuning_.add("smoke.velocityKeepPerSecond", &f.velocityKeepPerSecond, 0.0f, 1.0f);
+    tuning_.add("smoke.smokeKeepPerSecond", &f.smokeKeepPerSecond, 0.0f, 1.0f);
+    tuning_.add("smoke.buoyancy", &f.buoyancy, 0.0f, 150.0f);
+    tuning_.add("smoke.vorticity", &f.vorticity, 0.0f, 40.0f);
+    tuning_.add("smoke.pressureIterations", &f.pressureIterations, 2, 40);
+}
+
+// world/tuning.json is optional; a broken file is reported and leaves the built-in values.
+void SandboxGame::loadTuning() {
+    if (!animal::fileExists(tuningPath_)) {
+        return;
+    }
+    const std::optional<std::string> text = animal::readText(tuningPath_);
+    if (!text) {
+        animal::log::error("Cannot read {}", tuningPath_);
+        return;
+    }
+    for (const std::string& problem : tuning_.apply(*text, tuningPath_)) {
+        animal::log::warn("Tuning: {}", problem);
+    }
+}
+
+bool SandboxGame::rebuildRoom(animal::Renderer2D& renderer) {
+    if (!currentRoom_) {
+        return false;
+    }
+    const animal::Room* room = roomData(*currentRoom_);
+    if (!room || !cave_.build(*room, roomName(currentRoom_->path), save_.flags, effects_, plants_, kRoomSeed + roomVisits_++)) {
+        return false;
+    }
+    climb_.climbing = false; // vine indices may have changed
+    renderer.resetFluid();
+    const animal::Vec2 canvasOrigin = camera_.topLeft(animal::Renderer2D::kCanvasExtent);
+    renderer.setFluidObstacles(cave_.fluidObstacles(canvasOrigin));
+    renderer.setLightOccluders(cave_.lightOccluders(canvasOrigin));
+    renderer.setGpuEmitters(effectsEnabled_ ? std::span(cave_.gpuEmitters()) : std::span<const animal::GpuEmitter>());
+    cave_.effects().setEnabled(effectsEnabled_);
+    lookFrom_ = lookTo_ = roomLook(*currentRoom_);
+    lookBlend_ = 1.0f;
+    return true;
+}
+
+bool SandboxGame::teleport(const animal::WorldRoom& worldRoom, animal::Renderer2D& renderer) {
+    if (!enterRoom(worldRoom, renderer)) {
+        return false;
+    }
+    animal::Vec2 feet{4.0f * kTileSize + 4.0f, 20.0f * kTileSize}; // every test room has floor there
+    if (const animal::Room* room = roomData(worldRoom)) {
+        for (const animal::LevelObject* spawn : room->objectsOfType("spawn")) {
+            feet = spawn->position;
+        }
+    }
+    placePlayerFeet(feet);
+    playerState_ = {};
+    climb_ = {};
+    return true;
 }
 
 // The room's look: the preset named by its "look" property (a file relative to the room) over
@@ -329,16 +423,11 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
     if (input.pressed(Key::F7)) {
         shadowsEnabled_ = !shadowsEnabled_;
     }
-    if (input.pressed(Key::F9) && currentRoom_) {
-        looks_.clear(); // re-read the presets: edit data/world/looks/*.json and press F9
-        lookFrom_ = lookTo_ = roomLook(*currentRoom_);
-        lookBlend_ = 1.0f;
-        animal::log::info("Reloaded look '{}'", lookName_);
+    if (input.pressed(Key::F9)) {
+        reloadLooks();
     }
     if (input.pressed(Key::F10)) {
-        effectsEnabled_ = !effectsEnabled_;
-        cave_.effects().setEnabled(effectsEnabled_);
-        renderer.setGpuEmitters(effectsEnabled_ ? std::span(cave_.gpuEmitters()) : std::span<const animal::GpuEmitter>());
+        setEffectsEnabled(!effectsEnabled_, renderer);
     }
     if (input.pressed(Key::F8)) {
         resetProgress(renderer);
@@ -348,6 +437,23 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
     } else if (input.down(Key::Left) || input.down(Key::Right) || input.down(Key::Space) || input.down(Key::Z)) {
         usingGamepad_ = false;
     }
+}
+
+// F9: re-read the look presets (edit data/world/looks/*.json, or let the developer tools reload them).
+void SandboxGame::reloadLooks() {
+    if (!currentRoom_) {
+        return;
+    }
+    looks_.clear();
+    lookFrom_ = lookTo_ = roomLook(*currentRoom_);
+    lookBlend_ = 1.0f;
+    animal::log::info("Reloaded look '{}'", lookName_);
+}
+
+void SandboxGame::setEffectsEnabled(bool enabled, animal::Renderer2D& renderer) {
+    effectsEnabled_ = enabled;
+    cave_.effects().setEnabled(effectsEnabled_);
+    renderer.setGpuEmitters(effectsEnabled_ ? std::span(cave_.gpuEmitters()) : std::span<const animal::GpuEmitter>());
 }
 
 void SandboxGame::respawn(animal::Renderer2D& renderer) {
@@ -494,9 +600,10 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
             input.jumpPressed = jumpPressed && !wasClimbing;
             input.jumpHeld = control && actions_.down(Jump);
             const float submersion = cave_.submersion(player->body.worldCollider());
-            animal::applyWater(playerState_, playerParams_, submersion, static_cast<float>(dt));
-            animal::stepPlatformer(player->body, playerState_, input, animal::swimmingParams(playerParams_, submersion),
-                                   cave_.tiles(), static_cast<float>(dt));
+            animal::applyWater(playerState_, playerParams_, submersion, static_cast<float>(dt), swimParams_);
+            animal::stepPlatformer(player->body, playerState_, input,
+                                   animal::swimmingParams(playerParams_, submersion, swimParams_), cave_.tiles(),
+                                   static_cast<float>(dt));
         }
         if (moveX < 0.0f) {
             facingLeft_ = true;
