@@ -121,4 +121,27 @@ if(ANIMAL_BUILD_TESTS)
                     "-DDIR=${CMAKE_CURRENT_BINARY_DIR}/crash_test_${mode}" -DMODE=${mode}
                     -P "${PROJECT_SOURCE_DIR}/cmake/CheckCrashReport.cmake")
     endforeach()
+
+    # Routes through the sample area (ADR-0034): recorded input from a room, checked where it ends.
+    # After editing a room, record the route again: --deterministic --start-room=NAME
+    # --record-input=tests/routes/NAME.txt (plus the --flags / --gems of the test).
+    function(animal_add_route_test name script room)
+        add_test(NAME route_${name}
+            COMMAND animal_game --headless --deterministic --strict --start-room=${room}
+                    "--input-script=${PROJECT_SOURCE_DIR}/tests/routes/${script}.txt" ${ARGN})
+    endfunction()
+    animal_add_route_test(bridge_and_shaft bridge_and_shaft crystal_gallery --frames=760
+        "--expect=room:smoke_pit,flag:switch:bridge,flag:ability:dive,respawns:0")
+    animal_add_route_test(bridge_crossing bridge_crossing root_bridge --flags=switch:bridge --frames=1080
+        "--expect=room:gate_hall,respawns:0")
+    animal_add_route_test(bridge_door_closed bridge_crossing root_bridge --frames=1080 "--expect=room:root_bridge")
+    animal_add_route_test(dive dive smoke_pit --flags=ability:dive --frames=960
+        "--expect=room:spike_shaft,grounded:true,respawns:0,visited:4")
+    animal_add_route_test(no_dive dive smoke_pit --frames=960 "--expect=room:smoke_pit,visited:1")
+    animal_add_route_test(shrine shrine sunken_lake --flags=ability:dive --frames=820
+        "--expect=room:drowned_shrine,flag:switch:shrine")
+    animal_add_route_test(dive_to_goal dive_to_goal smoke_pit --flags=ability:dive --gems=14 --frames=1700
+        "--expect=room:gate_hall,finished:true,respawns:0")
+    animal_add_route_test(gate_closed dive_to_goal smoke_pit --flags=ability:dive --gems=13 --frames=1700
+        "--expect=room:gate_hall,finished:false")
 endif()

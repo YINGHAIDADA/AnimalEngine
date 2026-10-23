@@ -1,0 +1,21 @@
+# root_bridge with the bridge door open: wait for the moving platform, ride it across the chasm, jump
+# over the crawler onto the ledges, climb them and go through the door into the gate hall
+1 down Right
+20 up Right
+535 down Right
+545 down Space
+560 up Space
+560 up Right
+845 down Right
+870 down Space
+885 up Space
+895 up Right
+930 down Left
+934 down Space
+950 up Space
+970 down Space
+986 up Space
+988 up Left
+988 down Right
+992 down Space
+1008 up Space

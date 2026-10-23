@@ -22,6 +22,55 @@
    "y": 176,
    "width": 320,
    "height": 176
+  },
+  {
+   "fileName": "rooms/root_bridge.tmj",
+   "x": 640,
+   "y": 0,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/gate_hall.tmj",
+   "x": 960,
+   "y": 0,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/spike_shaft.tmj",
+   "x": 640,
+   "y": 176,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/flooded_tunnel.tmj",
+   "x": 960,
+   "y": 176,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/drowned_shrine.tmj",
+   "x": 0,
+   "y": 352,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/sunken_lake.tmj",
+   "x": 320,
+   "y": 352,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/undercurrent.tmj",
+   "x": 640,
+   "y": 352,
+   "width": 320,
+   "height": 176
   }
  ]
 }

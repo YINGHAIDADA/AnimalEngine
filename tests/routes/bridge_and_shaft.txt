@@ -1,0 +1,23 @@
+# crystal_gallery: east over the pit into the root bridge, down its chasm into the spike shaft, past the
+# spikes to the bottom: the switch, the dive orb, and west out into the smoke pit
+1 down Right
+176 down Space
+192 up Space
+212 down Space
+222 up Space
+379 up Right
+410 down Left
+430 down Space
+444 up Space
+452 down Space
+466 up Space
+483 down Space
+498 up Space
+556 up Left
+556 down Right
+585 down Space
+600 up Space
+626 up Right
+626 down Left
+650 down Space
+665 up Space

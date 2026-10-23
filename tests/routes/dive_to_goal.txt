@@ -1,0 +1,23 @@
+# smoke_pit with the dive ability: dive.txt, then east under water from the spike shaft pool through
+# the flooded tunnel, up into the gate hall's fountain, out and east through the gate into the goal
+1 down Right
+150 down Space
+165 up Space
+190 down Down
+390 up Down
+558 down Up
+830 up Right
+830 down Left
+920 up Left
+920 up Up
+920 down Right
+940 down Down
+960 up Down
+1100 down Down
+1300 up Down
+1300 up Right
+1300 down Up
+1460 up Up
+1460 down Right
+1490 down Space
+1505 up Space

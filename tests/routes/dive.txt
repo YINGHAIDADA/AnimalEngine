@@ -1,0 +1,12 @@
+# smoke_pit with the dive ability: down through the pool, the sunken lake and the undercurrent, up into
+# the spike shaft pool and out onto its floor
+1 down Right
+150 down Space
+165 up Space
+190 down Down
+390 up Down
+558 down Up
+830 up Right
+830 down Left
+920 up Left
+920 up Up
