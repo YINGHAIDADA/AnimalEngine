@@ -881,6 +881,9 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
         renderer.addLight(glow);
     }
     cave_.drawInFrontOfPlayer(renderer); // grass in front: the player wades through it
+    if (!mapOpen_ && !endingOpen_) {
+        drawHearts(renderer); // the map and the ending screen cover the HUD
+    }
     cave_.addLights(renderer, time_);
     addStressLights(renderer);
     renderer.setFluidTimeStep(fluidTime_);
@@ -916,7 +919,6 @@ void SandboxGame::onScreen(animal::EngineContext&, animal::Renderer2D& renderer)
     renderer.drawText({static_cast<float>(layout.x + layout.width) - margin - renderer.textWidth(gems),
                        static_cast<float>(layout.y) + margin},
                       gems, kHudColor);
-    drawHearts(renderer);
 
     if (messageTime_ > 0.0f && !message_.empty()) {
         const float fade = std::min({1.0f, messageTime_ / 0.6f, (kMessageSeconds - messageTime_) / 0.3f});

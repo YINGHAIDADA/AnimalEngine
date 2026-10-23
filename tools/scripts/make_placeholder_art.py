@@ -60,6 +60,9 @@ PALETTE = {
     "N": ((120, 255, 140, 255), 1.0, (80, 230, 110)),   # switch light, on
     "i": ((60, 120, 220, 255), 0.8, (40, 90, 200)),     # ability orb
     "I": ((200, 230, 255, 255), 1.0, (170, 215, 255)),  # ability orb core
+    "j": ((236, 48, 70, 255), 1.0, (220, 34, 56)),      # heart (glows: the HUD hearts are lit like the scene)
+    "J": ((255, 200, 210, 255), 1.0, (255, 160, 176)),  # heart shine
+    "z": ((74, 30, 44, 255), 0.6, (26, 4, 10)),         # empty heart
 }
 
 
@@ -296,6 +299,19 @@ ORB = [
     "..iiii..",
 ]
 
+# HUD hearts, drawn in the canvas; quarters are cut from these (left / right half, rows 0-2 / 3-7).
+HEART_FULL = [
+    ".kk..kk.",
+    "kJjkkjjk",
+    "kjjjjjjk",
+    "kjjjjjjk",
+    ".kjjjjk.",
+    "..kjjk..",
+    "...kk...",
+    "........",
+]
+HEART_EMPTY = [row.replace("j", "z").replace("J", "z") for row in HEART_FULL]
+
 CANDLE = [
     "...F....",
     "..fFf...",
@@ -451,7 +467,8 @@ def main():
     write_material("tileset", tiles, heights_from_palette, wrap=True)
     write_material("creature", CREATURE_FRAMES, dome_heights, wrap=False)
     write_aseprite_json("creature", len(CREATURE_FRAMES), CREATURE_TAGS)
-    write_material("props", [CANDLE, VENT, GEM, LANTERN, PLATFORM, DOOR, SWITCH_OFF, SWITCH_ON, ORB, GATE],
+    write_material("props", [CANDLE, VENT, GEM, LANTERN, PLATFORM, DOOR, SWITCH_OFF, SWITCH_ON, ORB, GATE,
+                             HEART_FULL, HEART_EMPTY],
                    heights_from_palette, wrap=False)
     write_material("crawler", CRAWLER_FRAMES, dome_heights, wrap=False)
     print(f"wrote textures to {OUT_DIR}")

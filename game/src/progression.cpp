@@ -22,22 +22,13 @@ constexpr animal::Color kEndText = animal::Color::rgba(235, 228, 210);
 constexpr animal::Color kEndHint = animal::Color::rgba(120, 130, 140);
 constexpr const char* kDiveMessage = "YOU CAN DIVE: HOLD DOWN IN WATER";
 
-constexpr int kHeartWidth = 9;
-constexpr int kHeartHeight = 8;
-constexpr const char* kHeart[kHeartHeight] = {
-    ".oo...oo.",
-    "ohfo.offo",
-    "offfofffo",
-    "offfffffo",
-    ".offfffo.",
-    "..offfo..",
-    "...ofo...",
-    "....o....",
-};
-constexpr animal::Color kHeartOutline = animal::Color::rgba(24, 12, 22);
-constexpr animal::Color kHeartFill = animal::Color::rgba(232, 52, 72);
-constexpr animal::Color kHeartShine = animal::Color::rgba(255, 196, 204);
-constexpr animal::Color kHeartEmpty = animal::Color::rgba(70, 34, 50);
+constexpr float kHeartFullCell = 10.0f; // cells of the props material
+constexpr float kHeartEmptyCell = 11.0f;
+constexpr animal::Vec2 kHeartsOffset{3.0f, 3.0f}; // canvas pixels from the top-left corner
+constexpr float kHeartSpacing = 9.0f;
+// Quarters of the 8×8 heart cell, in the order they are lost from the end.
+constexpr animal::RectF kHeartQuarters[4] = {{0, 0, 4, 3}, {4, 0, 4, 3}, {4, 3, 4, 5}, {0, 3, 4, 5}};
+constexpr animal::Vec3 kHeartGlow{1.0f, 0.3f, 0.36f};
 
 } // namespace
 
@@ -172,33 +163,30 @@ void SandboxGame::takeDamage() {
     }
 }
 
-// Hearts in the top-left corner, one HUD pixel per heart pixel; a heart loses its quarters
-// top-left, top-right, bottom-right, bottom-left.
+// Hearts in the top-left corner of the canvas, drawn into the world like the props: lit, glowing
+// (emissive) and graded with the scene, and lighting the corner a little themselves. A heart loses
+// its quarters top-left, top-right, bottom-right, bottom-left.
 void SandboxGame::drawHearts(animal::Renderer2D& renderer) const {
-    const animal::PresentLayout& screen = renderer.presentLayout();
-    const float u = static_cast<float>(renderer.overlayScale());
-    const float margin = 6.0f * u;
-    for (int heart = 0; heart < kMaxHealth / kQuartersPerHeart; ++heart) {
+    const animal::Vec2 corner = camera_.topLeft(animal::Renderer2D::kCanvasExtent) + kHeartsOffset;
+    const float size = static_cast<float>(kTileSize);
+    const int hearts = kMaxHealth / kQuartersPerHeart;
+    for (int heart = 0; heart < hearts; ++heart) {
         const int quarters = std::clamp(health_ - heart * kQuartersPerHeart, 0, kQuartersPerHeart);
-        const float left = static_cast<float>(screen.x) + margin + static_cast<float>(heart) * 10.0f * u;
-        const float top = static_cast<float>(screen.y) + margin;
-        for (int y = 0; y < kHeartHeight; ++y) {
-            for (int x = 0; x < kHeartWidth; ++x) {
-                const char c = kHeart[y][x];
-                if (c == '.') {
-                    continue;
-                }
-                const bool rightHalf = x > kHeartWidth / 2;
-                const bool bottomHalf = y >= kHeartHeight / 2;
-                const int quarter = bottomHalf ? (rightHalf ? 2 : 3) : (rightHalf ? 1 : 0);
-                animal::Color color = kHeartOutline;
-                if (c != 'o') {
-                    color = quarter < quarters ? (c == 'h' ? kHeartShine : kHeartFill) : kHeartEmpty;
-                }
-                renderer.fillRect({left + static_cast<float>(x) * u, top + static_cast<float>(y) * u, u, u}, color);
-            }
+        const animal::Vec2 at{corner.x + static_cast<float>(heart) * kHeartSpacing, corner.y};
+        renderer.drawSprite(assets_.props, at, {kHeartEmptyCell * size, 0.0f, size, size});
+        for (int quarter = 0; quarter < quarters; ++quarter) {
+            const animal::RectF& q = kHeartQuarters[quarter];
+            renderer.drawSprite(assets_.props, {at.x + q.x, at.y + q.y}, {kHeartFullCell * size + q.x, q.y, q.width, q.height});
         }
     }
+    animal::PointLight glow;
+    glow.position = corner + animal::Vec2{static_cast<float>(hearts) * kHeartSpacing * 0.5f, 3.0f};
+    glow.radius = 30.0f;
+    glow.color = kHeartGlow;
+    glow.intensity = 0.15f + 0.35f * static_cast<float>(health_) / static_cast<float>(kMaxHealth);
+    glow.height = 6.0f;
+    glow.castsShadows = false;
+    renderer.addLight(glow);
 }
 
 // After the player moved: spikes, switches, abilities, gates, doors and the goal.

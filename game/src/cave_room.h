@@ -34,7 +34,7 @@ constexpr int kTileSize = 8;
 struct CaveAssets {
     animal::SpriteMaterial tileset; // tile id = horizontal cell index
     // cells: 0 candle, 1 vent grate, 2 gem, 3 lantern, 4 platform, 5 door, 6 / 7 switch off / on,
-    // 8 ability orb, 9 gem gate
+    // 8 ability orb, 9 gem gate, 10 / 11 heart full / empty
     animal::SpriteMaterial props;
     animal::SpriteMaterial crawler; // two walking frames
 };
