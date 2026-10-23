@@ -1,0 +1,2 @@
+# hold right: in the spike shaft, off the top ledge onto the spikes, again after every respawn
+1 down Right

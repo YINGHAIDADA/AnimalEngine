@@ -73,7 +73,8 @@ void SandboxGame::applyDemoInput() {
 
 // Expectations: room (the room the player ends in), gems (at least N collected), visited (at least N
 // rooms entered), flag (a save flag is set: switch:NAME, ability:NAME), finished (the goal was
-// reached), grounded (true / false), respawns (how often the player was sent back to a checkpoint).
+// reached), health (quarter hearts left), grounded (true / false), respawns (how often the player was
+// sent back to a checkpoint).
 bool SandboxGame::checkExpectations() {
     const size_t collected = static_cast<size_t>(
         std::ranges::count_if(save_.flags, [this](const std::string& f) { return gemFlags_.count(f) != 0; }));
@@ -90,6 +91,9 @@ bool SandboxGame::checkExpectations() {
         } else if (name == "grounded") {
             actual = playerState_.grounded ? "true" : "false";
             met = actual == expected;
+        } else if (name == "health") {
+            actual = std::to_string(health_);
+            met = actual == expected;
         } else if (name == "flag") {
             met = save_.flags.contains(expected);
             actual = met ? expected : "(not set)";
@@ -103,7 +107,7 @@ bool SandboxGame::checkExpectations() {
             actual = std::to_string(respawns_);
             met = actual == expected;
         } else {
-            animal::log::error("Expectation '{}' is unknown (room, gems, visited, flag, finished, grounded, respawns)", name);
+            animal::log::error("Expectation '{}' is unknown (room, gems, visited, flag, finished, health, grounded, respawns)", name);
             ok = false;
             continue;
         }

@@ -82,7 +82,9 @@ private:
     void stepPlatforms(animal::Entity& player, float dt);
     bool stepDive(animal::Entity& player, float moveX, float moveY, float dt);
     void applyCurrents(animal::Entity& player, float dt);
-    void hurt(animal::Entity& player); // spikes or crushed: back to the checkpoint
+    void hurt(animal::Entity& player); // spikes or crushed: a quarter heart and back to the checkpoint
+    void takeDamage();                 // a quarter heart; with none left, back to the checkpoint
+    void drawHearts(animal::Renderer2D& renderer) const;
     void updateMechanisms(animal::Entity& player, float dt);
     void drawEnding(animal::Renderer2D& renderer);
     // A sound at a room position (panned by where it is on screen), slightly varied in pitch.
@@ -132,6 +134,9 @@ private:
     animal::DiveParams diveParams_;
     bool diving_ = false;         // under water with the dive ability
     bool respawnPending_ = false; // hurt this step: back to the checkpoint after it
+    static constexpr int kQuartersPerHeart = 4;
+    static constexpr int kMaxHealth = 3 * kQuartersPerHeart; // three hearts of four quarters
+    int health_ = kMaxHealth;     // quarters left; refilled when knocked out
     bool endingOpen_ = false;     // the goal was reached: the ending screen shows until jump
     static constexpr const char* kFinishedFlag = "finished";
     animal::Tuning tuning_;  // the parameters above, overridable by world/tuning.json (ADR-0027)

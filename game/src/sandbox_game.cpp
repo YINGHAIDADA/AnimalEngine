@@ -652,6 +652,10 @@ void SandboxGame::setEffectsEnabled(bool enabled, animal::Renderer2D& renderer) 
 
 void SandboxGame::respawn(animal::Renderer2D& renderer) {
     ++respawns_;
+    if (health_ <= 0) {
+        health_ = kMaxHealth;
+        showMessage("KNOCKED OUT");
+    }
     enterRoom(*checkpointRoom_, renderer); // rebuilds the room even when already in it
     placePlayerFeet(checkpointFeet_);
     playerState_ = {};
@@ -701,6 +705,7 @@ void SandboxGame::updateGameplay(animal::Entity& player) {
             invulnerable_ = kInvulnerableSeconds;
             stunned_ = kStunSeconds;
             playSound(sounds_.hit, playerX);
+            takeDamage();
         }
     }
 
@@ -810,6 +815,7 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
             updateMechanisms(*player, step);
             if (respawnPending_) {
                 respawn(*context.renderer);
+                invulnerable_ = kInvulnerableSeconds; // blinks back in
                 player = entities_.get(player_);
             }
         }
@@ -895,14 +901,22 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
 }
 
 void SandboxGame::onScreen(animal::EngineContext&, animal::Renderer2D& renderer) {
+    // The map and the ending screen cover the HUD.
+    if (endingOpen_) {
+        drawEnding(renderer);
+        return;
+    }
+    if (mapOpen_) {
+        drawMap(renderer);
+        return;
+    }
     const animal::PresentLayout& layout = renderer.presentLayout();
     const float margin = static_cast<float>(6 * renderer.overlayScale());
-    const size_t collected = static_cast<size_t>(std::ranges::count_if(
-        save_.flags, [this](const std::string& flag) { return gemFlags_.count(flag) != 0; }));
-    const std::string gems = std::format("GEMS {}/{}", collected, gemFlags_.size());
+    const std::string gems = std::format("GEMS {}/{}", collectedGems(), gemFlags_.size());
     renderer.drawText({static_cast<float>(layout.x + layout.width) - margin - renderer.textWidth(gems),
                        static_cast<float>(layout.y) + margin},
                       gems, kHudColor);
+    drawHearts(renderer);
 
     if (messageTime_ > 0.0f && !message_.empty()) {
         const float fade = std::min({1.0f, messageTime_ / 0.6f, (kMessageSeconds - messageTime_) / 0.3f});
@@ -911,12 +925,6 @@ void SandboxGame::onScreen(animal::EngineContext&, animal::Renderer2D& renderer)
         renderer.drawText({static_cast<float>(layout.x) + (layout.width - renderer.textWidth(message_)) * 0.5f,
                            static_cast<float>(layout.y + layout.height) - margin - renderer.textLineHeight()},
                           message_, color);
-    }
-    if (mapOpen_) {
-        drawMap(renderer);
-    }
-    if (endingOpen_) {
-        drawEnding(renderer);
     }
 }
 

@@ -132,7 +132,7 @@ if(ANIMAL_BUILD_TESTS)
                     "--input-script=${PROJECT_SOURCE_DIR}/tests/routes/${script}.txt" ${ARGN})
     endfunction()
     animal_add_route_test(bridge_and_shaft bridge_and_shaft crystal_gallery --frames=760
-        "--expect=room:smoke_pit,flag:switch:bridge,flag:ability:dive,respawns:0")
+        "--expect=room:smoke_pit,flag:switch:bridge,flag:ability:dive,respawns:0,health:11")
     animal_add_route_test(bridge_crossing bridge_crossing root_bridge --flags=switch:bridge --frames=1080
         "--expect=room:gate_hall,respawns:0")
     animal_add_route_test(bridge_door_closed bridge_crossing root_bridge --frames=1080 "--expect=room:root_bridge")
@@ -146,4 +146,7 @@ if(ANIMAL_BUILD_TESTS)
         "--expect=room:gate_hall,finished:true,respawns:0")
     animal_add_route_test(gate_closed dive_to_goal smoke_pit --flags=ability:dive --gems=13 --frames=1700
         "--expect=room:gate_hall,finished:false")
+    # Health: each spike costs a quarter heart and a respawn; the twelfth knocks out and refills.
+    animal_add_route_test(spikes_hurt walk_right spike_shaft --frames=120 "--expect=health:11,respawns:1")
+    animal_add_route_test(knocked_out walk_right spike_shaft --frames=1200 "--expect=health:11,respawns:13")
 endif()

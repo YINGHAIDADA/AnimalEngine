@@ -22,6 +22,23 @@ constexpr animal::Color kEndText = animal::Color::rgba(235, 228, 210);
 constexpr animal::Color kEndHint = animal::Color::rgba(120, 130, 140);
 constexpr const char* kDiveMessage = "YOU CAN DIVE: HOLD DOWN IN WATER";
 
+constexpr int kHeartWidth = 9;
+constexpr int kHeartHeight = 8;
+constexpr const char* kHeart[kHeartHeight] = {
+    ".oo...oo.",
+    "ohfo.offo",
+    "offfofffo",
+    "offfffffo",
+    ".offfffo.",
+    "..offfo..",
+    "...ofo...",
+    "....o....",
+};
+constexpr animal::Color kHeartOutline = animal::Color::rgba(24, 12, 22);
+constexpr animal::Color kHeartFill = animal::Color::rgba(232, 52, 72);
+constexpr animal::Color kHeartShine = animal::Color::rgba(255, 196, 204);
+constexpr animal::Color kHeartEmpty = animal::Color::rgba(70, 34, 50);
+
 } // namespace
 
 // Resumes at the saved checkpoint with the saved gems collected; a save naming a room that is
@@ -82,6 +99,7 @@ void SandboxGame::resetProgress(animal::Renderer2D& renderer) {
             }
         }
     }
+    health_ = kMaxHealth;
     save_.flags.clear();
     save_.visited.clear();
     save_.playSeconds = 0.0;
@@ -143,7 +161,44 @@ void SandboxGame::hurt(animal::Entity& player) {
         return;
     }
     playSound(sounds_.hit, player.body.exactPosition().x);
+    takeDamage();
     respawnPending_ = true;
+}
+
+void SandboxGame::takeDamage() {
+    health_ = std::max(0, health_ - 1);
+    if (health_ == 0) {
+        respawnPending_ = true;
+    }
+}
+
+// Hearts in the top-left corner, one HUD pixel per heart pixel; a heart loses its quarters
+// top-left, top-right, bottom-right, bottom-left.
+void SandboxGame::drawHearts(animal::Renderer2D& renderer) const {
+    const animal::PresentLayout& screen = renderer.presentLayout();
+    const float u = static_cast<float>(renderer.overlayScale());
+    const float margin = 6.0f * u;
+    for (int heart = 0; heart < kMaxHealth / kQuartersPerHeart; ++heart) {
+        const int quarters = std::clamp(health_ - heart * kQuartersPerHeart, 0, kQuartersPerHeart);
+        const float left = static_cast<float>(screen.x) + margin + static_cast<float>(heart) * 10.0f * u;
+        const float top = static_cast<float>(screen.y) + margin;
+        for (int y = 0; y < kHeartHeight; ++y) {
+            for (int x = 0; x < kHeartWidth; ++x) {
+                const char c = kHeart[y][x];
+                if (c == '.') {
+                    continue;
+                }
+                const bool rightHalf = x > kHeartWidth / 2;
+                const bool bottomHalf = y >= kHeartHeight / 2;
+                const int quarter = bottomHalf ? (rightHalf ? 2 : 3) : (rightHalf ? 1 : 0);
+                animal::Color color = kHeartOutline;
+                if (c != 'o') {
+                    color = quarter < quarters ? (c == 'h' ? kHeartShine : kHeartFill) : kHeartEmpty;
+                }
+                renderer.fillRect({left + static_cast<float>(x) * u, top + static_cast<float>(y) * u, u, u}, color);
+            }
+        }
+    }
 }
 
 // After the player moved: spikes, switches, abilities, gates, doors and the goal.
