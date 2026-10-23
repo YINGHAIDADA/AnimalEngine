@@ -1,0 +1,14 @@
+{
+  "format": "animal-look",
+  "version": 1,
+  "ambient": "#12121c",
+  "bands": 5,
+  "bloomThreshold": 0.55,
+  "bloomIntensity": 1.0,
+  "exposure": 1.2,
+  "contrast": 1.04,
+  "saturation": 1.12,
+  "shadowTint": [0.9, 0.95, 1.12],
+  "highlightTint": [1.08, 1.0, 0.9],
+  "vignette": 0.25
+}

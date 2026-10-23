@@ -23,7 +23,7 @@ using namespace animal;
 // Saving a preset from the editor must not reformat a hand-written file.
 TEST(devtools_format_json_reproduces_the_data_files) {
     namespace fs = std::filesystem;
-    const fs::path world = fs::path(ANIMAL_TEST_SOURCE_DIR) / "assets" / "source" / "world";
+    const fs::path world = fs::path(ANIMAL_TEST_ASSETS_DIR) / "world";
     int files = 0;
     for (const char* dir : {"looks", "effects", "plants"}) {
         for (const fs::directory_entry& entry : fs::directory_iterator(world / dir)) {
@@ -73,7 +73,7 @@ TEST(devtools_tiled_map_round_trips_the_rooms) {
     namespace fs = std::filesystem;
     int rooms = 0;
     for (const fs::directory_entry& entry :
-         fs::directory_iterator(fs::path(ANIMAL_TEST_SOURCE_DIR) / "assets" / "source" / "world" / "rooms")) {
+         fs::directory_iterator(fs::path(ANIMAL_TEST_ASSETS_DIR) / "world" / "rooms")) {
         const std::u8string u8 = entry.path().generic_u8string();
         const std::optional<std::string> text = readText(std::string(u8.begin(), u8.end()));
         CHECK(text.has_value());
@@ -117,7 +117,7 @@ TEST(devtools_tiled_map_edits_tiles_objects_and_properties) {
 }
 
 TEST(devtools_tiled_world_round_trips_and_edits_the_layout) {
-    const std::string path = std::string(ANIMAL_TEST_SOURCE_DIR) + "/assets/source/world/test.world";
+    const std::string path = std::string(ANIMAL_TEST_ASSETS_DIR) + "/world/test.world";
     const std::optional<std::string> text = readText(path);
     CHECK(text.has_value());
     std::optional<devtools::TiledWorld> world = text ? devtools::TiledWorld::parse(*text) : std::nullopt;
@@ -126,8 +126,8 @@ TEST(devtools_tiled_world_round_trips_and_edits_the_layout) {
         return;
     }
     CHECK(world->serialize() == *text);
-    CHECK(world->maps().size() >= 3 && world->find("rooms/cave_entrance.tmj"));
-    CHECK(world->move("rooms/cave_entrance.tmj", -320, 0) && world->find("rooms/cave_entrance.tmj")->x == -320);
+    CHECK(world->maps().size() >= 3 && world->find("rooms/render_entrance.tmj"));
+    CHECK(world->move("rooms/render_entrance.tmj", -320, 0) && world->find("rooms/render_entrance.tmj")->x == -320);
     CHECK(world->add({"rooms/new.tmj", 640, 0, 320, 176}) && !world->add({"rooms/new.tmj", 0, 0, 1, 1}));
     CHECK(world->find("rooms/new.tmj")->width == 320);
     CHECK(world->remove("rooms/new.tmj") && !world->find("rooms/new.tmj") && !world->remove("rooms/new.tmj"));

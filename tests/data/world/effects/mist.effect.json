@@ -1,0 +1,17 @@
+{
+  "format": "animal-effect",
+  "version": 1,
+  "gpu": true,
+  "count": 1800,
+  "velocityX": [-30, 30],
+  "velocityY": [-35, -5],
+  "accelerationY": -6,
+  "drag": 1.4,
+  "windResponse": 6,
+  "dieOnSolid": true,
+  "lifetime": [0.8, 2.2],
+  "fade": 0.4,
+  "startColor": [210, 230, 245, 110],
+  "endColor": [190, 215, 240, 0],
+  "style": "lit"
+}

@@ -1,0 +1,60 @@
+{
+  "format": "animal-cook",
+  "version": 1,
+  "dataVersion": "sandbox-1",
+  "world": "world/test.world",
+  "files": [
+    "world/tuning.json",
+    "world/effects/ember.effect.json",
+    "world/effects/spark.effect.json",
+    "world/effects/splash.effect.json",
+    "world/plants/grass.plant.json"
+  ],
+  "atlas": "textures/atlas",
+  "materials": [
+    "textures/tileset",
+    "textures/props",
+    "textures/creature",
+    "textures/crawler"
+  ],
+  "spriteSheets": [
+    "textures/creature.json"
+  ],
+  "sounds": [
+    "sounds/jump.wav",
+    "sounds/land.wav",
+    "sounds/gem.wav",
+    "sounds/hit.wav",
+    "sounds/splash.wav",
+    "sounds/grab.wav",
+    "sounds/cave_ambience.wav",
+    "sounds/click.wav",
+    "sounds/door.wav",
+    "sounds/ability.wav",
+    "sounds/crumble.wav"
+  ],
+  "shaders": [
+    "sprite.vert",
+    "sprite.frag",
+    "sprite_lit.frag",
+    "light.vert",
+    "light.frag",
+    "composite.vert",
+    "composite.frag",
+    "fluid_advect.frag",
+    "fluid_splat.frag",
+    "fluid_curl.frag",
+    "fluid_vorticity.frag",
+    "fluid_divergence.frag",
+    "fluid_pressure.frag",
+    "fluid_gradient.frag",
+    "post_bright.frag",
+    "post_blur.frag",
+    "post_grade.frag",
+    "water.frag",
+    "gpu_particles_update.frag",
+    "gpu_particles.vert",
+    "gpu_particles_lit.frag",
+    "gpu_particles_glow.frag"
+  ]
+}

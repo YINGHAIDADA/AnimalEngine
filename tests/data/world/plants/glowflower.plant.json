@@ -1,0 +1,14 @@
+{
+  "format": "animal-plant",
+  "version": 1,
+  "heightMin": 3,
+  "heightMax": 6,
+  "spacing": 4,
+  "gaps": 0.3,
+  "colors": ["#2a5638", "#3c7648", "#5a965a"],
+  "flowerColor": [140, 240, 255, 255],
+  "flowerGlow": true,
+  "flowerLightRadius": 12,
+  "flowerLightColor": "#6ef0ff",
+  "flowerLightIntensity": 0.35
+}

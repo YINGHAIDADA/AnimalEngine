@@ -8,6 +8,9 @@ usage: render_regression.py [--binary PATH] [--backends opengl,vulkan] [--only N
 Exit code 0 when everything matches and neither the Vulkan validation layers nor the engine's RHI
 validation (Debug builds) report errors, 1 otherwise.
 Pure standard library; needs a display and a GPU (the game opens a window).
+
+The game scenes run on the test data (tests/data, deployed to <binary dir>/test_data; ADR-0035), never
+on the game's content: editing the rooms in assets/source does not change these images.
 """
 
 import argparse
@@ -26,14 +29,15 @@ from compare_images import read_png_rgba  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 GOLDEN = ROOT / "tests" / "golden"
 
-# name, frames, extra arguments. Every run adds --deterministic --no-vsync --hide-overlay.
+# name, frames, extra arguments. Every run adds --deterministic --no-vsync --hide-overlay --data=test_data.
 SCENES = [
     ("demo_entrance", 60, ["--demo"]),               # climbing the long vine, skylight, moss
     ("demo_gallery", 260, ["--demo"]),               # lantern shadows, rim light, crystals, flowers
     ("demo_pit", 520, ["--demo"]),                   # smoke, water, waterfall, reeds, ember look
-    ("pit_waterfall", 300, ["--start-room=smoke_pit"]),
-    ("gallery_idle", 120, ["--start-room=crystal_gallery"]),
+    ("pit_waterfall", 300, ["--start-room=render_pit"]),
+    ("gallery_idle", 120, ["--start-room=render_gallery"]),
     ("stress_lights", 200, ["--demo", "--stress-lights=256"]),
+    ("mechanisms", 90, ["--start-room=render_mechanisms"]),  # platforms, doors, gate, switch, orb, spikes, flooded water, hearts
     ("rhi_conformance", 0, []),                      # every RHI feature, incl. ones the game never uses
 ]
 CONFORMANCE = "rhi_conformance"
@@ -56,7 +60,7 @@ def run_scene(binary, backend, name, frames, extra, out_dir):
         command = [str(conformance_binary(binary)), f"--backend={backend}", f"--out={out}"]
     else:
         command = [str(binary), f"--backend={backend}", "--deterministic", "--no-vsync", "--hide-overlay",
-                   f"--frames={frames}", f"--canvas-screenshot={out}", *extra]
+                   f"--data={binary.parent / 'test_data'}", f"--frames={frames}", f"--canvas-screenshot={out}", *extra]
     result = subprocess.run(command, capture_output=True, text=True, timeout=300)
     log = result.stdout + result.stderr
     errors = 0
@@ -88,7 +92,8 @@ def main():
     parser.add_argument("--only", default="", help="comma-separated scene names")
     parser.add_argument("--update", action="store_true", help="rewrite the golden images")
     parser.add_argument("--pack", type=Path, default=None,
-                        help="run the game scenes on this resource pack instead of the loose data (ADR-0031)")
+                        help="run the game scenes on this pack of the test data instead of the loose files (ADR-0031): "
+                             "AnimalCooker --manifest=tests/data/cook.json --source=tests/data ...")
     args = parser.parse_args()
     if args.pack is not None:
         if not args.pack.exists():

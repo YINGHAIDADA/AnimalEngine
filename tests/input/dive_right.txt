@@ -1,0 +1,3 @@
+# hold right and down (dives once in water)
+1 down Right
+1 down Down

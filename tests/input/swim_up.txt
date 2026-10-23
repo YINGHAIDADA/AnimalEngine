@@ -1,0 +1,4 @@
+# start a dive, then swim up
+1 down Down
+4 up Down
+4 down Up

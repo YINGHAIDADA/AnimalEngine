@@ -1,0 +1,15 @@
+{
+  "format": "animal-plant",
+  "version": 1,
+  "hanging": true,
+  "heightMin": 2,
+  "heightMax": 6,
+  "spacing": 1,
+  "gaps": 0.5,
+  "stiffness": 60,
+  "damping": 4,
+  "windLean": 0.15,
+  "flutter": 0.25,
+  "maxBend": 0.9,
+  "colors": ["#2a4228", "#3a6232", "#588643"]
+}

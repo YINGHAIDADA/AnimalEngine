@@ -1,0 +1,11 @@
+{
+  "format": "animal-look",
+  "version": 1,
+  "base": "cave.look.json",
+  "ambient": "#16304a",
+  "rimAmbient": "#1c3a54",
+  "bloomIntensity": 1.1,
+  "saturation": 1.1,
+  "shadowTint": [0.8, 0.95, 1.25],
+  "highlightTint": [0.9, 1.02, 1.12]
+}

@@ -1,0 +1,3 @@
+# a step to the right, then nothing
+1 down Right
+30 up Right

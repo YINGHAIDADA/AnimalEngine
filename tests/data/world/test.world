@@ -1,0 +1,139 @@
+{
+ "type": "world",
+ "onlyShowAdjacentMaps": false,
+ "maps": [
+  {
+   "fileName": "rooms/render_entrance.tmj",
+   "x": 0,
+   "y": 0,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/render_gallery.tmj",
+   "x": 320,
+   "y": 0,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/render_pit.tmj",
+   "x": 320,
+   "y": 176,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/render_mechanisms.tmj",
+   "x": 960,
+   "y": 0,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/test_walk.tmj",
+   "x": 0,
+   "y": 528,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/test_walk_east.tmj",
+   "x": 320,
+   "y": 528,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/test_platform.tmj",
+   "x": 960,
+   "y": 528,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/test_crush.tmj",
+   "x": 1600,
+   "y": 528,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/test_falling.tmj",
+   "x": 2240,
+   "y": 528,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/test_falling_below.tmj",
+   "x": 2240,
+   "y": 704,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/test_spikes.tmj",
+   "x": 0,
+   "y": 1056,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/test_crawler.tmj",
+   "x": 640,
+   "y": 1056,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/test_switch.tmj",
+   "x": 1280,
+   "y": 1056,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/test_door_locked.tmj",
+   "x": 1920,
+   "y": 1056,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/test_dive.tmj",
+   "x": 0,
+   "y": 1408,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/test_current.tmj",
+   "x": 640,
+   "y": 1408,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/test_gate.tmj",
+   "x": 1280,
+   "y": 1408,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/test_rise_above.tmj",
+   "x": 1920,
+   "y": 1408,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/test_rise.tmj",
+   "x": 1920,
+   "y": 1584,
+   "width": 320,
+   "height": 176
+  }
+ ]
+}

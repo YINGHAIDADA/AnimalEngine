@@ -24,11 +24,18 @@ endfunction()
 
 # Copies source assets into data/<DESTINATION>/, preserving relative paths.
 function(animal_add_data_files target)
-    cmake_parse_arguments(ARG "" "SOURCE_DIR;DESTINATION" "FILES" ${ARGN})
+    cmake_parse_arguments(ARG "" "SOURCE_DIR;DESTINATION;DATA_ROOT" "FILES" ${ARGN})
+    if(NOT ARG_DATA_ROOT)
+        set(ARG_DATA_ROOT "${ANIMAL_DATA_DIR}")
+    endif()
     set(outputs "")
     foreach(rel IN LISTS ARG_FILES)
         set(src "${ARG_SOURCE_DIR}/${rel}")
-        set(dst "${ANIMAL_DATA_DIR}/${ARG_DESTINATION}/${rel}")
+        if(ARG_DESTINATION)
+            set(dst "${ARG_DATA_ROOT}/${ARG_DESTINATION}/${rel}")
+        else()
+            set(dst "${ARG_DATA_ROOT}/${rel}")
+        endif()
         get_filename_component(dst_dir "${dst}" DIRECTORY)
         add_custom_command(
             OUTPUT "${dst}"

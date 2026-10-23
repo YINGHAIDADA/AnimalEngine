@@ -1,4 +1,4 @@
-// Asset Cooker (ADR-0031): the real assets cook deterministically into a complete pack; broken
+// Asset Cooker (ADR-0031): the test data (tests/data) cooks deterministically into a complete pack; broken
 // references fail the cook.
 
 #include <animal/core/file.h>
@@ -18,10 +18,10 @@ std::error_code cleanupError;
 using namespace animal;
 namespace fs = std::filesystem;
 
-cooker::Options realAssets() {
+cooker::Options testData() {
     cooker::Options o;
-    o.manifest = std::string(ANIMAL_TEST_SOURCE_DIR) + "/assets/cook.json";
-    o.sourceRoot = std::string(ANIMAL_TEST_SOURCE_DIR) + "/assets/source";
+    o.manifest = std::string(ANIMAL_TEST_ASSETS_DIR) + "/cook.json";
+    o.sourceRoot = ANIMAL_TEST_ASSETS_DIR;
     o.shaderDirectory = ANIMAL_TEST_SHADER_DIR;
     o.level = 3; // fast; determinism does not depend on the level
     return o;
@@ -31,15 +31,15 @@ bool hasEntry(const cooker::Result& r, const std::string& path) {
     return std::ranges::any_of(r.entries, [&](const auto& e) { return e.first == path; });
 }
 
-TEST(cooker_packs_the_real_assets_deterministically) {
-    const cooker::Result a = cooker::cook(realAssets());
+TEST(cooker_packs_the_test_data_deterministically) {
+    const cooker::Result a = cooker::cook(testData());
     for (const std::string& e : a.errors) {
         std::fprintf(stderr, "  cook error: %s\n", e.c_str());
     }
     CHECK(a.ok);
-    const cooker::Result b = cooker::cook(realAssets());
+    const cooker::Result b = cooker::cook(testData());
     CHECK(a.pack == b.pack); // same input, same bytes
-    CHECK(hasEntry(a, "world/test.world") && hasEntry(a, "world/rooms/cave_entrance.tmj") &&
+    CHECK(hasEntry(a, "world/test.world") && hasEntry(a, "world/rooms/render_entrance.tmj") &&
           hasEntry(a, "world/tilesets/cave.tsj") && hasEntry(a, "world/looks/cave.look.json") &&
           hasEntry(a, "shaders/sprite_lit.frag.ashd") && hasEntry(a, "textures/atlas.json") &&
           hasEntry(a, "textures/atlas_n.tex") && hasEntry(a, "textures/creature.json"));
@@ -56,7 +56,7 @@ TEST(cooker_packs_the_real_assets_deterministically) {
     fs::create_directories(dir);
     const std::string pak = (dir / "data.pak").generic_string();
     CHECK(writeFileAtomic(pak, a.pack.data(), a.pack.size()));
-    const auto problems = cooker::verifyPack(pak, realAssets().manifest);
+    const auto problems = cooker::verifyPack(pak, testData().manifest);
     for (const std::string& p : problems) {
         std::fprintf(stderr, "  verify: %s\n", p.c_str());
     }

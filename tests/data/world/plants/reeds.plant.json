@@ -1,0 +1,15 @@
+{
+  "format": "animal-plant",
+  "version": 1,
+  "heightMin": 9,
+  "heightMax": 15,
+  "spacing": 3,
+  "gaps": 0.35,
+  "stiffness": 70,
+  "damping": 5,
+  "windLean": 0.08,
+  "flutter": 0.1,
+  "maxBend": 0.6,
+  "colors": ["#4e5e2a", "#77873a", "#a8a25a"],
+  "flowerColor": "#5a3a22"
+}

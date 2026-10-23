@@ -109,12 +109,30 @@ add_custom_target(animal_package
 add_dependencies(animal_package animal_game)
 set_target_properties(animal_package PROPERTIES FOLDER game)
 
-# Headless playthrough (ADR-0032): the scripted demo route must still reach the smoke pit with two
-# gems and no fall; in Debug every recorded command list is validated (--strict).
+# Automated tests run on their own data (ADR-0035): tests/data is deployed to bin/<Config>/test_data
+# with the compiled shaders, and every game test passes --data, so editing the game's content never
+# affects a test.
+set(ANIMAL_TEST_DATA_DIR "${ANIMAL_OUTPUT_DIR}/test_data")
 if(ANIMAL_BUILD_TESTS)
+    file(GLOB_RECURSE ANIMAL_TEST_DATA_FILES CONFIGURE_DEPENDS RELATIVE "${PROJECT_SOURCE_DIR}/tests/data"
+        "${PROJECT_SOURCE_DIR}/tests/data/*")
+    animal_add_data_files(animal_test_data
+        SOURCE_DIR "${PROJECT_SOURCE_DIR}/tests/data"
+        DATA_ROOT "${ANIMAL_TEST_DATA_DIR}"
+        FILES ${ANIMAL_TEST_DATA_FILES})
+    add_custom_target(animal_test_data_shaders ALL
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${ANIMAL_DATA_DIR}/shaders" "${ANIMAL_TEST_DATA_DIR}/shaders"
+        COMMENT "Test data: shaders"
+        VERBATIM)
+    add_dependencies(animal_test_data_shaders animal_shaders)
+    set_target_properties(animal_test_data_shaders PROPERTIES FOLDER data)
+    add_dependencies(animal_game animal_test_data animal_test_data_shaders)
+
+    set(ANIMAL_TEST_RUN animal_game --headless --deterministic --strict "--data=${ANIMAL_TEST_DATA_DIR}")
+    # Headless playthrough (ADR-0032): the scripted demo route through the render rooms must reach the
+    # pit with two gems and no fall; in Debug every recorded command list is validated (--strict).
     add_test(NAME demo_playthrough
-        COMMAND animal_game --headless --demo --deterministic --strict --frames=900
-                "--expect=room:smoke_pit,gems:2,visited:3,respawns:0")
+        COMMAND ${ANIMAL_TEST_RUN} --demo --frames=900 "--expect=room:render_pit,gems:2,visited:3,respawns:0")
     # Crash reports (ADR-0032) for a fault, abort() and an uncaught exception.
     foreach(mode segv abort exception)
         add_test(NAME crash_report_${mode}
@@ -123,30 +141,32 @@ if(ANIMAL_BUILD_TESTS)
                     -P "${PROJECT_SOURCE_DIR}/cmake/CheckCrashReport.cmake")
     endforeach()
 
-    # Routes through the sample area (ADR-0034): recorded input from a room, checked where it ends.
-    # After editing a room, record the route again: --deterministic --start-room=NAME
-    # --record-input=tests/routes/NAME.txt (plus the --flags / --gems of the test).
-    function(animal_add_route_test name script room)
-        add_test(NAME route_${name}
-            COMMAND animal_game --headless --deterministic --strict --start-room=${room}
-                    "--input-script=${PROJECT_SOURCE_DIR}/tests/routes/${script}.txt" ${ARGN})
+    # Capabilities (ADR-0034, ADR-0035): one test room each, trivial input (tests/input), checked
+    # where the run ends.
+    function(animal_add_capability_test name room input)
+        set(script "")
+        if(input)
+            set(script "--input-script=${PROJECT_SOURCE_DIR}/tests/input/${input}.txt")
+        endif()
+        add_test(NAME capability_${name} COMMAND ${ANIMAL_TEST_RUN} --start-room=${room} ${script} ${ARGN})
     endfunction()
-    animal_add_route_test(bridge_and_shaft bridge_and_shaft crystal_gallery --frames=760
-        "--expect=room:smoke_pit,flag:switch:bridge,flag:ability:dive,respawns:0,health:11")
-    animal_add_route_test(bridge_crossing bridge_crossing root_bridge --flags=switch:bridge --frames=1080
-        "--expect=room:gate_hall,respawns:0")
-    animal_add_route_test(bridge_door_closed bridge_crossing root_bridge --frames=1080 "--expect=room:root_bridge")
-    animal_add_route_test(bridge_gems bridge_gems root_bridge --flags=switch:bridge --frames=1080 "--expect=gems:2")
-    animal_add_route_test(dive dive smoke_pit --flags=ability:dive --frames=960
-        "--expect=room:spike_shaft,grounded:true,respawns:0,visited:4")
-    animal_add_route_test(no_dive dive smoke_pit --frames=960 "--expect=room:smoke_pit,visited:1")
-    animal_add_route_test(shrine shrine sunken_lake --flags=ability:dive --frames=820
-        "--expect=room:drowned_shrine,flag:switch:shrine")
-    animal_add_route_test(dive_to_goal dive_to_goal smoke_pit --flags=ability:dive --gems=14 --frames=1700
-        "--expect=room:gate_hall,finished:true,respawns:0")
-    animal_add_route_test(gate_closed dive_to_goal smoke_pit --flags=ability:dive --gems=13 --frames=1700
-        "--expect=room:gate_hall,finished:false")
-    # Health: each spike costs a quarter heart and a respawn; the twelfth knocks out and refills.
-    animal_add_route_test(spikes_hurt walk_right spike_shaft --frames=120 "--expect=health:11,respawns:1")
-    animal_add_route_test(knocked_out walk_right spike_shaft --frames=1200 "--expect=health:11,respawns:13")
+    animal_add_capability_test(room_transition test_walk hold_right --frames=300 "--expect=room:test_walk_east")
+    animal_add_capability_test(platform_carries test_platform "" --frames=360 "--expect=gems:1,respawns:0")
+    animal_add_capability_test(platform_crushes test_crush "" --frames=70 "--expect=health:11,respawns:1")
+    animal_add_capability_test(platform_falls test_falling "" --frames=180 "--expect=room:test_falling_below")
+    animal_add_capability_test(spikes_hurt test_spikes hold_right --frames=60 "--expect=health:11,respawns:1")
+    animal_add_capability_test(knocked_out test_spikes hold_right --frames=570 "--expect=health:11,respawns:13")
+    animal_add_capability_test(crawler_hits test_crawler "" --frames=420 "--expect=health:11,respawns:0")
+    animal_add_capability_test(switch_opens_door test_switch hold_right --frames=300
+        "--expect=flag:switch:test_door,gems:1")
+    animal_add_capability_test(door_stays_closed test_door_locked hold_right --frames=300 "--expect=gems:0")
+    animal_add_capability_test(flag_opens_door test_door_locked hold_right --flags=switch:test_elsewhere --frames=300
+        "--expect=gems:1")
+    animal_add_capability_test(dive test_dive dive_right --flags=ability:dive --frames=300 "--expect=gems:1")
+    animal_add_capability_test(no_dive test_dive dive_right --frames=300 "--expect=gems:0")
+    animal_add_capability_test(current_carries test_current step_right --frames=540 "--expect=gems:1")
+    animal_add_capability_test(gate_opens test_gate hold_right --gems=3 --frames=300 "--expect=finished:true")
+    animal_add_capability_test(gate_stays_closed test_gate hold_right --gems=2 --frames=300 "--expect=finished:false")
+    animal_add_capability_test(swim_up test_rise swim_up --flags=ability:dive --frames=240
+        "--expect=room:test_rise_above")
 endif()
