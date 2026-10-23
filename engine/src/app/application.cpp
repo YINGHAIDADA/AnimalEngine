@@ -1,6 +1,7 @@
 #include "input_script.h"
 
 #include <animal/app/application.h>
+#include <animal/core/file.h>
 #include <animal/core/log.h>
 #include <animal/platform/input.h>
 #include <animal/platform/platform.h>
@@ -35,6 +36,7 @@ struct CommandLine {
     std::string screenshotPath;
     std::string canvasScreenshotPath; // the 320×180 final canvas, independent of window size and DPI
     std::string inputScriptPath;
+    std::string packPath; // --pack: the resource pack to read the data from
 };
 
 std::optional<CommandLine> parseCommandLine(int argc, char** argv,
@@ -64,6 +66,8 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv,
             cl.canvasScreenshotPath = std::string(arg.substr(20));
         } else if (arg == "--profile") {
             cl.profile = true;
+        } else if (arg.starts_with("--pack=")) {
+            cl.packPath = std::string(arg.substr(7));
         } else if (arg.starts_with("--input-script=")) {
             cl.inputScriptPath = std::string(arg.substr(15));
         } else if (arg.starts_with("-psn_")) {
@@ -71,7 +75,7 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv,
         } else if (!other(arg)) {
             log::error("Unknown argument '{}'. Options: --backend=opengl|vulkan --no-vsync --hide-overlay "
                        "--resize-test --deterministic --demo --profile --frames=N --screenshot=path.png "
-                       "--canvas-screenshot=path.png --input-script=path.txt",
+                       "--canvas-screenshot=path.png --input-script=path.txt --pack=data.pak",
                        arg);
             return std::nullopt;
         }
@@ -142,11 +146,13 @@ class Profile {
 public:
     static constexpr uint64_t kWarmupFrames = 60;
 
-    void sample(uint64_t frame, double frameMilliseconds, const std::vector<rhi::GpuTiming>& timings) {
+    void sample(uint64_t frame, double frameMilliseconds, const std::vector<rhi::GpuTiming>& timings,
+                uint32_t drawCalls) {
         if (frame < kWarmupFrames) {
             return;
         }
         cpu_.add(frameMilliseconds);
+        draws_.add(drawCalls);
         for (const rhi::GpuTiming& t : timings) {
             auto it = std::find_if(scopes_.begin(), scopes_.end(), [&t](const Scope& s) { return s.name == t.name; });
             if (it == scopes_.end()) {
@@ -164,6 +170,7 @@ public:
         }
         log::info("Profile over {} frames (after {} warm-up): average / max in ms", cpu_.count, kWarmupFrames);
         log::info("  {:<18} {:7.3f} {:7.3f}", "frame (wall)", cpu_.average(), cpu_.max);
+        log::info("  {:<18} {:7.1f} {:7.0f}", "draw calls", draws_.average(), draws_.max);
         for (const Scope& s : scopes_) {
             log::info("  {:<18} {:7.3f} {:7.3f}", std::string(s.depth * 2, ' ') + "gpu " + s.name, s.stat.average(),
                       s.stat.max);
@@ -188,6 +195,7 @@ private:
         Stat stat;
     };
     Stat cpu_;
+    Stat draws_;
     std::vector<Scope> scopes_;
 };
 
@@ -280,17 +288,35 @@ int Application::run(int argc, char** argv) {
         context.input = &input;
         context.renderer = &renderer;
         context.dataDirectory = platform::executableDirectory() + "data/";
+        // A release reads its data from data.pak next to the executable (ADR-0031); --pack picks one.
+        const uint64_t loadStart = platform::nowNanoseconds();
+        std::string packPath = commandLine->packPath;
+        if (packPath.empty() && fileExists(platform::executableDirectory() + "data.pak")) {
+            packPath = platform::executableDirectory() + "data.pak";
+        }
+        bool packFailed = false;
+        if (!packPath.empty()) {
+            std::string packError;
+            if (!mountPack(packPath, context.dataDirectory, &packError)) {
+                log::error("Cannot use the resource pack: {}", packError);
+                packFailed = true;
+            }
+        }
         context.demo = commandLine->demo;
         context.deterministic = commandLine->deterministic;
         log::info("Backend: {} | data: {}", rhi::backendName(config.backend), context.dataDirectory);
 
         std::optional<InputScript> inputScript;
-        if (!commandLine->inputScriptPath.empty() && !(inputScript = InputScript::load(commandLine->inputScriptPath))) {
+        if (packFailed ||
+            (!commandLine->inputScriptPath.empty() && !(inputScript = InputScript::load(commandLine->inputScriptPath)))) {
             exitCode = 1;
         } else if (!device || !renderer.init(*device, context.dataDirectory) || !onInit(context)) {
             log::error("Startup failed; see the errors above");
             exitCode = 1;
         } else {
+            log::info("Startup: data loaded in {:.1f} ms ({})",
+                      static_cast<double>(platform::nowNanoseconds() - loadStart) * 1e-6,
+                      packPath.empty() ? "loose files" : "resource pack");
             window->show();
             rhi::CommandList commands;
             FrameTimer timer;
@@ -344,7 +370,8 @@ int Application::run(int argc, char** argv) {
                 lastTime = now;
                 timer.tick(realFrameTime, context.stats);
                 if (commandLine->profile) {
-                    profile.sample(framesRendered, realFrameTime * 1000.0, device->gpuTimings());
+                    profile.sample(framesRendered, realFrameTime * 1000.0, device->gpuTimings(),
+                                   renderer.stats().drawCalls);
                 }
                 // Deterministic runs advance exactly one fixed step per frame (reproducible captures).
                 const double frameTime = commandLine->deterministic ? kFixedTimestep : realFrameTime;
@@ -426,6 +453,7 @@ int Application::run(int argc, char** argv) {
         }
     }
 
+    unmountPacks();
     platform::shutdown();
     return exitCode;
 }

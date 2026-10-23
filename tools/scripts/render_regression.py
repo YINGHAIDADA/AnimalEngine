@@ -87,7 +87,14 @@ def main():
     parser.add_argument("--backends", default="opengl,vulkan")
     parser.add_argument("--only", default="", help="comma-separated scene names")
     parser.add_argument("--update", action="store_true", help="rewrite the golden images")
+    parser.add_argument("--pack", type=Path, default=None,
+                        help="run the game scenes on this resource pack instead of the loose data (ADR-0031)")
     args = parser.parse_args()
+    if args.pack is not None:
+        if not args.pack.exists():
+            print(f"resource pack not found: {args.pack}")
+            return 1
+        SCENES[:] = [(n, f, e + ([f"--pack={args.pack.resolve()}"] if n != CONFORMANCE else [])) for n, f, e in SCENES]
 
     if not args.binary.exists():
         print(f"game binary not found: {args.binary} (build it first, or pass --binary)")

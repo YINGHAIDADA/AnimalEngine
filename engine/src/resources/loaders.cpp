@@ -26,7 +26,11 @@
 #include <SDL3/SDL_filesystem.h>
 #include <SDL3/SDL_iostream.h>
 
+#include <json.hpp>
+
 #include <algorithm>
+#include <array>
+#include <map>
 #include <cstring>
 #include <filesystem>
 
@@ -53,6 +57,62 @@ struct TrackedTexture {
 
 std::vector<TrackedShader> gShaders;
 std::vector<TrackedTexture> gTextures;
+
+constexpr char kCookedImageMagic[4] = {'A', 'T', 'E', 'X'};
+constexpr uint32_t kCookedImageVersion = 1;
+
+// A cooked atlas: shared textures for every material it lists, released with the last of them.
+struct Atlas {
+    rhi::Device* device = nullptr;
+    std::string directory;
+    bool present = false; // the folder has an atlas.json
+    std::map<std::string, std::array<uint32_t, 4>> regions; // material name -> x, y, width, height
+    std::string pages[3]; // albedo, normal, emissive (paths)
+    rhi::TextureHandle textures[3];
+    uint32_t users = 0;
+};
+std::vector<Atlas> gAtlases;
+
+std::string parentDirectory(const std::string& path) {
+    const size_t slash = path.find_last_of("/\\");
+    return slash == std::string::npos ? std::string() : path.substr(0, slash + 1);
+}
+
+Atlas& atlasIn(rhi::Device& device, const std::string& directory) {
+    for (Atlas& a : gAtlases) {
+        if (a.device == &device && a.directory == directory) {
+            return a;
+        }
+    }
+    Atlas& atlas = gAtlases.emplace_back();
+    atlas.device = &device;
+    atlas.directory = directory;
+    const std::string indexPath = directory + "atlas.json";
+    if (!fileExists(indexPath)) {
+        return atlas;
+    }
+    const auto bytes = readFile(indexPath);
+    try {
+        const auto json = nlohmann::json::parse(reinterpret_cast<const char*>(bytes->data()),
+                                                reinterpret_cast<const char*>(bytes->data()) + bytes->size());
+        if (json.at("format") != "animal-atlas" || json.at("version") != 1) {
+            log::error("{}: not an atlas index (format / version)", indexPath);
+            return atlas;
+        }
+        const auto& pages = json.at("pages");
+        atlas.pages[0] = directory + pages.at("albedo").get<std::string>();
+        atlas.pages[1] = directory + pages.at("normal").get<std::string>();
+        atlas.pages[2] = directory + pages.at("emissive").get<std::string>();
+        for (const auto& [name, rect] : json.at("materials").items()) {
+            atlas.regions[name] = {rect.at(0).get<uint32_t>(), rect.at(1).get<uint32_t>(), rect.at(2).get<uint32_t>(),
+                                   rect.at(3).get<uint32_t>()};
+        }
+        atlas.present = true;
+    } catch (const nlohmann::json::exception& e) {
+        log::error("{}: invalid atlas index ({})", indexPath, e.what());
+    }
+    return atlas;
+}
 
 std::string normalized(const std::string& path) {
     const std::filesystem::path p(std::u8string(path.begin(), path.end()));
@@ -85,6 +145,23 @@ std::optional<Image> loadImage(const std::string& path, std::string* error) {
         }
         return std::nullopt;
     }
+    if (bytes->size() >= 16 && std::memcmp(bytes->data(), kCookedImageMagic, 4) == 0) {
+        uint32_t header[3] = {};
+        std::memcpy(header, bytes->data() + 4, sizeof(header));
+        const uint64_t expected = 16 + uint64_t{header[1]} * header[2] * 4;
+        if (header[0] != kCookedImageVersion || bytes->size() != expected) {
+            if (error) {
+                *error = "cooked image of another version or size";
+            }
+            return std::nullopt;
+        }
+        Image image;
+        image.width = header[1];
+        image.height = header[2];
+        image.pixels.resize(bytes->size() - 16);
+        std::memcpy(image.pixels.data(), bytes->data() + 16, image.pixels.size());
+        return image;
+    }
 
     int width = 0;
     int height = 0;
@@ -104,6 +181,15 @@ std::optional<Image> loadImage(const std::string& path, std::string* error) {
     image.pixels.assign(decoded, decoded + size_t{image.width} * image.height * 4);
     stbi_image_free(decoded);
     return image;
+}
+
+std::vector<std::byte> encodeCookedImage(const Image& image) {
+    std::vector<std::byte> out(16 + image.pixels.size());
+    const uint32_t header[3] = {kCookedImageVersion, image.width, image.height};
+    std::memcpy(out.data(), kCookedImageMagic, 4);
+    std::memcpy(out.data() + 4, header, sizeof(header));
+    std::memcpy(out.data() + 16, image.pixels.data(), image.pixels.size());
+    return out;
 }
 
 void premultiplyAlpha(Image& image) {
@@ -154,6 +240,32 @@ std::optional<LoadedTexture> loadTexture(rhi::Device& device, const std::string&
 }
 
 std::optional<SpriteMaterial> loadMaterial(rhi::Device& device, const std::string& basePath) {
+    Atlas& atlas = atlasIn(device, parentDirectory(basePath));
+    const std::string name = basePath.substr(parentDirectory(basePath).size());
+    if (const auto region = atlas.regions.find(name); atlas.present && region != atlas.regions.end()) {
+        if (atlas.users == 0) {
+            const AlphaMode modes[3] = {AlphaMode::Premultiply, AlphaMode::Keep, AlphaMode::Keep};
+            for (int i = 0; i < 3; ++i) {
+                const auto page = loadTexture(device, atlas.pages[i], modes[i]);
+                if (!page) {
+                    for (int j = 0; j < i; ++j) {
+                        forgetLoaded(atlas.textures[j]);
+                        device.destroy(atlas.textures[j]);
+                    }
+                    return std::nullopt;
+                }
+                atlas.textures[i] = page->handle;
+            }
+        }
+        ++atlas.users;
+        const auto& [x, y, w, h] = region->second;
+        SpriteMaterial material;
+        material.albedo = {atlas.textures[0], w, h, x, y, true};
+        material.normal = atlas.textures[1];
+        material.emissive = atlas.textures[2];
+        return material;
+    }
+
     const auto albedo = loadTexture(device, basePath + ".png");
     if (!albedo) {
         return std::nullopt;
@@ -193,6 +305,20 @@ std::optional<SpriteMaterial> loadMaterial(rhi::Device& device, const std::strin
 }
 
 void destroyMaterial(rhi::Device& device, SpriteMaterial& material) {
+    if (material.albedo.atlasRegion) {
+        for (Atlas& atlas : gAtlases) {
+            if (atlas.device == &device && atlas.users > 0 && atlas.textures[0] == material.albedo.handle &&
+                --atlas.users == 0) {
+                for (rhi::TextureHandle& t : atlas.textures) {
+                    forgetLoaded(t);
+                    device.destroy(t);
+                    t = {};
+                }
+            }
+        }
+        material = {};
+        return;
+    }
     forgetLoaded(material.albedo.handle);
     forgetLoaded(material.normal);
     forgetLoaded(material.emissive);

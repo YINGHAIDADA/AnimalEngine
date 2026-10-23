@@ -4,6 +4,7 @@
 #include "sandbox_game.h"
 
 #include <animal/app/application.h>
+#include <animal/core/file.h>
 #include <animal/core/log.h>
 #include <animal/platform/input.h>
 #include <animal/platform/platform.h>
@@ -130,6 +131,13 @@ bool DevTools::handleArgument(std::string_view argument) {
 bool DevTools::init(animal::EngineContext& context, SandboxGame& game) {
     State& s = *state_;
     s.game = &game;
+    if (animal::packMountedAt(context.dataDirectory)) {
+        // Packed data is read-only and has no tool shaders: nothing to edit or reload.
+        animal::log::info("Developer tools are off: the data comes from a resource pack");
+        s.enabled = false;
+        s.visible = false;
+        return true;
+    }
     s.sources.init(context.dataDirectory);
     const std::string userDir = animal::platform::userDataDirectory("AnimalEngine", "Sandbox");
     if (!s.imgui.init(*context.device, *context.window, context.dataDirectory + "shaders/",
@@ -147,6 +155,9 @@ bool DevTools::init(animal::EngineContext& context, SandboxGame& game) {
 
 void DevTools::frame(animal::EngineContext& context) {
     State& s = *state_;
+    if (!s.enabled) {
+        return;
+    }
     s.performance.sample(context);
     DevPanels::hotReload(s, context);
     animal::platform::Input& input = *context.input;
@@ -190,7 +201,9 @@ void DevTools::frame(animal::EngineContext& context) {
 }
 
 void DevTools::render(animal::EngineContext&, animal::rhi::CommandList& commands) {
-    state_->imgui.render(commands);
+    if (state_->enabled) {
+        state_->imgui.render(commands);
+    }
 }
 
 void DevTools::shutdown(animal::EngineContext&) {

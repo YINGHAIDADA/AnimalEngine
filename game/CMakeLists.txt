@@ -61,3 +61,33 @@ animal_add_data_files(animal_game_world
     FILES ${ANIMAL_GAME_WORLD_FILES})
 
 add_dependencies(animal_game animal_shaders animal_game_textures animal_game_world)
+
+# Release layout (ADR-0031): cmake --build <dir> --target animal_package
+#   build/<preset>/package/<Config>/AnimalGame + data.pak (+ cook report)
+set(ANIMAL_PACKAGE_DIR "${PROJECT_BINARY_DIR}/package/$<CONFIG>")
+set(ANIMAL_COOK_INPUTS "${PROJECT_SOURCE_DIR}/assets/cook.json")
+foreach(rel IN LISTS ANIMAL_GAME_WORLD_FILES)
+    list(APPEND ANIMAL_COOK_INPUTS "${PROJECT_SOURCE_DIR}/assets/source/world/${rel}")
+endforeach()
+foreach(rel IN LISTS ANIMAL_GAME_TEXTURE_FILES)
+    list(APPEND ANIMAL_COOK_INPUTS "${PROJECT_SOURCE_DIR}/assets/source/textures/${rel}")
+endforeach()
+add_custom_command(
+    OUTPUT "${ANIMAL_PACKAGE_DIR}/data.pak"
+    COMMAND animal_asset_cooker
+        "--manifest=${PROJECT_SOURCE_DIR}/assets/cook.json"
+        "--source=${PROJECT_SOURCE_DIR}/assets/source"
+        "--shaders=${ANIMAL_DATA_DIR}/shaders"
+        "--out=${ANIMAL_PACKAGE_DIR}/data.pak"
+        "--report=${ANIMAL_PACKAGE_DIR}/cook_report.json"
+    COMMAND animal_asset_cooker "--verify=${ANIMAL_PACKAGE_DIR}/data.pak" "--manifest=${PROJECT_SOURCE_DIR}/assets/cook.json"
+    DEPENDS animal_asset_cooker animal_shaders ${ANIMAL_COOK_INPUTS}
+    COMMENT "Cooking data.pak"
+    VERBATIM)
+add_custom_target(animal_package
+    DEPENDS "${ANIMAL_PACKAGE_DIR}/data.pak"
+    COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:animal_game>" "${ANIMAL_PACKAGE_DIR}/"
+    COMMENT "Release layout in ${ANIMAL_PACKAGE_DIR}"
+    VERBATIM)
+add_dependencies(animal_package animal_game)
+set_target_properties(animal_package PROPERTIES FOLDER game)

@@ -40,6 +40,7 @@ if(ANIMAL_DEV_TOOLS)
 endif()
 add_subdirectory(game)
 add_subdirectory(tools/rhi_conformance)
+add_subdirectory(tools/asset_cooker)
 
 if(ANIMAL_BUILD_TESTS)
     enable_testing()

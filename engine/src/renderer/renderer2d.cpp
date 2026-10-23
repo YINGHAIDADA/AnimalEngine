@@ -239,7 +239,9 @@ void Renderer2D::drawSprite(const SpriteMaterial& material, Vec2 position, const
     const Vec2 p = roundToPixel(position);
     const auto tw = static_cast<float>(size.width);
     const auto th = static_cast<float>(size.height);
-    RectF uv{source.x / tw, source.y / th, source.width / tw, source.height / th};
+    const auto ox = static_cast<float>(texture.x); // atlas region
+    const auto oy = static_cast<float>(texture.y);
+    RectF uv{(ox + source.x) / tw, (oy + source.y) / th, source.width / tw, source.height / th};
     if (flipX) {
         uv.x += uv.width;
         uv.width = -uv.width;

@@ -72,7 +72,7 @@ target_include_directories(animal_engine
     PRIVATE src)
 target_link_libraries(animal_engine
     PUBLIC SDL3::SDL3-static
-    PRIVATE animal_stb animal_gl_headers animal_zstd)
+    PRIVATE animal_stb animal_gl_headers animal_zstd animal_json)
 
 if(ANIMAL_ENABLE_VULKAN)
     set(ANIMAL_VULKAN_SOURCES

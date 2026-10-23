@@ -85,6 +85,7 @@ struct DevTools::State {
     animal::devtools::Console console;
     animal::devtools::PerformancePanel performance;
     animal::devtools::SourceAssets sources;
+    bool enabled = true; // off when the data comes from a resource pack
     bool visible = false;
 
     struct Windows {
