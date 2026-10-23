@@ -141,6 +141,7 @@ bool SandboxGame::enterRoom(const animal::WorldRoom& worldRoom, animal::Renderer
     }
     const bool firstRoom = currentRoom_ == nullptr;
     currentRoom_ = &worldRoom;
+    save_.visited.insert(roomName(worldRoom.path));
     checkpointPending_ = true;
     submersion_ = 0.0f;
     climb_.climbing = false; // vine indices belong to the previous room
@@ -655,14 +656,33 @@ void SandboxGame::respawn(animal::Renderer2D& renderer) {
 // Resumes at the saved checkpoint with the saved gems collected; a save naming a room that is
 // no longer in the world keeps its gems but starts at the spawn point.
 void SandboxGame::loadProgress() {
-    if (!animal::fileExists(savePath_)) {
+    animal::SaveLoad load = animal::loadSave(savePath_);
+    switch (load.status) {
+    case animal::SaveLoad::Status::Missing:
         return;
+    case animal::SaveLoad::Status::TooNew:
+        animal::log::error("{}", load.message);
+        savePath_.clear(); // never overwrite progress from a newer version
+        showMessage("SAVE FROM A NEWER VERSION - NOT SAVING");
+        return;
+    case animal::SaveLoad::Status::Unusable:
+        animal::log::error("{}", load.message);
+        showMessage("SAVE DAMAGED - NEW GAME");
+        return;
+    case animal::SaveLoad::Status::Recovered:
+        animal::log::warn("{}", load.message);
+        showMessage("SAVE RESTORED FROM BACKUP");
+        break;
+    case animal::SaveLoad::Status::Loaded:
+        if (!load.message.empty()) {
+            animal::log::info("{}", load.message);
+        }
+        break;
     }
-    std::optional<animal::SaveData> loaded = animal::readSave(savePath_);
-    if (!loaded) {
-        return; // readSave logged why; the next save overwrites the file
-    }
+    const animal::SaveData* loaded = &*load.data;
     save_.flags = loaded->flags;
+    save_.visited = loaded->visited;
+    save_.playSeconds = loaded->playSeconds;
     for (const animal::WorldRoom& worldRoom : world_.rooms) {
         if (roomName(worldRoom.path) == loaded->room) {
             checkpointRoom_ = &worldRoom;
@@ -684,10 +704,16 @@ void SandboxGame::saveProgress() {
 
 // F8: forget all progress and start over from the spawn point.
 void SandboxGame::resetProgress(animal::Renderer2D& renderer) {
-    if (!savePath_.empty() && animal::fileExists(savePath_)) {
-        animal::deleteFile(savePath_);
+    if (!savePath_.empty()) {
+        for (const std::string& file : {savePath_, savePath_ + ".bak"}) { // a backup would bring it back
+            if (animal::fileExists(file)) {
+                animal::deleteFile(file);
+            }
+        }
     }
     save_.flags.clear();
+    save_.visited.clear();
+    save_.playSeconds = 0.0;
     save_.room = roomName(startRoom_->path);
     save_.position = startFeet_;
     checkpointRoom_ = startRoom_;
@@ -765,6 +791,7 @@ void SandboxGame::handleRoomExit(animal::Renderer2D& renderer) {
 
 void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
     time_ += dt;
+    save_.playSeconds += dt;
     fluidTime_ += static_cast<float>(dt);
     gpuParticleTime_ += static_cast<float>(dt);
     const float step = static_cast<float>(dt);
@@ -973,6 +1000,7 @@ void SandboxGame::onShutdown(animal::EngineContext& context) {
     if (!expectations_.empty() && !checkExpectations()) {
         context.exitCode = 3;
     }
+    saveProgress(); // play time and visited rooms; the position stays the last checkpoint
     dev_.shutdown(context);
     animal::destroyMaterial(*context.device, assets_.tileset);
     animal::destroyMaterial(*context.device, assets_.props);

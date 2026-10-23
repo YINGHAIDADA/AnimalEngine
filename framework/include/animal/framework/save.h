@@ -9,21 +9,38 @@
 
 namespace animal {
 
-// Persistent progress. Stored as versioned JSON; written atomically (temp file + rename).
+// Persistent progress (ADR-0011, ADR-0032). Stored as versioned JSON; written atomically (temp file +
+// rename) after keeping the previous good save as "<path>.bak".
 struct SaveData {
-    static constexpr int kVersion = 1;
+    static constexpr int kVersion = 2;
 
-    std::string room;           // room name (file stem) to continue in
-    Vec2 position;              // player feet where the room was last entered
+    std::string room;            // room name (file stem) to continue in
+    Vec2 position;               // player feet where the room was last entered
     std::set<std::string> flags; // collected items, opened doors, ... ("room:objectId")
+    std::set<std::string> visited; // rooms entered at least once (the map); version 2
+    double playSeconds = 0.0;      // version 2
 };
 
 std::string serializeSave(const SaveData& save);
-// Rejects other formats, other versions and malformed data (with a reason in `error`).
-std::optional<SaveData> parseSave(std::string_view text, std::string* error = nullptr);
+// Accepts the current version and migrates older ones; rejects other formats, newer versions and
+// malformed data (with a reason in `error`). `version` receives the file's version when readable.
+std::optional<SaveData> parseSave(std::string_view text, std::string* error = nullptr, int* version = nullptr);
 
+// Keeps the existing save as "<path>.bak" when it is valid, then writes atomically.
 bool writeSave(const std::string& path, const SaveData& save);
-// nullopt if there is no save or it cannot be used (logged); the game then starts fresh.
-std::optional<SaveData> readSave(const std::string& path);
+
+struct SaveLoad {
+    enum class Status {
+        Missing,   // no save: a new game
+        Loaded,
+        Recovered, // the save was damaged; its backup was used (the damaged file is kept as .corrupt)
+        TooNew,    // written by a newer version: do not overwrite it
+        Unusable,  // save and backup both damaged (kept as .corrupt): a new game
+    };
+    Status status = Status::Missing;
+    std::optional<SaveData> data;
+    std::string message; // what happened, for the log / the player
+};
+SaveLoad loadSave(const std::string& path);
 
 } // namespace animal

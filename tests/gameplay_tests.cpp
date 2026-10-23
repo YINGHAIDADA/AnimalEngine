@@ -1,5 +1,7 @@
 // Triggers, patrol movement, save data and light animation.
 
+#include <animal/core/file.h>
+#include <animal/framework/level.h>
 #include <animal/framework/light_animation.h>
 #include <animal/framework/patrol.h>
 #include <animal/framework/save.h>
@@ -10,6 +12,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
+#include <set>
 #include <string>
 
 namespace {
@@ -115,6 +119,61 @@ TEST(save_rejects_foreign_old_and_malformed_data) {
     CHECK(!parseSave(R"({"format": "animal-save", "version": 1, "position": [0, 0], "flags": []})", &error));
     CHECK(error.find("malformed") != std::string::npos);
     CHECK(!parseSave("{ truncated", &error));
+}
+
+TEST(save_migrates_version_1_and_keeps_new_fields) {
+    int version = 0;
+    const auto old = parseSave(R"({"format": "animal-save", "version": 1, "room": "smoke_pit", "position": [3, 4],
+        "flags": ["smoke_pit:10"]})", nullptr, &version);
+    CHECK(old && version == 1 && old->visited == std::set<std::string>{"smoke_pit"} && old->playSeconds == 0.0);
+    SaveData save;
+    save.room = "a";
+    save.visited = {"a", "b"};
+    save.playSeconds = 12.5;
+    const auto parsed = parseSave(serializeSave(save));
+    CHECK(parsed && parsed->visited == save.visited && parsed->playSeconds == 12.5);
+}
+
+TEST(save_keeps_a_backup_and_recovers_from_damage) {
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() / "animal_save_test";
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir);
+    const std::string path = (dir / "save.json").generic_string();
+    CHECK(loadSave(path).status == SaveLoad::Status::Missing);
+
+    SaveData first;
+    first.room = "cave_entrance";
+    first.flags = {"cave_entrance:15"};
+    CHECK(writeSave(path, first));
+    CHECK(!fileExists(path + ".bak")); // nothing to keep yet
+    SaveData second = first;
+    second.flags.insert("crystal_gallery:7");
+    CHECK(writeSave(path, second));
+    CHECK(fileExists(path + ".bak"));
+    CHECK(loadSave(path).status == SaveLoad::Status::Loaded && loadSave(path).data->flags.size() == 2);
+
+    // A damaged save: the backup (the previous good save) is used, the damaged file kept.
+    CHECK(writeFileAtomic(path, "{ damaged", 9));
+    const SaveLoad recovered = loadSave(path);
+    CHECK(recovered.status == SaveLoad::Status::Recovered && recovered.data->flags.size() == 1);
+    CHECK(fileExists(path + ".corrupt") && !fileExists(path));
+    // Writing again must not replace the good backup with anything damaged.
+    CHECK(writeSave(path, second));
+    CHECK(loadSave(path).data->flags.size() == 2);
+
+    // Both damaged: a new game, nothing crashes.
+    CHECK(writeFileAtomic(path, "x", 1));
+    CHECK(writeFileAtomic(path + ".bak", "y", 1));
+    CHECK(loadSave(path).status == SaveLoad::Status::Unusable);
+
+    // From a newer game: reported and left alone.
+    const std::string newer = R"({"format": "animal-save", "version": 99, "room": "a", "position": [0, 0], "flags": []})";
+    CHECK(writeFileAtomic(path, newer.data(), newer.size()));
+    CHECK(loadSave(path).status == SaveLoad::Status::TooNew);
+    CHECK(readText(path) == newer);
+    fs::remove_all(dir, ec);
 }
 
 TEST(light_animation_stays_within_its_amount) {
