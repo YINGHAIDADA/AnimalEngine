@@ -1,8 +1,10 @@
 # Animal Engine
 
+[![CI](https://github.com/YINGHAIDADA/AnimalEngine/actions/workflows/ci.yml/badge.svg)](https://github.com/YINGHAIDADA/AnimalEngine/actions/workflows/ci.yml)
+
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
-当前阶段：**M2.5 Vulkan 后端完善已完成**（macOS；Windows 原生驱动验证待做）——渲染回归与基准截图、后端无关的 RHI 校验层、Vulkan 后端拆分、VMA 显存子分配、按用途推导的屏障、管线缓存、RHI 功能一致性测试（M3 模拟效果生产化、M2 光照生产化已在 macOS 上完成）（M1b 游戏结构与 V1 视觉样板已完成）（M0、M1a 已在 macOS 上完成；Windows 验证待做）。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
+当前阶段：**M0–M4 已完成**（macOS 与 Windows 均已验证）——M4 内容工具与热迭代：开发工具面板、参数表、着色器 / 纹理 / 数据热重载、内嵌关卡与世界编辑器、Aseprite 动画导入。下一步是 M5 资源烘焙与发行优化。美术资源规范见 [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md)。
 
 ## 环境要求
 
@@ -144,6 +146,8 @@ cmake --build --preset windows-ninja-debug
 ```bash
 ctest --preset macos-ninja-debug        # 或 windows-vs2022-debug / windows-ninja-debug / macos-xcode-debug
 ```
+
+持续集成（[`.github/workflows/ci.yml`](.github/workflows/ci.yml)）：每次推送到 `main` 和每个 PR，在 GitHub 的 macOS 与 Windows 机器上构建 Debug、Release 与关闭开发工具的 Release（`ANIMAL_DEV_TOOLS=OFF`），编译警告视为错误，并运行单元测试。托管机器没有 GPU，渲染回归仍在开发机上运行（见下）。
 
 渲染回归（在两个后端上跑 6 个固定游戏场景（读回 320×180 最终画布）和 RHI 功能一致性图（`AnimalRhiConformance`，逐项覆盖 RHI 功能，见 ADR-0025）：两后端必须逐像素相同，并与 `tests/golden/` 中的基准截图逐像素相同；Vulkan 验证层必须零报错）：
 

@@ -1,0 +1,67 @@
+# Build and unit tests on macOS and Windows for every push to main and every pull request.
+# Warnings are errors here (ANIMAL_WARNINGS_AS_ERRORS). Rendering is not checked: hosted runners
+# have no GPU; the render regression (tools/scripts/render_regression.py) runs on developer machines.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS Debug, os: macos-15, preset: macos-ninja-debug, tests: true, extra: "" }
+          - { name: macOS Release, os: macos-15, preset: macos-ninja-release, tests: true, extra: "" }
+          - { name: macOS Release without dev tools, os: macos-15, preset: macos-ninja-release, tests: false, extra: "-DANIMAL_DEV_TOOLS=OFF" }
+          - { name: Windows Debug, os: windows-2022, preset: windows-ninja-debug, tests: true, extra: "" }
+          - { name: Windows Release, os: windows-2022, preset: windows-ninja-release, tests: true, extra: "" }
+          - { name: Windows Release without dev tools, os: windows-2022, preset: windows-ninja-release, tests: false, extra: "-DANIMAL_DEV_TOOLS=OFF" }
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Ninja (macOS)
+        if: runner.os == 'macOS'
+        run: brew list ninja >/dev/null 2>&1 || brew install ninja
+
+      - name: MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          variant: sccache
+          key: ${{ matrix.os }}-${{ matrix.preset }}-${{ matrix.extra }}
+
+      - name: Configure
+        run: >
+          cmake --preset ${{ matrix.preset }} -B build/ci
+          -DANIMAL_WARNINGS_AS_ERRORS=ON
+          -DCMAKE_C_COMPILER_LAUNCHER=sccache
+          -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+          -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
+          ${{ matrix.extra }}
+
+      - name: Build
+        run: cmake --build build/ci
+
+      - name: Unit tests
+        if: matrix.tests
+        run: ctest --test-dir build/ci --output-on-failure
