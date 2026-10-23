@@ -139,6 +139,11 @@ std::optional<Key> keyFromName(std::string_view name) {
     return static_cast<Key>(it - std::begin(kKeyNames));
 }
 
+std::string_view keyName(Key key) {
+    const auto index = static_cast<size_t>(key);
+    return index < std::size(kKeyNames) ? std::string_view(kKeyNames[index]) : std::string_view();
+}
+
 void Input::update(const FrameEvents& events) {
     wheel_ = 0.0f;
     for (const InputEvent& event : events.input) {

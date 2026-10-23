@@ -19,6 +19,18 @@ namespace animal {
 //   <frame> click <x> <y> [left|right|middle]
 //   <frame> text <characters...>
 // Keys are the platform::Key names; "Shortcut" is Command on macOS and Ctrl elsewhere.
+// --record-input=path: the keys pressed and released while playing, written as an input script
+// on exit (replays identically with --deterministic, which also records in step with the frames).
+class InputRecorder {
+public:
+    void record(uint64_t frame, const std::vector<platform::InputEvent>& events);
+    bool save(const std::string& path) const; // logs errors
+
+private:
+    std::string text_ = "# recorded with --record-input\n";
+    std::vector<bool> held_ = std::vector<bool>(static_cast<size_t>(platform::Key::Count), false);
+};
+
 class InputScript {
 public:
     static std::optional<InputScript> load(const std::string& path); // logs errors

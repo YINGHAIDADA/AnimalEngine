@@ -163,6 +163,7 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
             look.opacity = object.properties.getFloat("opacity", look.opacity);
             look.reflection = object.properties.getFloat("reflection", look.reflection);
             look.refraction = object.properties.getInt("refraction", look.refraction);
+            look.opacityPerPixel = object.properties.getFloat("deepening", look.opacityPerPixel);
             pools_.push_back({animal::WaterBody(area), look,
                               effectPreset(effects, room, object.properties.getString("effect", kSplashEffect)),
                               {object.properties.getFloat("currentX"), object.properties.getFloat("currentY")}});

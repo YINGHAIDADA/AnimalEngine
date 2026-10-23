@@ -4,6 +4,7 @@
 #include <animal/core/log.h>
 
 #include <algorithm>
+#include <format>
 #include <sstream>
 
 namespace animal {
@@ -158,6 +159,29 @@ void InputScript::emit(uint64_t frame, const ToPoints& toPoints, std::vector<Inp
         }
         out.push_back(std::move(e));
     }
+}
+
+void InputRecorder::record(uint64_t frame, const std::vector<platform::InputEvent>& events) {
+    for (const platform::InputEvent& e : events) {
+        if (e.type != platform::InputEvent::Type::Key || e.synthetic || e.key == Key::Count) {
+            continue;
+        }
+        const auto index = static_cast<size_t>(e.key);
+        if (held_[index] == e.down) {
+            continue; // key repeat
+        }
+        held_[index] = e.down;
+        text_ += std::format("{} {} {}\n", frame, e.down ? "down" : "up", platform::keyName(e.key));
+    }
+}
+
+bool InputRecorder::save(const std::string& path) const {
+    if (!writeFileAtomic(path, text_.data(), text_.size())) {
+        log::error("--record-input: cannot write {}", path);
+        return false;
+    }
+    log::info("Recorded input written to {}", path);
+    return true;
 }
 
 } // namespace animal

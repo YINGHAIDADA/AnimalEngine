@@ -5,11 +5,6 @@
 
 namespace animal {
 
-namespace {
-
-constexpr float kOpacityPerDepthPixel = 0.015f;
-
-} // namespace
 
 bool WaterPass::init(rhi::Device& device, const std::string& shaderDirectory, const Targets& targets) {
     device_ = &device;
@@ -98,7 +93,7 @@ void WaterPass::render(rhi::CommandList& commands, const Frame& frame) {
         u.color[i][3] = s.opacity;
         u.params[i][0] = s.reflection;
         u.params[i][1] = static_cast<float>(s.refraction);
-        u.params[i][2] = kOpacityPerDepthPixel;
+        u.params[i][2] = s.opacityPerPixel;
     }
     device_->writeBuffer(uniforms_, 0, &u, sizeof(u));
 

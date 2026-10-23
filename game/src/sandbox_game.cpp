@@ -93,6 +93,26 @@ bool SandboxGame::onArgument(std::string_view argument) {
         }
         return true;
     }
+    // Test runs (with --start-room): progress to begin with, and a trace of the player.
+    constexpr std::string_view kFlags = "--flags=";
+    if (argument.starts_with(kFlags)) {
+        std::string_view list = argument.substr(kFlags.size());
+        while (!list.empty()) {
+            const std::string_view item = list.substr(0, list.find(','));
+            testFlags_.emplace(item);
+            list = item.size() < list.size() ? list.substr(item.size() + 1) : std::string_view();
+        }
+        return true;
+    }
+    constexpr std::string_view kGems = "--gems=";
+    if (argument.starts_with(kGems)) {
+        testGems_ = std::strtoul(std::string(argument.substr(kGems.size())).c_str(), nullptr, 10);
+        return true;
+    }
+    if (argument == "--trace" || argument.starts_with("--trace=")) {
+        traceEvery_ = argument.size() > 8 ? std::max(1ul, std::strtoul(std::string(argument.substr(8)).c_str(), nullptr, 10)) : 10;
+        return true;
+    }
     return dev_.handleArgument(argument);
 }
 
@@ -221,7 +241,11 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
             return false;
         }
         checkpointRoom_ = &*it;
-        checkpointFeet_ = {4.0f * kTileSize + 4.0f, 20.0f * kTileSize}; // every test room has floor there
+        checkpointFeet_ = entryFeet(*it);
+    }
+    save_.flags.insert(testFlags_.begin(), testFlags_.end());
+    for (auto gem = gemFlags_.begin(); gem != gemFlags_.end() && collectedGems() < testGems_; ++gem) {
+        save_.flags.insert(*gem);
     }
 
     animal::FluidSettings& fluid = context.renderer->fluid();
@@ -503,17 +527,25 @@ bool SandboxGame::reloadWorld(const std::string& path, animal::Renderer2D& rende
     return rebuildRoom(renderer);
 }
 
+// Where tests and teleports put the player: the room's "entry" point, else its "spawn" point, else
+// above the floor the original rooms have at the left.
+animal::Vec2 SandboxGame::entryFeet(const animal::WorldRoom& worldRoom) {
+    animal::Vec2 feet{4.0f * kTileSize + 4.0f, 20.0f * kTileSize};
+    if (const animal::Room* room = roomData(worldRoom)) {
+        for (const char* type : {"spawn", "entry"}) {
+            for (const animal::LevelObject* point : room->objectsOfType(type)) {
+                feet = point->position;
+            }
+        }
+    }
+    return feet;
+}
+
 bool SandboxGame::teleport(const animal::WorldRoom& worldRoom, animal::Renderer2D& renderer) {
     if (!enterRoom(worldRoom, renderer)) {
         return false;
     }
-    animal::Vec2 feet{4.0f * kTileSize + 4.0f, 20.0f * kTileSize}; // every test room has floor there
-    if (const animal::Room* room = roomData(worldRoom)) {
-        for (const animal::LevelObject* spawn : room->objectsOfType("spawn")) {
-            feet = spawn->position;
-        }
-    }
-    placePlayerFeet(feet);
+    placePlayerFeet(entryFeet(worldRoom));
     playerState_ = {};
     climb_ = {};
     return true;
@@ -928,6 +960,13 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
         influences.push_back(influence);
     }
     cave_.step(static_cast<float>(dt), time_, influences);
+    if (traceEvery_ > 0 && player && ++traceSteps_ % traceEvery_ == 0) {
+        const animal::Vec2 p = player->body.exactPosition();
+        animal::log::info("TRACE {} {} x {:.1f} y {:.1f} v {:.0f},{:.0f}{}{}{} sub {:.2f}", traceSteps_,
+                          roomName(currentRoom_->path), p.x, p.y, playerState_.velocity.x, playerState_.velocity.y,
+                          playerState_.grounded ? " grounded" : "", climb_.climbing ? " climbing" : "",
+                          diving_ ? " diving" : "", submersion_);
+    }
     actions_.endFixedStep();
     entities_.flushDestroyed();
 }
@@ -1052,8 +1091,8 @@ void SandboxGame::onToolsPass(animal::EngineContext& context, animal::rhi::Comma
 }
 
 // Expectations: room (the room the player ends in), gems (at least N collected), visited (at least N
-// rooms entered), finished (the goal was reached), grounded (true / false), respawns (how often the
-// player was sent back to a checkpoint).
+// rooms entered), flag (a save flag is set: switch:NAME, ability:NAME), finished (the goal was
+// reached), grounded (true / false), respawns (how often the player was sent back to a checkpoint).
 bool SandboxGame::checkExpectations() {
     const size_t collected = static_cast<size_t>(
         std::ranges::count_if(save_.flags, [this](const std::string& f) { return gemFlags_.count(f) != 0; }));
@@ -1070,6 +1109,9 @@ bool SandboxGame::checkExpectations() {
         } else if (name == "grounded") {
             actual = playerState_.grounded ? "true" : "false";
             met = actual == expected;
+        } else if (name == "flag") {
+            met = save_.flags.contains(expected);
+            actual = met ? expected : "(not set)";
         } else if (name == "finished") {
             actual = save_.flags.contains(kFinishedFlag) ? "true" : "false";
             met = actual == expected;
@@ -1080,7 +1122,7 @@ bool SandboxGame::checkExpectations() {
             actual = std::to_string(respawns_);
             met = actual == expected;
         } else {
-            animal::log::error("Expectation '{}' is unknown (room, gems, visited, finished, grounded, respawns)", name);
+            animal::log::error("Expectation '{}' is unknown (room, gems, visited, flag, finished, grounded, respawns)", name);
             ok = false;
             continue;
         }

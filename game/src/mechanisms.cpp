@@ -109,6 +109,8 @@ bool Mechanisms::add(const animal::LevelObject& object, const std::string& roomP
         pickups_.push_back(pickup);
     } else if (object.type == "goal") {
         goals_.push_back(rectOf(object));
+    } else if (object.type == "entry") {
+        // where --start-room and teleports put the player (SandboxGame::entryFeet)
     } else {
         return false;
     }

@@ -40,6 +40,7 @@ struct CommandLine {
     std::string screenshotPath;
     std::string canvasScreenshotPath; // the 320×180 final canvas, independent of window size and DPI
     std::string inputScriptPath;
+    std::string recordInputPath; // --record-input: write the keys pressed as an input script
     std::string packPath; // --pack: the resource pack to read the data from
     bool strict = false;  // --strict: RHI validation errors fail the run (exit code 4)
     bool mute = false;     // --mute: no audio device
@@ -86,6 +87,8 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv,
             cl.strict = true;
         } else if (arg.starts_with("--pack=")) {
             cl.packPath = std::string(arg.substr(7));
+        } else if (arg.starts_with("--record-input=")) {
+            cl.recordInputPath = std::string(arg.substr(15));
         } else if (arg.starts_with("--input-script=")) {
             cl.inputScriptPath = std::string(arg.substr(15));
         } else if (arg.starts_with("-psn_")) {
@@ -93,7 +96,7 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv,
         } else if (!other(arg)) {
             log::error("Unknown argument '{}'. Options: --backend=opengl|vulkan|null --headless --no-vsync --hide-overlay "
                        "--resize-test --deterministic --demo --profile --frames=N --screenshot=path.png "
-                       "--canvas-screenshot=path.png --input-script=path.txt --pack=data.pak --strict --mute --crash-test=segv|abort|exception --crash-dir=path",
+                       "--canvas-screenshot=path.png --input-script=path.txt --record-input=path.txt --pack=data.pak --strict --mute --crash-test=segv|abort|exception --crash-dir=path",
                        arg);
             return std::nullopt;
         }
@@ -367,6 +370,10 @@ int Application::run(int argc, char** argv) {
         log::info("Backend: {} | data: {}", rhi::backendName(config.backend), context.dataDirectory);
 
         std::optional<InputScript> inputScript;
+        std::optional<InputRecorder> recorder;
+        if (!commandLine->recordInputPath.empty()) {
+            recorder.emplace();
+        }
         if (packFailed ||
             (!commandLine->inputScriptPath.empty() && !(inputScript = InputScript::load(commandLine->inputScriptPath)))) {
             exitCode = 1;
@@ -398,6 +405,9 @@ int Application::run(int argc, char** argv) {
                 platform::FrameEvents events = platform::pollEvents();
                 if (events.quitRequested) {
                     break;
+                }
+                if (recorder) {
+                    recorder->record(framesRendered, events.input);
                 }
                 if (inputScript) {
                     // Canvas pixel centres in window points, from the last frame's layout.
@@ -527,6 +537,9 @@ int Application::run(int argc, char** argv) {
             context.events = nullptr;
             if (commandLine->profile) {
                 profile.report();
+            }
+            if (recorder) {
+                recorder->save(commandLine->recordInputPath);
             }
             onShutdown(context);
             exitCode = std::max(exitCode, context.exitCode);

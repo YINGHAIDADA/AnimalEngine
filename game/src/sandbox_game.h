@@ -101,6 +101,7 @@ private:
     bool rebuildRoom(animal::Renderer2D& renderer);
     // Moves the player into a room (spawn point, or the test position every room has floor at).
     bool teleport(const animal::WorldRoom& worldRoom, animal::Renderer2D& renderer);
+    animal::Vec2 entryFeet(const animal::WorldRoom& worldRoom);
     // Hot reload (ADR-0028) of a changed file under data/world: validated first, so a broken file
     // leaves everything as it was (and returns false, with the reason logged).
     bool reloadData(const std::string& path, animal::Renderer2D& renderer);
@@ -162,6 +163,10 @@ private:
     bool usingGamepad_ = false;
     uint32_t stressLights_ = 0; // --stress-lights=N: extra moving shadow-casting lights
     std::string startRoomName_; // --start-room=NAME: begin there (testing; progress is not saved)
+    std::set<std::string> testFlags_; // --flags=a,b: save flags to begin with (testing)
+    size_t testGems_ = 0;             // --gems=N: begin with N gems collected (testing)
+    uint64_t traceEvery_ = 0;         // --trace[=N]: log the player's room, position and state every N steps
+    uint64_t traceSteps_ = 0;
     // --expect=room:NAME,gems:N,...: checked when the run ends (automated playthroughs, ADR-0032).
     std::vector<std::pair<std::string, std::string>> expectations_;
     bool checkExpectations();

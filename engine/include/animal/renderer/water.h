@@ -16,6 +16,7 @@ struct WaterSurface {
     std::span<const float> offsets; // per pixel column, + = down; empty = flat
     Color color = Color::rgba(40, 90, 120); // tint, lit by the scene's lights
     float opacity = 0.45f;          // at the surface; grows with depth
+    float opacityPerPixel = 0.015f; // added per px below the surface (small for flooded rooms)
     float reflection = 0.35f;       // mirrored scene just below the surface, fading with depth
     int refraction = 1;             // px of stepped sideways wobble below the surface
     float time = 0.0f;              // animation time in s (the same for every surface in a frame)

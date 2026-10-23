@@ -76,7 +76,7 @@ const std::vector<ObjectTemplate>& objectTemplates() {
          {},
          {{"color", "color", "\"#ff285a78\""}, {"opacity", "float", "0.45"}, {"reflection", "float", "0.35"},
           {"refraction", "int", "1"}, {"effect", "file", "\"../effects/splash.effect.json\""},
-          {"currentX", "float", "-40.0"}, {"currentY", "float", "0.0"}}},
+          {"currentX", "float", "-40.0"}, {"currentY", "float", "0.0"}, {"deepening", "float", "0.015"}}},
         {"emitter", false, 64, 48, IM_COL32(230, 140, 255, 255), "Particles over an area (or a point)",
          {{"effect", "file", "\"../effects/dust.effect.json\""}},
          {{"effect", "file", "\"../effects/dust.effect.json\""}, {"count", "int", "20"}, {"rate", "float", "4.0"},
@@ -104,6 +104,8 @@ const std::vector<ObjectTemplate>& objectTemplates() {
          {{"name", "string", "\"dive\""}},
          {{"name", "string", "\"dive\""}, {"message", "string", "\"YOU CAN DIVE: HOLD DOWN IN WATER\""}}},
         {"goal", false, 16, 24, IM_COL32(255, 230, 90, 255), "Entering it ends the run", {}, {}},
+        {"entry", true, 0, 0, IM_COL32(200, 200, 200, 255), "Where --start-room and teleports put the player (feet)",
+         {}, {}},
     };
     return templates;
 }

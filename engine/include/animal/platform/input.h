@@ -165,6 +165,7 @@ struct FrameEvents {
 // "A", "Num1", "LeftCtrl", "F5"... (the enumerator names); "Shortcut" is the platform's shortcut
 // modifier (Command on macOS, Ctrl elsewhere).
 std::optional<Key> keyFromName(std::string_view name);
+std::string_view keyName(Key key); // "" for Key::Count
 
 struct MousePosition {
     float x = 0.0f; // window points
