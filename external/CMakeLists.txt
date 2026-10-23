@@ -109,6 +109,13 @@ target_include_directories(animal_zstd SYSTEM PUBLIC "${CMAKE_CURRENT_SOURCE_DIR
 target_compile_definitions(animal_zstd PRIVATE ZSTD_DISABLE_ASM=1 XXH_NAMESPACE=ZSTD_)
 animal_set_folder(external animal_zstd)
 
+# --- stb_vorbis (Ogg Vorbis decoding): its own C library, so it builds without project warnings ----
+add_library(animal_stb_vorbis STATIC stb/stb_vorbis.c)
+target_include_directories(animal_stb_vorbis SYSTEM PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/stb")
+target_compile_definitions(animal_stb_vorbis PUBLIC STB_VORBIS_NO_STDIO STB_VORBIS_NO_PUSHDATA_API)
+target_compile_options(animal_stb_vorbis PRIVATE $<IF:$<C_COMPILER_ID:MSVC>,/w,-w>)
+animal_set_folder(external animal_stb_vorbis)
+
 add_library(animal_json INTERFACE)
 target_include_directories(animal_json SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/nlohmann")
 

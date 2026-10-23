@@ -219,7 +219,8 @@ std::string installCrashHandler(const std::string& directory, const std::string&
     const std::time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     char stamp[32] = {};
     std::strftime(stamp, sizeof(stamp), "%Y%m%d-%H%M%S", std::localtime(&now));
-    const std::string path = std::format("{}crash-{}-{}.txt", dir, stamp, SDL_GetTicksNS() % 100000);
+    const std::string path =
+        std::format("{}crash-{}-{}.txt", dir, std::string_view(stamp), SDL_GetTicksNS() % 100000);
     detail::installCrashHandler(path, logPath);
     std::set_terminate([] {
         std::string reason = "std::terminate";
