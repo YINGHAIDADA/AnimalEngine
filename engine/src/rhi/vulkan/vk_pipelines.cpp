@@ -337,6 +337,7 @@ BindGroupHandle VulkanDevice::createBindGroup(const BindGroupDesc& desc) {
             imageInfos.push_back({sampler->sampler, texture->view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
             write.pImageInfo = &imageInfos.back();
             group.sampledTextures.push_back(entry.texture);
+            group.images.push_back({entry.binding, entry.texture, entry.sampler});
         }
         writes.push_back(write);
         provided |= 1u << entry.binding;

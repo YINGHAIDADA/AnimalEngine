@@ -383,6 +383,12 @@ public:
     // must keep the stage and the resource bindings; on any failure (compilation, linking, changed
     // bindings) nothing changes, the reason is logged and false is returned.
     virtual bool reloadShader(ShaderHandle shader, const ShaderDesc& desc) = 0;
+    // Developer hot reload: gives a live texture a new size and format (same usage). The handle and
+    // the bind groups that sample it stay valid; the contents are undefined until written. Between
+    // frames only (it may wait for the GPU). On failure nothing changes.
+    virtual bool recreateTexture(TextureHandle texture, const TextureDesc& desc) = 0;
+    // Current size of a texture (the swapchain texture included); {} for an invalid handle.
+    virtual Extent2D textureExtent(TextureHandle texture) const = 0;
 
     // Resources may still be referenced by frames in flight; backends defer the release.
     virtual void destroy(BufferHandle handle) = 0;

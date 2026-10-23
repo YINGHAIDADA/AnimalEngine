@@ -368,6 +368,57 @@ TextureHandle VulkanDevice::createTexture(const TextureDesc& desc) {
     return textures_.insert(texture);
 }
 
+bool VulkanDevice::recreateTexture(TextureHandle handle, const TextureDesc& desc) {
+    Texture* texture = handle == virtualSwapchain_ ? nullptr : textures_.get(handle);
+    if (!texture || frameActive_) {
+        log::error("recreateTexture: invalid texture, or called during a frame");
+        return false;
+    }
+    if (desc.width == 0 || desc.height == 0 || desc.width > caps_.maxTextureSize ||
+        desc.height > caps_.maxTextureSize || toVk(desc.format) == VK_FORMAT_UNDEFINED) {
+        log::error("recreateTexture: invalid size {}x{} or format", desc.width, desc.height);
+        return false;
+    }
+    Texture fresh;
+    fresh.width = desc.width;
+    fresh.height = desc.height;
+    fresh.format = desc.format;
+    fresh.usage = desc.usage;
+    if (!createImageResources(fresh)) {
+        return false;
+    }
+    // Descriptor sets that may be in flight cannot be rewritten: wait, then point them at the new view.
+    vkDeviceWaitIdle(device_);
+    bindGroups_.forEach([&](BindGroup& group) {
+        for (const BindGroup::ImageBinding& image : group.images) {
+            const Sampler* sampler = samplers_.get(image.sampler);
+            if (image.texture != handle || !sampler) {
+                continue;
+            }
+            const VkDescriptorImageInfo info{sampler->sampler, fresh.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+            VkWriteDescriptorSet write{};
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write.dstSet = group.set;
+            write.dstBinding = image.binding;
+            write.descriptorCount = 1;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            write.pImageInfo = &info;
+            vkUpdateDescriptorSets(device_, 1, &write, 0, nullptr);
+        }
+    });
+    destroyImageResources(*texture);
+    *texture = fresh;
+    return true;
+}
+
+Extent2D VulkanDevice::textureExtent(TextureHandle handle) const {
+    if (handle == virtualSwapchain_) {
+        return swapchainExtent();
+    }
+    const Texture* texture = textures_.get(handle);
+    return texture ? Extent2D{texture->width, texture->height} : Extent2D{};
+}
+
 SamplerHandle VulkanDevice::createSampler(const SamplerDesc& desc) {
     auto filter = [](Filter f) { return f == Filter::Nearest ? VK_FILTER_NEAREST : VK_FILTER_LINEAR; };
     auto address = [](AddressMode m) {

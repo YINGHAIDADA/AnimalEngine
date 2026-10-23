@@ -1,4 +1,5 @@
 #include <animal/core/file.h>
+#include <animal/core/math.h>
 #include <animal/core/log.h>
 #include <animal/resources/loaders.h>
 
@@ -158,26 +159,34 @@ std::optional<SpriteMaterial> loadMaterial(rhi::Device& device, const std::strin
     SpriteMaterial material;
     material.albedo = *albedo;
 
-    auto loadCompanion = [&](const std::string& suffix) -> rhi::TextureHandle {
+    // A missing (or unusable) companion is a 1×1 texture of its neutral value, tracked under the
+    // companion's path: drawing is the same as without one, and a file added later hot-reloads into it.
+    auto loadCompanion = [&](const std::string& suffix, Color neutral) -> rhi::TextureHandle {
         const std::string path = basePath + suffix + ".png";
-        if (!SDL_GetPathInfo(path.c_str(), nullptr)) {
-            return {};
+        if (SDL_GetPathInfo(path.c_str(), nullptr)) {
+            if (const auto texture = loadTexture(device, path, AlphaMode::Keep)) {
+                if (texture->width == albedo->width && texture->height == albedo->height) {
+                    return texture->handle;
+                }
+                log::error("'{}' is {}x{} but its albedo is {}x{}; ignoring it", path, texture->width,
+                           texture->height, albedo->width, albedo->height);
+                forgetLoaded(texture->handle);
+                device.destroy(texture->handle);
+            }
         }
-        const auto texture = loadTexture(device, path, AlphaMode::Keep);
-        if (!texture) {
-            return {};
+        rhi::TextureDesc desc;
+        desc.width = 1;
+        desc.height = 1;
+        desc.debugName = path.c_str();
+        const rhi::TextureHandle placeholder = device.createTexture(desc);
+        if (placeholder) {
+            device.writeTexture(placeholder, {0, 0, 1, 1}, &neutral, 4);
+            gTextures.push_back({normalized(path), &device, placeholder, AlphaMode::Keep, 1, 1});
         }
-        if (texture->width != albedo->width || texture->height != albedo->height) {
-            log::error("'{}' is {}x{} but its albedo is {}x{}; ignoring it", path, texture->width, texture->height,
-                       albedo->width, albedo->height);
-            forgetLoaded(texture->handle);
-            device.destroy(texture->handle);
-            return {};
-        }
-        return texture->handle;
+        return placeholder;
     };
-    material.normal = loadCompanion("_n");
-    material.emissive = loadCompanion("_e");
+    material.normal = loadCompanion("_n", Color::rgba(128, 128, 255)); // flat, facing the viewer
+    material.emissive = loadCompanion("_e", Color::rgba(0, 0, 0));     // no emission
     return material;
 }
 
@@ -235,7 +244,7 @@ ReloadResult reloadTextureFile(rhi::Device& device, const std::string& path) {
     bool loaded = false;
     bool ok = true;
     std::optional<Image> straight;
-    for (const TrackedTexture& t : gTextures) {
+    for (TrackedTexture& t : gTextures) {
         if (t.device != &device || t.path != key) {
             continue;
         }
@@ -249,10 +258,20 @@ ReloadResult reloadTextureFile(rhi::Device& device, const std::string& path) {
             }
         }
         if (straight->width != t.width || straight->height != t.height) {
-            log::error("'{}' is now {}x{} (was {}x{}); restart to load a texture of another size", path,
-                       straight->width, straight->height, t.width, t.height);
-            ok = false;
-            continue;
+            // Same handle, new size: bind groups stay valid; renderers read the size from the device.
+            rhi::TextureDesc desc;
+            desc.width = straight->width;
+            desc.height = straight->height;
+            desc.debugName = path.c_str();
+            if (!device.recreateTexture(t.handle, desc)) {
+                log::error("'{}' is now {}x{} (was {}x{}) and could not be resized", path, straight->width,
+                           straight->height, t.width, t.height);
+                ok = false;
+                continue;
+            }
+            log::info("'{}' resized from {}x{} to {}x{}", path, t.width, t.height, straight->width, straight->height);
+            t.width = straight->width;
+            t.height = straight->height;
         }
         Image image = *straight;
         if (t.alpha == AlphaMode::Premultiply) {

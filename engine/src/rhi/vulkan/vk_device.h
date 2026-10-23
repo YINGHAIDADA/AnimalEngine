@@ -140,6 +140,12 @@ struct BindGroup {
     VkDescriptorPool pool = VK_NULL_HANDLE; // the pool it was allocated from
     uint32_t setIndex = 0;
     std::vector<TextureHandle> sampledTextures;
+    struct ImageBinding {
+        uint32_t binding;
+        TextureHandle texture;
+        SamplerHandle sampler;
+    };
+    std::vector<ImageBinding> images; // rewritten when a texture is recreated
 };
 
 struct HostBuffer {
@@ -259,6 +265,8 @@ public:
     ShaderHandle createShader(const ShaderDesc& desc) override;
     PipelineHandle createGraphicsPipeline(const GraphicsPipelineDesc& desc) override;
     bool reloadShader(ShaderHandle shader, const ShaderDesc& desc) override;
+    bool recreateTexture(TextureHandle texture, const TextureDesc& desc) override;
+    Extent2D textureExtent(TextureHandle texture) const override;
     BindGroupHandle createBindGroup(const BindGroupDesc& desc) override;
 
     void destroy(BufferHandle handle) override;

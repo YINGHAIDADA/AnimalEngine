@@ -194,12 +194,13 @@ void Renderer2D::beginWorld(const Camera2D& camera, Color clearColor) {
 void Renderer2D::drawSprite(const SpriteMaterial& material, Vec2 position, const RectF& source, Color tint,
                             bool flipX) {
     const LoadedTexture& texture = material.albedo;
-    if (texture.width == 0 || texture.height == 0) {
+    const rhi::Extent2D size = device_->textureExtent(texture.handle); // current size (hot reload may resize)
+    if (size.width == 0 || size.height == 0) {
         return;
     }
     const Vec2 p = roundToPixel(position);
-    const auto tw = static_cast<float>(texture.width);
-    const auto th = static_cast<float>(texture.height);
+    const auto tw = static_cast<float>(size.width);
+    const auto th = static_cast<float>(size.height);
     RectF uv{source.x / tw, source.y / th, source.width / tw, source.height / th};
     if (flipX) {
         uv.x += uv.width;

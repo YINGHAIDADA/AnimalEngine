@@ -233,6 +233,8 @@ public:
     ShaderHandle createShader(const ShaderDesc& desc) override;
     PipelineHandle createGraphicsPipeline(const GraphicsPipelineDesc& desc) override;
     bool reloadShader(ShaderHandle shader, const ShaderDesc& desc) override;
+    bool recreateTexture(TextureHandle texture, const TextureDesc& desc) override;
+    Extent2D textureExtent(TextureHandle texture) const override;
     BindGroupHandle createBindGroup(const BindGroupDesc& desc) override;
 
     void destroy(BufferHandle handle) override;
@@ -279,6 +281,7 @@ private:
     using AttachmentIds = std::array<GLuint, kMaxColorAttachments>;
 
     bool createFramebuffer(GlTexture& texture);
+    bool makeTexture(const TextureDesc& desc, GlTexture& texture);
     // Single attachment: the texture's own framebuffer; several: a cached one per attachment set.
     GLuint framebufferFor(const RenderPassDesc& desc, Extent2D& extent);
     void forgetFramebuffersUsing(GLuint textureId);
@@ -731,20 +734,20 @@ void GlDevice::forgetFramebuffersUsing(GLuint textureId) {
     }
 }
 
-TextureHandle GlDevice::createTexture(const TextureDesc& desc) {
+bool GlDevice::makeTexture(const TextureDesc& desc, GlTexture& texture) {
     const char* name = nameOr(desc.debugName, "unnamed");
     if (desc.width == 0 || desc.height == 0 || desc.width > caps_.maxTextureSize ||
         desc.height > caps_.maxTextureSize) {
         log::error("createTexture '{}': invalid size {}x{}", name, desc.width, desc.height);
-        return {};
+        return false;
     }
     const TextureFormatInfo info = textureFormatInfo(desc.format);
     if (info.internalFormat == 0) {
         log::error("createTexture '{}': unsupported format", name);
-        return {};
+        return false;
     }
 
-    GlTexture texture;
+    texture = {};
     texture.width = desc.width;
     texture.height = desc.height;
     texture.format = desc.format;
@@ -764,10 +767,42 @@ TextureHandle GlDevice::createTexture(const TextureDesc& desc) {
     if (hasFlag(desc.usage, TextureUsage::RenderTarget) && !createFramebuffer(texture)) {
         log::error("createTexture '{}': cannot be used as a render target", name);
         glDeleteTextures(1, &texture.id);
-        return {};
+        return false;
     }
     checkErrors("createTexture");
-    return textures_.insert(texture);
+    return true;
+}
+
+TextureHandle GlDevice::createTexture(const TextureDesc& desc) {
+    GlTexture texture;
+    return makeTexture(desc, texture) ? textures_.insert(texture) : TextureHandle{};
+}
+
+bool GlDevice::recreateTexture(TextureHandle handle, const TextureDesc& desc) {
+    GlTexture* texture = handle == swapchain_ ? nullptr : textures_.get(handle);
+    if (!texture) {
+        log::error("recreateTexture: invalid texture");
+        return false;
+    }
+    GlTexture fresh;
+    if (!makeTexture(desc, fresh)) {
+        return false;
+    }
+    forgetFramebuffersUsing(texture->id);
+    if (texture->framebuffer) {
+        glDeleteFramebuffers(1, &texture->framebuffer);
+    }
+    glDeleteTextures(1, &texture->id);
+    *texture = fresh; // bind groups refer to the handle and resolve it when bound
+    return true;
+}
+
+Extent2D GlDevice::textureExtent(TextureHandle handle) const {
+    if (handle == swapchain_) {
+        return swapchainExtent_;
+    }
+    const GlTexture* texture = textures_.get(handle);
+    return texture ? Extent2D{texture->width, texture->height} : Extent2D{};
 }
 
 SamplerHandle GlDevice::createSampler(const SamplerDesc& desc) {

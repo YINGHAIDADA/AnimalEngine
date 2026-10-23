@@ -9,9 +9,10 @@
 //   row 2: blend Add, Subtract, ReverseSubtract, Min, Max, alpha, multiply, opaque overwrite
 //   row 3: multiple render targets (second target on the right half), LoadOp::Load across passes
 //
-// Afterwards it checks shader hot reload (ADR-0028): reloading the fragment shader of every pipeline
-// with the same code renders the same image, an alternative shader changes it, switching back
-// restores it exactly, and packages with other bindings or another stage are rejected.
+// Afterwards it checks hot reload (ADR-0028): reloading the fragment shader of every pipeline with the
+// same code renders the same image, an alternative shader changes it, switching back restores it
+// exactly, and packages with other bindings or another stage are rejected; a sampled texture
+// recreated at another size changes the image and restoring it gives the original back.
 //
 // usage: AnimalRhiConformance --backend=opengl|vulkan --out=path.png
 
@@ -404,6 +405,34 @@ int run(Backend backend, const std::string& out) {
         return 1;
     }
     log::info("conformance: shader hot reload check passed");
+
+    // --- Texture recreation: a sampled texture gets another size under the same handle; the bind
+    // groups that sample it follow (Vulkan rewrites their descriptors).
+    std::vector<uint8_t> stripes(8 * 8 * 4);
+    for (size_t i = 0; i < stripes.size(); i += 4) {
+        const bool on = (i / 4) % 2 == 0;
+        stripes[i] = on ? 255 : 0;
+        stripes[i + 1] = 60;
+        stripes[i + 2] = on ? 0 : 255;
+        stripes[i + 3] = 255;
+    }
+    ok = d.recreateTexture(checker, {8, 8, Format::RGBA8_UNorm, TextureUsage::Sampled, "checker 8x8"}) &&
+         d.textureExtent(checker) == Extent2D{8, 8};
+    if (ok) {
+        d.writeTexture(checker, {0, 0, 8, 8}, stripes.data(), 32);
+    }
+    const std::vector<uint8_t> resized = render();
+    ok = ok && !resized.empty() && resized != image2x;
+    ok = ok && d.recreateTexture(checker, {4, 4, Format::RGBA8_UNorm, TextureUsage::Sampled, "checker"});
+    if (ok) {
+        d.writeTexture(checker, {0, 0, 4, 4}, checkerData.data(), 16);
+    }
+    ok = ok && render() == image2x;
+    if (!ok) {
+        log::error("conformance: texture recreation check FAILED");
+        return 1;
+    }
+    log::info("conformance: texture recreation check passed");
     return 0;
 }
 

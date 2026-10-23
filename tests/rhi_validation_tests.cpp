@@ -33,6 +33,8 @@ public:
     PipelineHandle createGraphicsPipeline(const GraphicsPipelineDesc&) override { return pipelines_.insert(0); }
     BindGroupHandle createBindGroup(const BindGroupDesc&) override { return groups_.insert(0); }
     bool reloadShader(ShaderHandle h, const ShaderDesc&) override { return shaders_.get(h) != nullptr; }
+    bool recreateTexture(TextureHandle h, const TextureDesc&) override { return textures_.get(h) != nullptr; }
+    Extent2D textureExtent(TextureHandle) const override { return {}; }
     void destroy(BufferHandle h) override { buffers_.take(h); }
     void destroy(TextureHandle h) override { textures_.take(h); }
     void destroy(SamplerHandle h) override { samplers_.take(h); }
@@ -214,7 +216,7 @@ TEST(loaders_reload_tracked_files_and_refuse_bad_ones) {
     CHECK(texture.has_value());
     CHECK(reloadTextureFile(device, png) == ReloadResult::Reloaded);
     CHECK(writePng(png, 8, 4, large.data()));
-    CHECK(reloadTextureFile(device, png) == ReloadResult::Failed); // another size needs a restart
+    CHECK(reloadTextureFile(device, png) == ReloadResult::Reloaded); // recreated at the new size
     CHECK(reloadTextureFile(device, pathOf("other.png")) == ReloadResult::NotLoaded);
     fs::remove(dir / "sprite.png");
     CHECK(reloadTextureFile(device, png) == ReloadResult::Failed);
@@ -233,6 +235,18 @@ TEST(loaders_reload_tracked_files_and_refuse_bad_ones) {
     CHECK(writeFileAtomic(ashd, garbage, sizeof(garbage)));
     CHECK(reloadShaderFile(device, ashd) == ReloadResult::Failed);
     CHECK(device.errorCount() == 0); // failed reloads are content problems, not API misuse
+
+    // A material without companions gets neutral 1×1 stand-ins that a later file reloads into.
+    CHECK(writePng(pathOf("hero.png"), 4, 4, small.data()));
+    std::optional<SpriteMaterial> material = loadMaterial(device, pathOf("hero"));
+    CHECK(material && material->normal.valid() && material->emissive.valid());
+    CHECK(reloadTextureFile(device, pathOf("hero_e.png")) == ReloadResult::Failed); // not there yet
+    CHECK(writePng(pathOf("hero_e.png"), 4, 4, small.data()));
+    CHECK(reloadTextureFile(device, pathOf("hero_e.png")) == ReloadResult::Reloaded);
+    if (material) {
+        destroyMaterial(device, *material);
+    }
+    CHECK(reloadTextureFile(device, pathOf("hero_e.png")) == ReloadResult::NotLoaded);
 
     forgetLoaded(texture->handle);
     forgetLoaded(shader);

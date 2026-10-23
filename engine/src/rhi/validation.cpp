@@ -205,6 +205,26 @@ bool ValidatingDevice::reloadShader(ShaderHandle shader, const ShaderDesc& desc)
     return inner_->reloadShader(shader, desc);
 }
 
+bool ValidatingDevice::recreateTexture(TextureHandle texture, const TextureDesc& desc) {
+    const auto it = textures_.find(texture.key());
+    if (!texture || it == textures_.end()) {
+        report("recreateTexture: invalid texture handle");
+        return false;
+    }
+    const uint32_t limit = inner_->caps().maxTextureSize;
+    if (desc.width == 0 || desc.height == 0 || desc.width > limit || desc.height > limit ||
+        desc.format == Format::Undefined || desc.usage != it->second.usage) {
+        report(std::format("recreateTexture{}: size {}x{} must be 1..{}, with a format and the same usage",
+                           label(desc.debugName), desc.width, desc.height, limit));
+        return false;
+    }
+    if (!inner_->recreateTexture(texture, desc)) {
+        return false;
+    }
+    it->second = {{desc.width, desc.height}, desc.format, desc.usage};
+    return true;
+}
+
 BindGroupHandle ValidatingDevice::createBindGroup(const BindGroupDesc& desc) {
     const std::string name = label(desc.debugName);
     const auto pipeline = pipelines_.find(desc.pipeline.key());

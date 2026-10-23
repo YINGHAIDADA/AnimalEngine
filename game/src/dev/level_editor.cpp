@@ -848,10 +848,11 @@ void DevPanels::editorFrame(State& s, animal::EngineContext& context) {
         if (e.tool == LevelEditor::Tool::Brush || e.tool == LevelEditor::Tool::Rect) {
             ImGui::SeparatorText("Tiles (right button erases, Alt+click picks)");
             const animal::LoadedTexture& sheet = g.assets_.tileset.albedo;
+            const float sheetWidth = static_cast<float>(context.device->textureExtent(sheet.handle).width);
             const int firstGid = map.document()["tilesets"].empty()
                                      ? 1
                                      : map.document()["tilesets"][0].value("firstgid", 1);
-            const int count = static_cast<int>(sheet.width) / static_cast<int>(tile);
+            const int count = static_cast<int>(sheetWidth / tile);
             const animal::Room* data = g.roomData(*g.currentRoom_);
             for (int i = 0; i <= count; ++i) {
                 const auto gid = static_cast<uint32_t>(i == 0 ? 0 : firstGid + i - 1);
@@ -867,8 +868,8 @@ void DevPanels::editorFrame(State& s, animal::EngineContext& context) {
                 if (i == 0) {
                     clicked = ImGui::Button("none", {36.0f, 36.0f});
                 } else {
-                    const float u0 = static_cast<float>(i - 1) * tile / static_cast<float>(sheet.width);
-                    const float u1 = static_cast<float>(i) * tile / static_cast<float>(sheet.width);
+                    const float u0 = static_cast<float>(i - 1) * tile / sheetWidth;
+                    const float u1 = static_cast<float>(i) * tile / sheetWidth;
                     clicked = ImGui::ImageButton("tile", s.imgui.textureId(sheet.handle), {28.0f, 28.0f}, {u0, 0.0f},
                                                  {u1, 1.0f});
                 }
