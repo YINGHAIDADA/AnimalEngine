@@ -90,6 +90,7 @@ void DevPanels::reloadFile(State& s, animal::EngineContext& context, const std::
     std::string dataPath = changed;
     bool ok = true;
     std::optional<std::vector<std::byte>> previous; // the deployed copy before a source file replaced it
+    bool restoreOnFailure = false; // data the game refused: keep the deployed copy matching what runs
 
     if (s.sources.available()) {
         const std::optional<std::string> deployed = s.sources.dataOf(changed);
@@ -118,8 +119,9 @@ void DevPanels::reloadFile(State& s, animal::EngineContext& context, const std::
             ok = animal::reloadShaderFile(*context.device, dataPath) != animal::ReloadResult::Failed;
         } else if (relative.starts_with("textures/") && relative.ends_with(".png")) {
             ok = animal::reloadTextureFile(*context.device, dataPath) != animal::ReloadResult::Failed;
-        } else if (relative.starts_with("world/")) {
-            ok = g.reloadData(dataPath, *context.renderer);
+        } else if (relative.starts_with("world/") || (relative.starts_with("textures/") && relative.ends_with(".json"))) {
+            ok = g.reloadData(dataPath, *context.renderer); // world data and sprite sheets
+            restoreOnFailure = true;
         } else {
             handled = false;
         }
@@ -150,9 +152,8 @@ void DevPanels::reloadFile(State& s, animal::EngineContext& context, const std::
         animal::log::info("Hot reload: {}", name);
         g.showMessage("RELOADED " + upper(fileName(name)));
     } else {
-        // Keep the deployed data matching what runs. (A shader or texture that only needs a restart
-        // stays deployed: it is valid.)
-        if (previous && dataPath.find("/world/") != std::string::npos) {
+        // A shader or texture that only needs a restart stays deployed: it is valid.
+        if (previous && restoreOnFailure) {
             animal::writeFileAtomic(dataPath, previous->data(), previous->size());
         }
         ++s.reloadFailures;

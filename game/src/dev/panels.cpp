@@ -310,6 +310,62 @@ void DevPanels::plants(State& s, animal::EngineContext& context) {
         });
 }
 
+// The creature's imported sheet (ADR-0030): tags, frame timing and a live preview.
+void DevPanels::animations(State& s, animal::EngineContext&) {
+    SandboxGame& g = *s.game;
+    const animal::SpriteSheet& sheet = g.creatureSheet_;
+    ImGui::TextUnformatted(s.sources.displayName(g.creatureSheetPath_).c_str());
+    ImGui::TextDisabled("Aseprite sprite sheet export; edit and save it to reload");
+    ImGui::Text("%zu frames, %zu tags, image %dx%d", sheet.frames.size(), sheet.tags.size(), sheet.size.x, sheet.size.y);
+    ImGui::Separator();
+    const animal::SpriteSheet::Tag* selected = nullptr;
+    if (ImGui::BeginTable("tags", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp)) {
+        for (const animal::SpriteSheet::Tag& tag : sheet.tags) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            if (ImGui::Selectable(tag.name.c_str(), s.previewTag == tag.name, ImGuiSelectableFlags_SpanAllColumns)) {
+                s.previewTag = tag.name;
+                s.previewTime = 0.0;
+            }
+            ImGui::TableNextColumn();
+            ImGui::Text("%zu frames", tag.clip.frames.size());
+            ImGui::TableNextColumn();
+            if (tag.clip.durations.empty()) {
+                ImGui::Text("%.3g fps", tag.clip.framesPerSecond);
+            } else {
+                ImGui::TextUnformatted("varying");
+            }
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(tag.clip.loop ? "loop" : "once");
+            if (tag.name == s.previewTag) {
+                selected = &tag;
+            }
+        }
+        ImGui::EndTable();
+    }
+    if (!selected || sheet.frames.empty() || sheet.size.x <= 0 || sheet.size.y <= 0) {
+        return;
+    }
+    // Preview with its own clock (the player's animator is left alone).
+    animal::Animator preview;
+    preview.play(preview.add(selected->clip));
+    s.previewTime += ImGui::GetIO().DeltaTime;
+    preview.update(static_cast<float>(s.previewTime));
+    if (preview.finished() && s.previewTime > 1.0) {
+        s.previewTime = 0.0; // replay one-shot clips
+    }
+    const animal::SpriteFrame& f = sheet.frames[static_cast<size_t>(preview.frame())];
+    const float w = static_cast<float>(sheet.size.x);
+    const float h = static_cast<float>(sheet.size.y);
+    const ImVec2 uv0{static_cast<float>(f.source.x) / w, static_cast<float>(f.source.y) / h};
+    const ImVec2 uv1{static_cast<float>(f.source.x + f.source.width) / w,
+                     static_cast<float>(f.source.y + f.source.height) / h};
+    ImGui::Image(s.imgui.textureId(g.creature_.albedo.handle),
+                 {static_cast<float>(f.source.width) * 12.0f, static_cast<float>(f.source.height) * 12.0f}, uv0, uv1);
+    ImGui::SameLine();
+    ImGui::Text("frame %d\nsheet %d,%d\n%.1f ms", preview.frame(), f.source.x, f.source.y, f.duration * 1000.0);
+}
+
 void DevPanels::tuning(State& s, animal::EngineContext&) {
     SandboxGame& g = *s.game;
     ImGui::TextUnformatted(s.sources.displayName(g.tuningPath_).c_str());

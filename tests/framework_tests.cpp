@@ -677,8 +677,8 @@ TEST(climber_can_pump_a_swing_up) {
 
 TEST(animator_advances_loops_and_holds) {
     Animator animator;
-    const auto run = animator.add({{2, 3, 4, 5}, 10.0f, true});
-    const auto land = animator.add({{10}, 10.0f, false});
+    const auto run = animator.add({{2, 3, 4, 5}, 10.0f, true, {}});
+    const auto land = animator.add({{10}, 10.0f, false, {}});
     animator.play(run);
     CHECK(animator.frame() == 2);
     animator.update(0.25f); // 2.5 frames in

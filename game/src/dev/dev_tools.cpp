@@ -26,6 +26,7 @@ void openWindow(DevTools::State::Windows& w, std::string_view name) {
     else if (name == "plants") w.plants = true;
     else if (name == "tuning") w.tuning = true;
     else if (name == "rooms") w.rooms = true;
+    else if (name == "animations") w.animations = true;
     else if (name == "console") w.console = true;
     else if (name == "demo") w.demo = true;
     else animal::log::warn("--tools: unknown window '{}'", name);
@@ -45,6 +46,7 @@ void mainMenu(DevTools::State& s, animal::EngineContext& context) {
         ImGui::MenuItem("Effects", nullptr, &w.effects);
         ImGui::MenuItem("Plants", nullptr, &w.plants);
         ImGui::MenuItem("Tuning", nullptr, &w.tuning);
+        ImGui::MenuItem("Animations", nullptr, &w.animations);
         ImGui::Separator();
         ImGui::MenuItem("Console", nullptr, &w.console);
         ImGui::MenuItem("ImGui demo", nullptr, &w.demo);
@@ -173,6 +175,7 @@ void DevTools::frame(animal::EngineContext& context) {
     window("Effects", w.effects, {340, 50}, {460, 540}, [&] { DevPanels::effects(s, context); });
     window("Plants", w.plants, {360, 70}, {440, 480}, [&] { DevPanels::plants(s, context); });
     window("Tuning", w.tuning, {380, 90}, {420, 560}, [&] { DevPanels::tuning(s, context); });
+    window("Animations", w.animations, {400, 110}, {360, 420}, [&] { DevPanels::animations(s, context); });
     if (w.console) {
         s.console.draw(&w.console);
     }

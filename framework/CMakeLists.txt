@@ -15,6 +15,7 @@ set(ANIMAL_FRAMEWORK_HEADERS
     include/animal/framework/physics.h
     include/animal/framework/platformer.h
     include/animal/framework/save.h
+    include/animal/framework/sprite_sheet.h
     include/animal/framework/tilemap.h
     include/animal/framework/triggers.h
     include/animal/framework/tuning.h
@@ -35,6 +36,7 @@ set(ANIMAL_FRAMEWORK_SOURCES
     src/physics.cpp
     src/platformer.cpp
     src/save.cpp
+    src/sprite_sheet.cpp
     src/tilemap.cpp
     src/triggers.cpp
     src/tuning.cpp

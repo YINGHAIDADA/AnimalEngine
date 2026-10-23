@@ -8,6 +8,7 @@ Each sheet is written as a material (docs/ART_PIPELINE.md):
 Pure standard library (zlib + struct). Re-run after editing; the PNGs are committed.
 """
 
+import json
 import math
 import pathlib
 import struct
@@ -308,6 +309,48 @@ def write_material(name, cells, height_fn, wrap):
         write_png(OUT_DIR / f"{name}_e.png", width, TILE, emissive)
 
 
+# The creature's animations as Aseprite's sprite sheet export would describe them (ADR-0030):
+# (tag, cells, milliseconds per frame, plays once). A held frame is repeated, as Aseprite does;
+# durations are exact fractions so the clips keep the game's frame rates.
+CREATURE_TAGS = [
+    ("idle", [0, 0, 0, 0, 0, 1], 1000 / 3, False),  # 1 = blink
+    ("run", [2, 3, 4, 5], 100, False),
+    ("jump", [6], 1000, False),
+    ("fall", [7], 1000, False),
+    ("climb", [8, 9], 1000 / 6, False),
+    ("land", [10], 1000 / 12, True),
+]
+
+
+def write_aseprite_json(name, cell_count, tags):
+    frames = []
+    frame_tags = []
+    for tag, cells, duration, once in tags:
+        first = len(frames)
+        for cell in cells:
+            frames.append({
+                "filename": f"{name} {len(frames)}.aseprite",
+                "frame": {"x": cell * TILE, "y": 0, "w": TILE, "h": TILE},
+                "rotated": False, "trimmed": False,
+                "spriteSourceSize": {"x": 0, "y": 0, "w": TILE, "h": TILE},
+                "sourceSize": {"w": TILE, "h": TILE},
+                "duration": duration,
+            })
+        entry = {"name": tag, "from": first, "to": len(frames) - 1, "direction": "forward", "color": "#000000ff"}
+        if once:
+            entry["repeat"] = "1"
+        frame_tags.append(entry)
+    sheet = {
+        "frames": frames,
+        "meta": {
+            "app": "https://www.aseprite.org/", "version": "1.3", "image": f"{name}.png", "format": "RGBA8888",
+            "size": {"w": cell_count * TILE, "h": TILE}, "scale": "1", "frameTags": frame_tags,
+            "layers": [{"name": "Layer 1", "opacity": 255, "blendMode": "normal"}], "slices": [],
+        },
+    }
+    (OUT_DIR / f"{name}.json").write_text(json.dumps(sheet, indent=1) + "\n")
+
+
 def main():
     # Tile ids match the game: 0 empty, 1 wall, 2 grass-topped ground, 3 background, 4 crystal.
     empty = ["." * TILE for _ in range(TILE)]
@@ -315,6 +358,7 @@ def main():
     tiles = [empty, wall_tile(), ground_tile(), background, overlay(background, CRYSTAL)]
     write_material("tileset", tiles, heights_from_palette, wrap=True)
     write_material("creature", CREATURE_FRAMES, dome_heights, wrap=False)
+    write_aseprite_json("creature", len(CREATURE_FRAMES), CREATURE_TAGS)
     write_material("props", [CANDLE, VENT, GEM, LANTERN], heights_from_palette, wrap=False)
     write_material("crawler", CRAWLER_FRAMES, dome_heights, wrap=False)
     print(f"wrote textures to {OUT_DIR}")

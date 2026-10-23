@@ -12,6 +12,7 @@
 #include <animal/framework/look.h>
 #include <animal/framework/platformer.h>
 #include <animal/framework/save.h>
+#include <animal/framework/sprite_sheet.h>
 #include <animal/framework/tuning.h>
 #include <animal/framework/water.h>
 #include <animal/renderer/camera2d.h>
@@ -73,7 +74,7 @@ private:
     animal::Look currentLook() const;
     void applyCurrentLook(animal::Renderer2D& renderer) const;
     void addStressLights(animal::Renderer2D& renderer) const;
-    void setupAnimations();
+    bool setupAnimations(); // from the creature's sprite sheet tags
     void updateAnimation(float dt);
     void reloadLooks();
     void setEffectsEnabled(bool enabled, animal::Renderer2D& renderer);
@@ -123,6 +124,8 @@ private:
     float messageTime_ = 0.0f;
 
     animal::Animator animator_;
+    animal::SpriteSheet creatureSheet_; // Aseprite export (ADR-0030): frames and animation tags
+    std::string creatureSheetPath_;
     struct Clips {
         animal::Animator::ClipId idle, run, jump, fall, climb, land;
     } clips_{};

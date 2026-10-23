@@ -45,6 +45,7 @@ animal_add_data_files(animal_game_textures
         tileset_e.png
         creature.png
         creature_n.png
+        creature.json
         props.png
         props_n.png
         props_e.png

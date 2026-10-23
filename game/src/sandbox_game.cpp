@@ -218,7 +218,15 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     }
     placePlayerFeet(checkpointFeet_);
     bindActions();
-    setupAnimations();
+    creatureSheetPath_ = textures + "creature.json";
+    std::optional<animal::SpriteSheet> sheet = animal::loadSpriteSheet(creatureSheetPath_);
+    if (!sheet) {
+        return false;
+    }
+    creatureSheet_ = std::move(*sheet);
+    if (!setupAnimations()) {
+        return false;
+    }
     return dev_.init(context, *this);
 }
 
@@ -398,6 +406,20 @@ bool SandboxGame::reloadData(const std::string& path, animal::Renderer2D& render
     if (path.ends_with(".world")) {
         return reloadWorld(path, renderer);
     }
+    if (path == creatureSheetPath_) {
+        std::optional<animal::SpriteSheet> sheet = animal::loadSpriteSheet(path);
+        if (!sheet) {
+            return false;
+        }
+        const animal::SpriteSheet previous = std::move(creatureSheet_);
+        creatureSheet_ = std::move(*sheet);
+        if (!setupAnimations()) {
+            creatureSheet_ = previous;
+            setupAnimations();
+            return false;
+        }
+        return true;
+    }
     return true; // not something the game reads
 }
 
@@ -505,15 +527,23 @@ void SandboxGame::applyDemoInput() {
     actions_.applyStrength(Jump, time_ >= 1.35 && time_ < 1.55 ? 1.0f : 0.0f);
 }
 
-void SandboxGame::setupAnimations() {
-    // Cells of creature.png: 0-1 idle (1 = blink), 2-5 run, 6 jump, 7 fall, 8-9 climb, 10 land.
-    clips_.idle = animator_.add({{0, 0, 0, 0, 0, 1}, 3.0f, true});
-    clips_.run = animator_.add({{2, 3, 4, 5}, 10.0f, true});
-    clips_.jump = animator_.add({{6}, 1.0f, true});
-    clips_.fall = animator_.add({{7}, 1.0f, true});
-    clips_.climb = animator_.add({{8, 9}, 6.0f, true});
-    clips_.land = animator_.add({{10}, 12.0f, false});
+bool SandboxGame::setupAnimations() {
+    animator_ = {};
+    const auto add = [this](const char* tag, animal::Animator::ClipId& id) {
+        const animal::AnimationClip* clip = creatureSheet_.clip(tag);
+        if (!clip) {
+            animal::log::error("{}: no \"{}\" tag", creatureSheetPath_, tag);
+            return false;
+        }
+        id = animator_.add(*clip);
+        return true;
+    };
+    if (!add("idle", clips_.idle) || !add("run", clips_.run) || !add("jump", clips_.jump) ||
+        !add("fall", clips_.fall) || !add("climb", clips_.climb) || !add("land", clips_.land)) {
+        return false;
+    }
     animator_.play(clips_.idle);
+    return true;
 }
 
 // The animation state machine: the clip follows the movement state.
@@ -784,11 +814,14 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
     // While invulnerable after a hit the creature blinks.
     const bool blinkedOut = invulnerable_ > 0.0f && static_cast<int>(invulnerable_ * 16.0f) % 2 == 1;
     if (player && !blinkedOut) {
-        const float size = static_cast<float>(kTileSize);
-        const animal::Vec2i p = player->body.position + kSpriteOffset;
-        const float frame = static_cast<float>(animator_.frame());
+        const animal::SpriteFrame& f = creatureSheet_.frames[static_cast<size_t>(animator_.frame())];
+        // Trimmed frames sit at their offset in the untrimmed sprite (mirrored when facing left).
+        const int offsetX = facingLeft_ ? f.sourceSize.x - f.offset.x - f.source.width : f.offset.x;
+        const animal::Vec2i p = player->body.position + kSpriteOffset + animal::Vec2i{offsetX, f.offset.y};
         renderer.drawSprite(creature_, {static_cast<float>(p.x), static_cast<float>(p.y)},
-                            {frame * size, 0.0f, size, size}, animal::Color::white(), facingLeft_);
+                            {static_cast<float>(f.source.x), static_cast<float>(f.source.y),
+                             static_cast<float>(f.source.width), static_cast<float>(f.source.height)},
+                            animal::Color::white(), facingLeft_);
     }
     if (player) {
         animal::PointLight glow;

@@ -82,6 +82,7 @@ struct DevTools::State {
         bool plants = false;
         bool tuning = false;
         bool rooms = false;
+        bool animations = false;
         bool console = false;
         bool demo = false;
     } windows;
@@ -92,6 +93,8 @@ struct DevTools::State {
     PresetEditor effect;
     PresetEditor plant;
     bool tuningDirty = false;
+    std::string previewTag = "idle"; // Animations window
+    double previewTime = 0.0;
 
     // Hot reload (ADR-0028)
     animal::devtools::FileWatcher watcher;
@@ -117,6 +120,7 @@ struct DevPanels {
     static void plants(State& state, animal::EngineContext& context);
     static void tuning(State& state, animal::EngineContext& context);
     static void rooms(State& state, animal::EngineContext& context);
+    static void animations(State& state, animal::EngineContext& context);
 
     // Level editor (level_editor.cpp).
     static void editorFrame(State& state, animal::EngineContext& context);

@@ -6,9 +6,12 @@
 namespace animal {
 
 struct AnimationClip {
-    std::vector<int> frames; // sprite sheet cell indices
+    std::vector<int> frames; // sprite sheet cell (or SpriteSheet frame) indices
     float framesPerSecond = 8.0f;
     bool loop = true;
+    // Seconds per frame when they differ (imported animations); empty: every frame lasts
+    // 1 / framesPerSecond.
+    std::vector<float> durations;
 };
 
 // Plays clips frame by frame. Which clip plays is decided by the game each step (its animation
