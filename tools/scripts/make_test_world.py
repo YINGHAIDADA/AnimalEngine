@@ -8,11 +8,12 @@
 Rooms reference the hand-written presets in looks/ (ADR-0015), effects/ (ADR-0017) and plants/
 (ADR-0019), which this script leaves alone.
 
-The output is ordinary Tiled data: open test.world in Tiled to edit rooms visually. This script
-only exists because the first rooms were authored as text; once rooms are edited in Tiled, stop
-regenerating them.
+The output is ordinary Tiled data: open test.world in Tiled to edit rooms visually, or use the
+in-game level editor (Tab, ADR-0029). This script only exists because the first rooms were authored
+as text. Rooms edited since are the truth, so existing files are only overwritten with --force.
 """
 
+import argparse
 import json
 import pathlib
 
@@ -283,7 +284,16 @@ def smoke_pit():
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--force", action="store_true",
+                        help="overwrite existing rooms (edits made in Tiled or the level editor are lost)")
+    args = parser.parse_args()
     rooms = [(cave_entrance(), 0, 0), (crystal_gallery(), W * TILE, 0), (smoke_pit(), W * TILE, H * TILE)]
+    outputs = [OUT / "tilesets" / "cave.tsj", OUT / "test.world"] + [OUT / "rooms" / f"{r.name}.tmj" for r, _, _ in rooms]
+    existing = [p for p in outputs if p.exists()]
+    if existing and not args.force:
+        raise SystemExit(f"{len(existing)} file(s) already exist (e.g. {existing[0].relative_to(OUT)}); "
+                         "rooms may have been edited since. Use --force to overwrite them.")
     (OUT / "tilesets").mkdir(parents=True, exist_ok=True)
     (OUT / "rooms").mkdir(parents=True, exist_ok=True)
     (OUT / "tilesets" / "cave.tsj").write_text(json.dumps(TILESET, indent=1) + "\n")

@@ -11,6 +11,7 @@ if(ANIMAL_DEV_TOOLS)
         src/dev/dev_state.h
         src/dev/dev_tools.cpp
         src/dev/hot_reload.cpp
+        src/dev/level_editor.cpp
         src/dev/panels.cpp)
 else()
     list(APPEND ANIMAL_GAME_SOURCES src/dev/dev_tools_off.cpp)

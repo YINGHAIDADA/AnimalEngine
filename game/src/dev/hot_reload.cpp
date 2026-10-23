@@ -129,6 +129,13 @@ void DevPanels::reloadFile(State& s, animal::EngineContext& context, const std::
     }
 
     // Editors showing the file follow it unless they hold unsaved changes.
+    if (const auto edited = s.editor.rooms.find(dataPath); edited != s.editor.rooms.end()) {
+        if (edited->second.dirty) {
+            animal::log::warn("{} changed on disk while the level editor has unsaved edits", name);
+        } else {
+            s.editor.rooms.erase(edited); // reopened from the new file when next edited
+        }
+    }
     for (PresetEditor* editor : {&s.look, &s.effect, &s.plant}) {
         if (editor->path == dataPath) {
             if (editor->dirty) {

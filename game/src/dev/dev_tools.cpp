@@ -50,6 +50,13 @@ void mainMenu(DevTools::State& s, animal::EngineContext& context) {
         ImGui::MenuItem("ImGui demo", nullptr, &w.demo);
         ImGui::EndMenu();
     }
+    if (ImGui::BeginMenu("Editor")) {
+        bool editing = s.editor.active;
+        if (ImGui::MenuItem("Edit room", "Tab", &editing)) {
+            DevPanels::setEditing(s, context, editing);
+        }
+        ImGui::EndMenu();
+    }
     if (ImGui::BeginMenu("Reload")) {
         ImGui::MenuItem("Watch files", nullptr, &s.hotReload);
         ImGui::TextDisabled("%s", s.sources.available() ? "source tree: assets/source, shaders"
@@ -141,13 +148,22 @@ void DevTools::frame(animal::EngineContext& context) {
     if (input.pressed(Key::Grave)) { // reads as released while a text field has the keyboard
         s.visible = !s.visible;
     }
+    if (input.pressed(Key::Tab)) {
+        DevPanels::setEditing(s, context, !s.editor.active);
+    }
     if (!s.visible) {
+        DevPanels::setEditing(s, context, false);
         input.setCaptured(false, false);
         context.overlayTop = 0.0f;
+        context.escapeQuits = true;
+        context.overlaySuppressed = false;
         return;
     }
+    context.escapeQuits = false; // Escape belongs to the tools while they are shown
+    context.overlaySuppressed = s.editor.active;
     s.imgui.beginFrame(*context.events);
     mainMenu(s, context);
+    DevPanels::editorFrame(s, context);
 
     State::Windows& w = s.windows;
     window("Performance", w.performance, {-10, 30}, {360, 430}, [&] { DevPanels::performance(s, context); });
@@ -176,7 +192,7 @@ void DevTools::shutdown(animal::EngineContext&) {
 }
 
 bool DevTools::editing() const {
-    return false;
+    return state_->editor.active;
 }
 
 } // namespace game

@@ -41,6 +41,17 @@ constexpr SDL_Scancode kScancodes[] = {
 };
 static_assert(std::size(kScancodes) == static_cast<size_t>(Key::Count), "Key table out of sync");
 
+constexpr const char* kKeyNames[] = {
+    "Left", "Right", "Up", "Down", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O",
+    "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "Num0", "Num1", "Num2", "Num3", "Num4", "Num5",
+    "Num6", "Num7", "Num8", "Num9", "Space", "Enter", "Escape", "Tab", "Backspace", "Delete", "Insert", "Home",
+    "End", "PageUp", "PageDown", "LeftShift", "RightShift", "LeftCtrl", "RightCtrl", "LeftAlt", "RightAlt",
+    "LeftSuper", "RightSuper", "Grave", "Minus", "Equals", "LeftBracket", "RightBracket", "Backslash",
+    "Semicolon", "Apostrophe", "Comma", "Period", "Slash", "KeypadEnter", "F1", "F2", "F3", "F4", "F5", "F6",
+    "F7", "F8", "F9", "F10", "F11", "F12",
+};
+static_assert(std::size(kKeyNames) == static_cast<size_t>(Key::Count), "Key name table out of sync");
+
 constexpr SDL_GamepadButton kButtons[] = {
     SDL_GAMEPAD_BUTTON_SOUTH,     SDL_GAMEPAD_BUTTON_EAST,          SDL_GAMEPAD_BUTTON_WEST,
     SDL_GAMEPAD_BUTTON_NORTH,     SDL_GAMEPAD_BUTTON_DPAD_UP,       SDL_GAMEPAD_BUTTON_DPAD_DOWN,
@@ -113,25 +124,54 @@ KeyModifiers modifiersFrom(SDL_Keymod mods) {
 
 } // namespace detail
 
-void Input::update(const FrameEvents& events) {
-    keys_.previous = keys_.current;
-    int count = 0;
-    const bool* state = SDL_GetKeyboardState(&count);
-    for (size_t i = 0; i < keys_.current.size(); ++i) {
-        const int scancode = kScancodes[i];
-        keys_.current[i] = scancode < count && state[scancode];
+std::optional<Key> keyFromName(std::string_view name) {
+    if (name == "Shortcut") {
+#if defined(__APPLE__)
+        return Key::LeftSuper;
+#else
+        return Key::LeftCtrl;
+#endif
     }
+    const auto it = std::find(std::begin(kKeyNames), std::end(kKeyNames), name);
+    if (it == std::end(kKeyNames)) {
+        return std::nullopt;
+    }
+    return static_cast<Key>(it - std::begin(kKeyNames));
+}
 
-    mouseButtons_.previous = mouseButtons_.current;
-    const SDL_MouseButtonFlags mouseState = SDL_GetMouseState(&mouse_.x, &mouse_.y);
-    for (size_t i = 0; i < mouseButtons_.current.size(); ++i) {
-        mouseButtons_.current[i] = (mouseState & kMouseMasks[i]) != 0;
-    }
+void Input::update(const FrameEvents& events) {
     wheel_ = 0.0f;
     for (const InputEvent& event : events.input) {
         if (event.type == InputEvent::Type::MouseWheel) {
             wheel_ += event.y;
         }
+        if (!event.synthetic) {
+            continue;
+        }
+        if (event.type == InputEvent::Type::Key && event.key != Key::Count) {
+            syntheticKeys_[index(event.key)] = event.down;
+        } else if (event.type == InputEvent::Type::MouseButton) {
+            syntheticButtons_[index(event.button)] = event.down;
+        } else if (event.type == InputEvent::Type::MouseMove) {
+            syntheticMouse_ = MousePosition{event.x, event.y};
+        }
+    }
+
+    keys_.previous = keys_.current;
+    int count = 0;
+    const bool* state = SDL_GetKeyboardState(&count);
+    for (size_t i = 0; i < keys_.current.size(); ++i) {
+        const int scancode = kScancodes[i];
+        keys_.current[i] = (scancode < count && state[scancode]) || syntheticKeys_[i];
+    }
+
+    mouseButtons_.previous = mouseButtons_.current;
+    const SDL_MouseButtonFlags mouseState = SDL_GetMouseState(&mouse_.x, &mouse_.y);
+    if (syntheticMouse_) {
+        mouse_ = *syntheticMouse_;
+    }
+    for (size_t i = 0; i < mouseButtons_.current.size(); ++i) {
+        mouseButtons_.current[i] = (mouseState & kMouseMasks[i]) != 0 || syntheticButtons_[i];
     }
 
     buttons_.previous = buttons_.current;
@@ -150,7 +190,13 @@ KeyModifiers Input::modifiers() const {
     if (keyboardCaptured_) {
         return {};
     }
-    return detail::modifiersFrom(SDL_GetModState());
+    KeyModifiers m = detail::modifiersFrom(SDL_GetModState());
+    const auto held = [this](Key a, Key b) { return syntheticKeys_[index(a)] || syntheticKeys_[index(b)]; };
+    m.shift = m.shift || held(Key::LeftShift, Key::RightShift);
+    m.ctrl = m.ctrl || held(Key::LeftCtrl, Key::RightCtrl);
+    m.alt = m.alt || held(Key::LeftAlt, Key::RightAlt);
+    m.super = m.super || held(Key::LeftSuper, Key::RightSuper);
+    return m;
 }
 
 } // namespace animal::platform

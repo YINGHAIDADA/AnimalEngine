@@ -1,3 +1,5 @@
+#include "input_script.h"
+
 #include <animal/app/application.h>
 #include <animal/core/log.h>
 #include <animal/platform/input.h>
@@ -32,6 +34,7 @@ struct CommandLine {
     uint64_t exitAfterFrames = 0;
     std::string screenshotPath;
     std::string canvasScreenshotPath; // the 320×180 final canvas, independent of window size and DPI
+    std::string inputScriptPath;
 };
 
 std::optional<CommandLine> parseCommandLine(int argc, char** argv,
@@ -61,12 +64,14 @@ std::optional<CommandLine> parseCommandLine(int argc, char** argv,
             cl.canvasScreenshotPath = std::string(arg.substr(20));
         } else if (arg == "--profile") {
             cl.profile = true;
+        } else if (arg.starts_with("--input-script=")) {
+            cl.inputScriptPath = std::string(arg.substr(15));
         } else if (arg.starts_with("-psn_")) {
             // Added by macOS when launched from Finder.
         } else if (!other(arg)) {
             log::error("Unknown argument '{}'. Options: --backend=opengl|vulkan --no-vsync --hide-overlay "
                        "--resize-test --deterministic --demo --profile --frames=N --screenshot=path.png "
-                       "--canvas-screenshot=path.png",
+                       "--canvas-screenshot=path.png --input-script=path.txt",
                        arg);
             return std::nullopt;
         }
@@ -279,7 +284,10 @@ int Application::run(int argc, char** argv) {
         context.deterministic = commandLine->deterministic;
         log::info("Backend: {} | data: {}", rhi::backendName(config.backend), context.dataDirectory);
 
-        if (!device || !renderer.init(*device, context.dataDirectory) || !onInit(context)) {
+        std::optional<InputScript> inputScript;
+        if (!commandLine->inputScriptPath.empty() && !(inputScript = InputScript::load(commandLine->inputScriptPath))) {
+            exitCode = 1;
+        } else if (!device || !renderer.init(*device, context.dataDirectory) || !onInit(context)) {
             log::error("Startup failed; see the errors above");
             exitCode = 1;
         } else {
@@ -294,9 +302,23 @@ int Application::run(int argc, char** argv) {
             int screenshotCounter = 0;
 
             while (!context.quitRequested) {
-                const platform::FrameEvents events = platform::pollEvents();
+                platform::FrameEvents events = platform::pollEvents();
                 if (events.quitRequested) {
                     break;
+                }
+                if (inputScript) {
+                    // Canvas pixel centres in window points, from the last frame's layout.
+                    const PresentLayout& layout = renderer.presentLayout();
+                    const platform::PixelSize pixels = window->pixelSize();
+                    const platform::PixelSize points = window->sizeInPoints();
+                    const float density = points.width > 0 && pixels.width > 0
+                                              ? static_cast<float>(pixels.width) / static_cast<float>(points.width)
+                                              : 1.0f;
+                    inputScript->emit(framesRendered, [&](float x, float y) {
+                        const auto scale = static_cast<float>(layout.scale);
+                        return platform::MousePosition{(static_cast<float>(layout.x) + (x + 0.5f) * scale) / density,
+                                                       (static_cast<float>(layout.y) + (y + 0.5f) * scale) / density};
+                    }, events.input);
                 }
                 input.update(events);
                 context.events = &events;
@@ -354,7 +376,7 @@ int Application::run(int argc, char** argv) {
                     onRender(context, renderer);
                     renderer.beginScreen(Color::black());
                     onScreen(context, renderer);
-                    if (overlayVisible) {
+                    if (overlayVisible && !context.overlaySuppressed) {
                         const rhi::Extent2D extent = device->swapchainExtent();
                         const PresentLayout& layout = renderer.presentLayout();
                         std::vector<std::string> lines = {

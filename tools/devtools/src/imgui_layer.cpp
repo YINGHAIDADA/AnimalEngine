@@ -188,7 +188,7 @@ bool ImGuiLayer::init(rhi::Device& device, platform::Window& window, const std::
     io.BackendRendererName = "animal_rhi";
     io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors | ImGuiBackendFlags_RendererHasVtxOffset |
                        ImGuiBackendFlags_RendererHasTextures;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    // No keyboard navigation: the keyboard stays with the game unless a text field is being edited.
     ImGuiPlatformIO& platformIo = ImGui::GetPlatformIO();
     platformIo.Platform_GetClipboardTextFn = getClipboard;
     platformIo.Platform_SetClipboardTextFn = setClipboard;

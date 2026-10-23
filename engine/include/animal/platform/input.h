@@ -3,7 +3,9 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace animal::platform {
@@ -145,7 +147,8 @@ struct InputEvent {
         Focus,       // down: the window gained focus
     };
     Type type = Type::Key;
-    Key key = Key::Count; // Key::Count: a key outside the Key table
+    bool synthetic = false; // injected (input scripts); also drives Input's key / button state
+    Key key = Key::Count;   // Key::Count: a key outside the Key table
     MouseButton button = MouseButton::Left;
     bool down = false;
     KeyModifiers modifiers;
@@ -158,6 +161,10 @@ struct FrameEvents {
     bool quitRequested = false;
     std::vector<InputEvent> input;
 };
+
+// "A", "Num1", "LeftCtrl", "F5"... (the enumerator names); "Shortcut" is the platform's shortcut
+// modifier (Command on macOS, Ctrl elsewhere).
+std::optional<Key> keyFromName(std::string_view name);
 
 struct MousePosition {
     float x = 0.0f; // window points
@@ -219,6 +226,10 @@ private:
     std::array<float, static_cast<size_t>(GamepadAxis::Count)> axes_{};
     MousePosition mouse_;
     float wheel_ = 0.0f;
+    // State from synthetic events, combined with the real devices.
+    std::array<bool, static_cast<size_t>(Key::Count)> syntheticKeys_{};
+    std::array<bool, static_cast<size_t>(MouseButton::Count)> syntheticButtons_{};
+    std::optional<MousePosition> syntheticMouse_;
     bool gamepadConnected_ = false;
     bool keyboardCaptured_ = false;
     bool mouseCaptured_ = false;

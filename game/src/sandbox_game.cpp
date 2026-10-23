@@ -539,7 +539,7 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
     const animal::platform::Input& input = *context.input;
     if (context.demo) {
         applyDemoInput();
-    } else {
+    } else if (!dev_.editing()) {
         actions_.update(input);
     }
     animal::Renderer2D& renderer = *context.renderer;
@@ -723,7 +723,8 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
     stunned_ = std::max(0.0f, stunned_ - step);
     messageTime_ = std::max(0.0f, messageTime_ - step);
     animal::Entity* player = entities_.get(player_);
-    if (player) {
+    const bool editing = dev_.editing(); // the level editor freezes the player; the room keeps moving
+    if (player && !editing) {
         const bool control = stunned_ <= 0.0f;
         const float moveX = control ? actions_.strength(MoveRight) - actions_.strength(MoveLeft) : 0.0f;
         const float moveY = control ? actions_.strength(MoveDown) - actions_.strength(MoveUp) : 0.0f;
@@ -756,7 +757,7 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
     }
 
     std::vector<animal::Influence> influences;
-    if (player) {
+    if (player && !editing) {
         animal::Influence influence{player->body.worldCollider(), playerState_.velocity, false};
         influence.pushesVines = !climb_.climbing; // a climber hangs on its vine rather than pushing it
         if (playerState_.landedThisStep) {

@@ -4,6 +4,7 @@
 #include <animal/devtools/file_watcher.h>
 #include <animal/devtools/json_editor.h>
 #include <animal/devtools/source_assets.h>
+#include <animal/devtools/tiled_map.h>
 #include <animal/framework/level.h>
 
 #include "test_harness.h"
@@ -61,6 +62,54 @@ TEST(devtools_source_assets_map_data_and_source_paths) {
     CHECK(assets.dataOf(src + "assets/source/world/rooms/a.tmj") == std::string("/game/bin/data/world/rooms/a.tmj"));
     CHECK(!assets.dataOf(src + "README.md").has_value());
     CHECK(assets.displayName("/game/bin/data/world/tuning.json") == "world/tuning.json");
+}
+
+// The level editor saves rooms through TiledMap: an unchanged room must come out byte-identical.
+TEST(devtools_tiled_map_round_trips_the_rooms) {
+    namespace fs = std::filesystem;
+    int rooms = 0;
+    for (const fs::directory_entry& entry :
+         fs::directory_iterator(fs::path(ANIMAL_TEST_SOURCE_DIR) / "assets" / "source" / "world" / "rooms")) {
+        const std::u8string u8 = entry.path().generic_u8string();
+        const std::optional<std::string> text = readText(std::string(u8.begin(), u8.end()));
+        CHECK(text.has_value());
+        const std::optional<devtools::TiledMap> map = text ? devtools::TiledMap::parse(*text) : std::nullopt;
+        CHECK(map.has_value());
+        if (map) {
+            CHECK(map->serialize() == *text);
+            ++rooms;
+        }
+    }
+    CHECK(rooms >= 3);
+}
+
+TEST(devtools_tiled_map_edits_tiles_objects_and_properties) {
+    auto map = devtools::TiledMap::parse(R"({"type": "map", "width": 3, "height": 2, "nextobjectid": 5,
+        "layers": [{"type": "tilelayer", "name": "tiles", "width": 3, "height": 2, "data": [1, 2, 3, 4, 5, 6]},
+                   {"type": "objectgroup", "name": "objects", "objects": [{"id": 7, "type": "gem", "x": 1, "y": 2}]}]})");
+    CHECK(map.has_value());
+    if (!map) {
+        return;
+    }
+    CHECK(map->tileLayers() == std::vector<std::string>{"tiles"});
+    CHECK(map->tile("tiles", 2, 1) == 6 && map->tile("tiles", 3, 0) == 0);
+    CHECK(map->setTile("tiles", 1, 1, 9) && map->tile("tiles", 1, 1) == 9);
+    CHECK(!map->setTile("tiles", -1, 0, 9) && !map->setTile("other", 0, 0, 9));
+
+    const int id = map->addObject({{"type", "light"}, {"x", 3}, {"y", 4}});
+    CHECK(id == 8); // past every existing id, even when nextobjectid is behind
+    CHECK(map->document()["nextobjectid"] == 9);
+    CHECK(map->objectIds() == std::vector<int>({7, 8}));
+    devtools::JsonDocument* light = map->object(id);
+    CHECK(light && (*light)["type"] == "light");
+    devtools::TiledMap::setProperty(*light, "radius", "float", 40.0);
+    devtools::TiledMap::setProperty(*light, "radius", "float", 50.0);
+    const devtools::JsonDocument* radius = devtools::TiledMap::property(*map->object(id), "radius");
+    CHECK(radius && (*radius)["value"] == 50.0 && map->object(id)->at("properties").size() == 1);
+    CHECK(devtools::TiledMap::removeProperty(*map->object(id), "radius") && !map->object(id)->contains("properties"));
+    CHECK(map->removeObject(7) && !map->object(7) && !map->removeObject(7));
+    CHECK(map->addObject({{"type", "gem"}}) == 9); // ids are never reused
+    CHECK(!devtools::TiledMap::parse(R"({"type": "tileset"})").has_value());
 }
 
 TEST(devtools_file_watcher_reports_settled_changes_once) {

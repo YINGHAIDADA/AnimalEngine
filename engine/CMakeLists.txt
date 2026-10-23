@@ -28,6 +28,8 @@ set(ANIMAL_ENGINE_HEADERS
 
 set(ANIMAL_ENGINE_SOURCES
     src/app/application.cpp
+    src/app/input_script.cpp
+    src/app/input_script.h
     src/core/assert.cpp
     src/core/file.cpp
     src/core/log.cpp

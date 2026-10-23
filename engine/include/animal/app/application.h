@@ -47,6 +47,7 @@ struct EngineContext {
     bool deterministic = false; // --deterministic: one fixed step per frame (reproducible runs)
     bool escapeQuits = true;    // Escape ends the run (games turn this off while it means "back")
     float overlayTop = 0.0f;    // window pixels kept free above the debug overlay (tool menu bars)
+    bool overlaySuppressed = false; // tools that need the whole view hide the debug overlay
     bool quitRequested = false;
 };
 
