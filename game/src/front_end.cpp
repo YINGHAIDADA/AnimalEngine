@@ -337,6 +337,10 @@ void SandboxGame::drawFrontEnd(animal::Renderer2D& renderer) {
     if (title) {
         centred("ANIMAL ENGINE", y, kTitleText, 3);
         y += line * 5.0f;
+        const std::string version = "V" ANIMAL_GAME_VERSION;
+        renderer.drawText({canvas.x + canvas.width - renderer.textWidth(version) - line,
+                           canvas.y + canvas.height - line * 2.5f},
+                          version, kHint);
     } else {
         static constexpr const char* kHeadings[] = {"", "", "", "PAUSED", "SETTINGS", "AUDIO", "DISPLAY", "CONTROLS", ""};
         centred(kHeadings[static_cast<size_t>(menu_.page)], y, kTitleText, 2);

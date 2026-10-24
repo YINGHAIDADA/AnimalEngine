@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(AnimalEngine
-    VERSION 0.1.0
+    VERSION 0.7.0
     DESCRIPTION "Animal-inspired 2D exploration game engine"
     LANGUAGES C CXX)
 

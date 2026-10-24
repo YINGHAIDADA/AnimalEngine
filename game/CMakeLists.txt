@@ -26,7 +26,22 @@ else()
     list(APPEND ANIMAL_GAME_SOURCES src/dev/dev_tools_off.cpp)
 endif()
 
+if(WIN32)
+    # Icon and version information; no console window outside Debug (logs go to the log file, and to
+    # the terminal the game was started from).
+    set(ANIMAL_PRODUCT_NAME "Animal Engine")
+    set(ANIMAL_COPYRIGHT "Copyright 2026 the Animal Engine authors")
+    set(ANIMAL_COMPANY "Animal Engine")
+    set(ANIMAL_VERSION "${PROJECT_VERSION}")
+    set(ANIMAL_ICON_ICO "${PROJECT_SOURCE_DIR}/assets/package/AnimalGame.ico")
+    configure_file("${PROJECT_SOURCE_DIR}/assets/package/AnimalGame.rc.in" "${CMAKE_CURRENT_BINARY_DIR}/AnimalGame.rc" @ONLY)
+    list(APPEND ANIMAL_GAME_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/AnimalGame.rc")
+endif()
 add_executable(animal_game ${ANIMAL_GAME_SOURCES})
+if(WIN32)
+    set_target_properties(animal_game PROPERTIES WIN32_EXECUTABLE $<NOT:$<CONFIG:Debug>>)
+endif()
+target_compile_definitions(animal_game PRIVATE ANIMAL_GAME_VERSION="${PROJECT_VERSION}")
 animal_set_compile_options(animal_game)
 target_include_directories(animal_game PRIVATE src)
 if(ANIMAL_DEV_TOOLS)
@@ -104,10 +119,39 @@ add_custom_command(
     DEPENDS animal_asset_cooker animal_shaders ${ANIMAL_COOK_INPUTS}
     COMMENT "Cooking data.pak"
     VERBATIM)
+# Packages (M7, ADR-0037): the app (macOS, signed ad hoc unless ANIMAL_CODESIGN_IDENTITY names a
+# Developer ID) or the executable (Windows), data.pak, README, licences and a manifest, zipped.
+set(ANIMAL_CODESIGN_IDENTITY "-" CACHE STRING "macOS code signing identity for packages (- = ad hoc)")
+set(ANIMAL_PRODUCT_NAME "Animal Engine")
+set(ANIMAL_BUNDLE_ID "io.github.yinghaidada.animalengine" CACHE STRING "macOS bundle identifier")
+set(ANIMAL_COPYRIGHT "Copyright 2026 the Animal Engine authors")
+set(ANIMAL_COMPANY "Animal Engine")
+set(ANIMAL_VERSION "${PROJECT_VERSION}")
+if(APPLE)
+    set(ANIMAL_PACKAGE_PLATFORM macos)
+    set(ANIMAL_PLATFORM "macOS")
+    set(ANIMAL_START "open AnimalEngine.app (if macOS refuses an app from an unidentified developer: right-click it, Open)")
+    set(ANIMAL_USER_DIR "~/Library/Application Support/AnimalEngine/Sandbox/")
+    configure_file("${PROJECT_SOURCE_DIR}/assets/package/Info.plist.in" "${CMAKE_CURRENT_BINARY_DIR}/Info.plist" @ONLY)
+else()
+    set(ANIMAL_PACKAGE_PLATFORM windows)
+    set(ANIMAL_PLATFORM "Windows")
+    set(ANIMAL_START "run AnimalGame.exe")
+    set(ANIMAL_USER_DIR "%APPDATA%\\AnimalEngine\\Sandbox\\")
+endif()
+configure_file("${PROJECT_SOURCE_DIR}/assets/package/README.txt.in" "${CMAKE_CURRENT_BINARY_DIR}/README.txt" @ONLY)
+set(ANIMAL_PACKAGE_NAME "AnimalEngine-${PROJECT_VERSION}-${ANIMAL_PACKAGE_PLATFORM}")
 add_custom_target(animal_package
     DEPENDS "${ANIMAL_PACKAGE_DIR}/data.pak"
-    COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:animal_game>" "${ANIMAL_PACKAGE_DIR}/"
-    COMMENT "Release layout in ${ANIMAL_PACKAGE_DIR}"
+    COMMAND "${CMAKE_COMMAND}" -DPLATFORM=${ANIMAL_PACKAGE_PLATFORM} "-DOUT=${ANIMAL_PACKAGE_DIR}"
+            "-DNAME=${ANIMAL_PACKAGE_NAME}" "-DEXE=$<TARGET_FILE:animal_game>" "-DPACK=${ANIMAL_PACKAGE_DIR}/data.pak"
+            "-DREADME=${CMAKE_CURRENT_BINARY_DIR}/README.txt"
+            "-DNOTICES=${PROJECT_SOURCE_DIR}/assets/package/THIRD_PARTY_NOTICES.txt" "-DVERSION=${PROJECT_VERSION}"
+            "-DSOURCE_DIR=${PROJECT_SOURCE_DIR}" "-DPLIST=${CMAKE_CURRENT_BINARY_DIR}/Info.plist"
+            "-DICNS=${PROJECT_SOURCE_DIR}/assets/package/AnimalGame.icns"
+            "-DCODESIGN_IDENTITY=${ANIMAL_CODESIGN_IDENTITY}"
+            -P "${PROJECT_SOURCE_DIR}/cmake/AssemblePackage.cmake"
+    COMMENT "Package ${ANIMAL_PACKAGE_NAME}"
     VERBATIM)
 add_dependencies(animal_package animal_game)
 set_target_properties(animal_package PROPERTIES FOLDER game)

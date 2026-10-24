@@ -68,7 +68,8 @@ jobs:
         if: matrix.tests
         run: ctest --test-dir build/ci --output-on-failure
 
-  # Release layout (ADR-0031): cook data.pak twice (must be identical), verify it, keep the result.
+  # Release packages (ADR-0031, ADR-0037): cook data.pak twice (must be identical), verify it, assemble
+  # the app / executable with README, licences and manifest, and keep the zip as a downloadable artifact.
   package:
     name: Package ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
@@ -121,8 +122,11 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: AnimalGame-${{ matrix.platform }}
-          path: build/ci/package/Release/
+          name: AnimalEngine-${{ matrix.platform }}
+          path: |
+            build/ci/package/Release/*.zip
+            build/ci/package/Release/*.manifest.json
+            build/ci/package/Release/data.pak.sha256
 
   # The same sources must cook to the same bytes on every platform.
   pack-determinism:
@@ -133,8 +137,8 @@ jobs:
       - uses: actions/download-artifact@v4
       - name: Compare
         run: |
-          mac=$(cat AnimalGame-macOS/data.pak.sha256)
-          win=$(cat AnimalGame-Windows/data.pak.sha256)
+          mac=$(cat AnimalEngine-macOS/data.pak.sha256)
+          win=$(cat AnimalEngine-Windows/data.pak.sha256)
           echo "macOS   $mac"
           echo "Windows $win"
           test "$mac" = "$win"

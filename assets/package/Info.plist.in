@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>@ANIMAL_PRODUCT_NAME@</string>
+    <key>CFBundleDisplayName</key>
+    <string>@ANIMAL_PRODUCT_NAME@</string>
+    <key>CFBundleIdentifier</key>
+    <string>@ANIMAL_BUNDLE_ID@</string>
+    <key>CFBundleExecutable</key>
+    <string>AnimalGame</string>
+    <key>CFBundleIconFile</key>
+    <string>AnimalGame</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>@ANIMAL_VERSION@</string>
+    <key>CFBundleVersion</key>
+    <string>@ANIMAL_VERSION@</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>@CMAKE_OSX_DEPLOYMENT_TARGET@</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.games</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>@ANIMAL_COPYRIGHT@</string>
+</dict>
+</plist>

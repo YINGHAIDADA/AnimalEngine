@@ -1,0 +1,20 @@
+@ANIMAL_PRODUCT_NAME@ @ANIMAL_VERSION@ (@ANIMAL_PLATFORM@)
+================================================================
+
+Start: @ANIMAL_START@
+
+Controls (change them in Settings > Controls)
+  Move          Arrow keys / WASD          Left stick / D-pad
+  Jump          Space / Z                  A (South)
+  Climb, dive   Up / Down                  Stick / D-pad
+  Map           M                          View / Back
+  Pause         Escape / P                 Menu / Start
+  Fullscreen    F11 or Alt+Enter
+
+Your save, settings, log files and crash reports are kept in
+  @ANIMAL_USER_DIR@
+Deleting that folder starts the game afresh.
+
+If the game reports a damaged data.pak, download the package again.
+The files of this package and their SHA-256 hashes are listed in manifest.json.
+Third-party software used by the game and its licences: THIRD_PARTY_NOTICES.txt.
