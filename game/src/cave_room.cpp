@@ -46,6 +46,8 @@ constexpr int kHazardRun = 3; // tiles lit by one hazard light
 constexpr animal::Color kLanternColor = animal::Color::rgba(255, 214, 150);
 constexpr animal::Color kChainColor = animal::Color::rgba(70, 60, 52);
 constexpr animal::IntRect kLanternWeight{-3, -4, 6, 8}; // the lantern's body around its centre
+constexpr float kPickupHover = 3.0f;                     // px a dynamite pickup floats above the floor
+constexpr animal::Vec3 kPickupGlow{1.0f, 0.42f, 0.3f};
 
 // Light settings of a light tile (properties "lightColor", "lightRadius", ...) or of a light /
 // lantern object ("color", "radius", ...), over the given defaults. Angles are in degrees;
@@ -239,7 +241,7 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
             }
             effects_.addEmitter(*preset, object.position, area, count, rate);
         } else if (object.type == "dynamite") {
-            dynamite_.push_back({propTopLeft(object), false});
+            dynamite_.push_back({propTopLeft(object), static_cast<float>(object.id) * 1.1f, false});
         } else if (object.type == "vent") {
             vents_.push_back({propTopLeft(object), object.properties.getFloat("rate", 6.0f),
                               object.properties.getFloat("force", 420.0f)});
@@ -366,10 +368,16 @@ std::optional<animal::EffectSystem::PresetId> CaveRoom::effectPreset(animal::Eff
     return preset ? effects_.addPreset(*preset) : std::nullopt;
 }
 
+animal::Vec2 CaveRoom::pickupTopLeft(const DynamitePickup& stick) const {
+    const float bob = std::round(std::sin(static_cast<float>(lastTime_) * 2.4f + stick.phase) * 1.5f);
+    return {stick.topLeft.x, stick.topLeft.y - kPickupHover + bob};
+}
+
 int CaveRoom::collectDynamite(const animal::IntRect& player, int capacity) {
     int picked = 0;
     for (DynamitePickup& stick : dynamite_) {
-        const animal::IntRect area{static_cast<int>(stick.topLeft.x) + 2, static_cast<int>(stick.topLeft.y) + 1, 4, 7};
+        const animal::Vec2 at = pickupTopLeft(stick);
+        const animal::IntRect area{static_cast<int>(at.x) + 2, static_cast<int>(at.y) + 1, 4, 7};
         if (picked < capacity && !stick.taken && area.overlaps(player)) {
             stick.taken = true;
             ++picked;
@@ -563,7 +571,7 @@ void CaveRoom::drawBehindPlayer(animal::Renderer2D& renderer, const CaveAssets& 
     mechanisms_.draw(renderer, assets, lastTime_);
     for (const DynamitePickup& stick : dynamite_) {
         if (!stick.taken) {
-            renderer.drawSprite(assets.props, stick.topLeft, {12.0f * size, 0.0f, size, size});
+            renderer.drawSprite(assets.props, pickupTopLeft(stick), {12.0f * size, 0.0f, size, size});
         }
     }
     for (const Crawler& crawler : crawlers_) {
@@ -635,6 +643,13 @@ void CaveRoom::addLights(animal::Renderer2D& renderer, double time) const {
         }
     }
     mechanisms_.addLights(renderer, time);
+    for (const DynamitePickup& stick : dynamite_) {
+        if (!stick.taken) {
+            const float pulse = 1.0f + 0.2f * std::sin(static_cast<float>(time) * 3.0f + stick.phase);
+            renderer.addLight({pickupTopLeft(stick) + animal::Vec2{4.0f, 5.0f}, 20.0f, kPickupGlow, 0.7f * pulse, 6.0f,
+                               false});
+        }
+    }
     effects_.addLights(renderer);
     grass_.forEachFlower([&](animal::Vec2 p, const animal::PlantSpecies& species) {
         if (species.flowerLightRadius > 0.0f) {

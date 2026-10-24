@@ -182,9 +182,12 @@ private:
     std::optional<animal::EffectSystem::PresetId> sparkPreset_; // gem pickup burst
     Mechanisms mechanisms_;
     struct DynamitePickup {
-        animal::Vec2 topLeft; // of the 8×8 prop
+        animal::Vec2 topLeft; // of the 8×8 prop, resting on the floor
+        float phase = 0.0f;   // of its hovering
         bool taken = false;
     };
+    // Hovering above the floor and bobbing like a gem: it reads as something to pick up.
+    animal::Vec2 pickupTopLeft(const DynamitePickup& stick) const;
     std::vector<DynamitePickup> dynamite_;
     animal::PendulumParams lanternParams_;
     float largestSwing_ = 0.0f;
