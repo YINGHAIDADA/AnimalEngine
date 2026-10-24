@@ -338,6 +338,8 @@ ctest --test-dir build/<preset> --output-on-failure
   - ADR-0033 音频：SDL3 音频流 + 自有混音器（声部、分组、声像、变速、淡入淡出、限幅），WAV / Ogg Vorbis（stb_vorbis），资源包与热重载（Accepted）。
   - ADR-0034 机关、下潜与示例区域：动态实心物（平台、门）、危险 Tile、水流与下潜、开关与能力作为存档标志、10 个房间的示例区域（Accepted；其中的路线测试已被 ADR-0035 取代）。
   - ADR-0035 测试使用独立的测试数据：`tests/data` 与 `--data`，`render_*` 渲染房间与每项能力一个的 `test_*` 房间，编辑内容不影响任何测试（Accepted）。
+  - ADR-0036 设置、显示、输入与游戏前端：`settings.json`、全屏 / 窗口位置 / 运行中切换垂直同步 / 帧率上限、音频设备迁移、可重映射输入与按设备的提示、标题 / 暂停 / 设置菜单（Accepted）。
+  - ADR-0037 发行包与发行校验：macOS `.app` 与 Windows exe、README / 许可证 / 清单 / zip、启动失败对话框、`check_package.py` 与资源包测试（Accepted；签名公证待接入）。
 
 ## 13. 当前待确认项（不阻塞 M0）
 

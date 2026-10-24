@@ -96,13 +96,15 @@ cmake --build --preset windows-ninja-debug
 | `--expect=room:NAME,gems:N,visited:N,flag:NAME,finished:true,health:N,grounded:true,respawns:N` | （示例游戏）退出时检查结果，未满足时退出码 3 |
 | `--record-input=path.txt` | 把按键录成输入脚本（退出时写入）；配合 `--deterministic` 录制的脚本可逐帧重放 |
 | `--data=dir` | 从指定目录读取数据（测试用 `test_data`，ADR-0035）；此时开发工具关闭、不读写存档 |
+| `--settings=path` | （示例游戏）读写这个设置文件（测试运行默认不读写真实的设置文件） |
+| `--title` / `--menus` | （示例游戏）测试运行也从标题画面开始 / 启用暂停菜单但直接开始游戏（ADR-0036） |
 | `--flags=ability:dive,switch:bridge` / `--gems=N` | （示例游戏，测试用）开局即带有这些存档标志 / 已收集 N 颗宝石 |
 | `--trace[=N]` | （示例游戏）每 N 个模拟步在日志中输出玩家所在房间、位置、速度与状态（默认 10） |
 | `--strict` | RHI 校验层报告任何错误时运行失败（退出码 4） |
 | `--mute` | 不打开音频设备（音频系统照常运行但不出声；无头运行自动静音） |
 | `--crash-test=segv\|abort\|exception` | 启动后故意崩溃，检查崩溃报告；`--crash-dir=路径` 改变报告目录 |
 
-玩法：10 个房间的洞穴（世界布局见 `tools/scripts/make_area.py` 开头），散落着 19 颗宝石（右上角计数）。断桥上有移动平台与坠落平台；坠入深渊就到了尖刺竖井，底部的宝珠赋予**下潜**能力（在水中按住下），旁边的开关打开断桥通往闸门大厅的门；有了下潜，烟雾深坑的水池下面是一片淹没的区域（水流会推着你走，神殿里的开关打开暗流中的小门），淹没隧道向上通往闸门大厅。闸门要 14 颗宝石才开，门后是终点。按 M（手柄 Back）打开地图：显示进入过的房间及其地形（岩石、水、红色的尖刺）、门（打开后变淡）与开关（按下后变绿）、其中还没拾取的宝石和自己的位置，所在房间正常亮度、其他房间变暗，打开时游戏暂停。左上角是血量：3 颗发光的心，每颗 4 滴；被甲虫撞到（会被弹开）、碰到尖刺（发着微微红光）或被平台挤住各掉 1 滴，后两种还会回到检查点（进入房间后第一次站稳的位置）；血掉光时回到检查点并回满（掉出世界不扣血）；走进提示区域时屏幕下方显示提示。拾取宝石、按下开关、获得能力、进入新房间后第一次站稳时与退出游戏时自动保存，下次启动从该处继续（存档位置见 ADR-0011；`--demo` / `--deterministic` / `--start-room` 不读写存档）。存档写入前会保留上一份为 `save.json.bak`：存档损坏时自动用备份恢复，来自更新版本的存档不会被覆盖（ADR-0032）。
+玩法：10 个房间的洞穴（世界布局见 `tools/scripts/make_area.py` 开头），散落着 19 颗宝石（右上角计数）。断桥上有移动平台与坠落平台；坠入深渊就到了尖刺竖井，底部的宝珠赋予**下潜**能力（在水中按住下），旁边的开关打开断桥通往闸门大厅的门；有了下潜，烟雾深坑的水池下面是一片淹没的区域（水流会推着你走，神殿里的开关打开暗流中的小门），淹没隧道向上通往闸门大厅。闸门要 14 颗宝石才开，门后是终点。启动后是标题画面（继续 / 新游戏 / 设置 / 退出）；游戏中按 Escape 或手柄 Menu 暂停。设置里可以调整音量、全屏、垂直同步与帧率上限，并在“按键”页为每个动作重新绑定键盘按键与手柄按键（ADR-0036）；设置保存在用户数据目录下的 `settings.json`。F11 或 Alt+Enter 切换全屏，窗口大小与位置会被记住。提示文字随最近使用的设备显示键名或手柄按键。按 M（手柄 Back）打开地图：显示进入过的房间及其地形（岩石、水、红色的尖刺）、门（打开后变淡）与开关（按下后变绿）、其中还没拾取的宝石和自己的位置，所在房间正常亮度、其他房间变暗，打开时游戏暂停。左上角是血量：3 颗发光的心，每颗 4 滴；被甲虫撞到（会被弹开）、碰到尖刺（发着微微红光）或被平台挤住各掉 1 滴，后两种还会回到检查点（进入房间后第一次站稳的位置）；血掉光时回到检查点并回满（掉出世界不扣血）；走进提示区域时屏幕下方显示提示。拾取宝石、按下开关、获得能力、进入新房间后第一次站稳时与退出游戏时自动保存，下次启动从该处继续（存档位置见 ADR-0011；`--demo` / `--deterministic` / `--start-room` 不读写存档）。存档写入前会保留上一份为 `save.json.bak`：存档损坏时自动用备份恢复，来自更新版本的存档不会被覆盖（ADR-0032）。
 
 音效：跳跃、落地、抓藤蔓、宝石、被撞、入水，以及洞穴环境声（ADR-0033）；源文件在 `assets/source/sounds/`（WAV 或 Ogg Vorbis，当前是 `tools/scripts/make_placeholder_audio.py` 生成的占位音效，同名替换即可），音量分组在参数表中（`audio.*`）。
 
@@ -138,15 +140,17 @@ cmake --build --preset windows-ninja-debug
 
 每次编辑都通过游戏自己的关卡解析器立即生效；保存写入 `assets/source/world/rooms/*.tmj` 与部署副本，新对象的 id 从不复用（宝石的存档键）。
 
-## 发行构建（M5）
+## 发行构建（M5、M7）
 
-发行版只包含可执行文件和一个资源包 `data.pak`（ADR-0031）：
+发行包（ADR-0031、ADR-0037）：macOS 是 `AnimalEngine.app`（资源包在 `Contents/Resources`，ad-hoc 签名），Windows 是带图标与版本信息的 `AnimalGame.exe` 加 `data.pak`；两者都附带 `README.txt`、`THIRD_PARTY_NOTICES.txt` 和列出每个文件大小与 SHA-256 的 `manifest.json`，打成 `AnimalEngine-<版本>-<平台>.zip`。CI 每次推送都为两个平台打包并检查，zip 可在 Actions 的构建产物中下载。
 
 ```bash
-cmake --preset macos-ninja-release -DANIMAL_DEV_TOOLS=OFF     # 或 windows-ninja-release
-cmake --build --preset macos-ninja-release --target animal_package
-./build/macos-ninja-release/package/Release/AnimalGame         # 自动使用旁边的 data.pak
+cmake --preset macos-ninja-release -B build/release -DANIMAL_DEV_TOOLS=OFF   # 或 windows-ninja-release；发行包必须关闭开发工具
+cmake --build build/release --target animal_package
+python3 tools/scripts/check_package.py build/release/package/Release/AnimalEngine-0.7.0-macos.zip --forbid "$PWD"
 ```
+
+`check_package.py` 把 zip 解压到临时目录，核对清单、扫描构建机路径，并从那里启动游戏。Developer ID 签名：`-DANIMAL_CODESIGN_IDENTITY="Developer ID Application: …"`（公证尚未接入）。图标与许可证声明分别由 `tools/scripts/make_icons.py`、`make_notices.py` 生成。
 
 `animal_package` 用 `AnimalCooker` 按 [`assets/cook.json`](assets/cook.json) 烘焙：从世界文件出发沿引用收集房间、Tileset、观感、效果、植物，加上代码直接用到的预设、精灵表、材质与渲染器的着色器；每个文件用游戏自己的解析器校验，JSON 压缩为紧凑格式，材质合成图集（原始 RGBA8），全部用 zstd 写进 `data.pak`（同样的源文件总是得到逐字节相同的包），再用 `--verify` 按游戏的方式加载一遍。旁边的 `cook_report.json` 列出各类资源的源 / 烘焙后 / 压缩后大小、重复内容、未被引用（因此没有打包）的文件；引用缺失或数据无效时烘焙失败。新增的运行时数据要能从世界文件引用到，或写进清单。
 
@@ -346,3 +350,20 @@ M6 验收条件：从启动到通关一段完整区域无需开发者手动修�
 | 干净构建可重复 | CI：六个构建（警告视为错误）+ 两个平台打包，`data.pak` 逐字节相同 | ✅ |
 | 已知问题清单 | [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | ✅ |
 | 从启动到通关的人工试玩 | 内容能否通关由试玩判断（自动测试只验证能力） | 待你试玩 |
+
+## M7 进度
+
+M7 验收条件：两个平台的目标机器上安装包可独立运行；没有依赖开发机的绝对路径；发行包清单可审计；两平台 × 两后端回归通过。
+
+| 项目 | 内容与验证方式 | 状态 |
+|---|---|---|
+| 设置与配置文件 | 音量、显示、按键存入 `settings.json`，原子写入、宽容解析；单元测试（ADR-0036） | ✅ |
+| 窗口与显示 | 全屏切换并记住窗口、离屏位置居中、按显示器选默认大小、运行中切换垂直同步（三个后端）、帧率上限 | ✅ |
+| 音频设备变化 | 跟随系统默认设备；启动时无设备、之后插上也能出声；dummy 驱动单元测试 | ✅ |
+| 输入映射与手柄 | 可重映射的按键 / 手柄按键、提示随设备与手柄类型切换、热插拔；能力测试 | ✅（真机待验证） |
+| 游戏前端 | 标题、暂停、设置（音频 / 显示 / 按键）、通关回标题；菜单测试 | ✅ |
+| 发行包与清单 | macOS `.app`、Windows exe（图标、版本）、README、许可证、manifest、zip；CI 产出（ADR-0037） | ✅ |
+| 发行校验 | 清单核对、无构建机路径、从临时目录运行（CI 两平台）；资源包损坏时的对话框与 `data_pack_*` 测试 | ✅ |
+| 两平台 × 两后端回归 | macOS 上 OpenGL / Vulkan 8 个场景一致（Debug 与 Release）；CI 两平台跑全部 ctest | Windows 渲染回归待你在 Windows 上运行 |
+| Developer ID 签名与公证、Windows 签名 | 需要账号与证书 | 待定 |
+| 目标机器上的安装包验证 | 干净的 macOS / Windows 机器上解压运行、手柄真机、混合 DPI、错误对话框目视确认 | 待你验证 |
