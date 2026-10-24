@@ -64,6 +64,8 @@ animal::AppConfig SandboxGame::configure() {
     animal::AppConfig config;
     config.title = "Animal Engine · Sandbox";
     config.applicationId = "Sandbox";
+    config.windowWidth = 0; // fitted to the display; the settings restore the player's own size
+    config.windowHeight = 0;
     return config;
 }
 
@@ -141,6 +143,7 @@ void SandboxGame::placePlayerFeet(animal::Vec2 feet) {
 }
 
 bool SandboxGame::onInit(animal::EngineContext& context) {
+    loadSettings(context);
     const std::string textures = context.dataDirectory + "textures/";
     auto tileset = animal::loadMaterial(*context.device, textures + "tileset");
     auto props = animal::loadMaterial(*context.device, textures + "props");
@@ -584,12 +587,13 @@ void SandboxGame::updateAnimation(float dt) {
 
 void SandboxGame::onFrame(animal::EngineContext& context) {
     dev_.frame(context);
-    if (audio_) {
-        audio_->setBusVolume(animal::audio::Bus::Effects, busVolumes_[0]);
-        audio_->setBusVolume(animal::audio::Bus::Ambience, busVolumes_[1]);
-        audio_->setBusVolume(animal::audio::Bus::Music, busVolumes_[2]);
-    }
+    applyVolumes();
     const animal::platform::Input& input = *context.input;
+    if (input.pressed(Key::F11) || ((input.down(Key::LeftAlt) || input.down(Key::RightAlt)) && input.pressed(Key::Enter))) {
+        settings_.fullscreen = !settings_.fullscreen;
+        applyDisplaySettings(context);
+        saveSettings(context);
+    }
     if (context.demo) {
         applyDemoInput();
     } else if (!dev_.editing()) {
@@ -976,6 +980,7 @@ void SandboxGame::onShutdown(animal::EngineContext& context) {
         context.exitCode = 3;
     }
     saveProgress(); // play time and visited rooms; the position stays the last checkpoint
+    saveSettings(context);
     dev_.shutdown(context);
     animal::destroyMaterial(*context.device, assets_.tileset);
     animal::destroyMaterial(*context.device, assets_.props);

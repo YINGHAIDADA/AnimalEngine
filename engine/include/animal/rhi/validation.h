@@ -54,6 +54,7 @@ public:
     void submit(const CommandList& commands) override;
     void endFrame() override { inner_->endFrame(); }
     void waitIdle() override { inner_->waitIdle(); }
+    void setVsync(bool vsync) override { inner_->setVsync(vsync); }
     std::vector<GpuTiming> gpuTimings() const override { return inner_->gpuTimings(); }
 
     // Every problem found so far (the first 100 messages are kept).

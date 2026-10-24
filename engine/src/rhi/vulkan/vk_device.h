@@ -288,6 +288,10 @@ public:
     void submit(const CommandList& commands) override;
     void endFrame() override;
     void waitIdle() override;
+    void setVsync(bool vsync) override {
+        swapchainDirty_ = swapchainDirty_ || vsync != vsync_; // the present mode is chosen with the swapchain
+        vsync_ = vsync;
+    }
     std::vector<GpuTiming> gpuTimings() const override { return gpuTimings_; }
 
 private:

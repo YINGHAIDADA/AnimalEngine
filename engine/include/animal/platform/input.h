@@ -166,6 +166,9 @@ struct FrameEvents {
 // modifier (Command on macOS, Ctrl elsewhere).
 std::optional<Key> keyFromName(std::string_view name);
 std::string_view keyName(Key key); // "" for Key::Count
+// "South", "DpadUp", "Start"... (the enumerator names).
+std::optional<GamepadButton> gamepadButtonFromName(std::string_view name);
+std::string_view gamepadButtonName(GamepadButton button);
 
 struct MousePosition {
     float x = 0.0f; // window points

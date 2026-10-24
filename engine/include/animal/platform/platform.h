@@ -15,6 +15,7 @@ void shutdown();
 FrameEvents pollEvents();
 
 uint64_t nowNanoseconds();
+void sleepNanoseconds(uint64_t duration); // precise: sleeps most of it, spins the last part
 
 // Directory containing the executable, with a trailing separator.
 std::string executableDirectory();

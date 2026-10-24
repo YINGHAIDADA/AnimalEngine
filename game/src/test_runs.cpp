@@ -53,6 +53,11 @@ bool SandboxGame::onArgument(std::string_view argument) {
         testGems_ = std::strtoul(std::string(argument.substr(kGems.size())).c_str(), nullptr, 10);
         return true;
     }
+    constexpr std::string_view kSettings = "--settings=";
+    if (argument.starts_with(kSettings)) {
+        settingsPath_ = std::string(argument.substr(kSettings.size()));
+        return true;
+    }
     if (argument == "--trace" || argument.starts_with("--trace=")) {
         traceEvery_ = argument.size() > 8 ? std::max(1ul, std::strtoul(std::string(argument.substr(8)).c_str(), nullptr, 10)) : 10;
         return true;

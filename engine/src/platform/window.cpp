@@ -4,6 +4,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -58,9 +59,25 @@ bool loadVulkanLoader() {
     return false;
 }
 
+// The largest multiple of the 320×180 canvas that leaves some room on the primary display.
+void defaultSize(int& width, int& height) {
+    SDL_Rect usable{};
+    int scale = 4;
+    if (SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable) && usable.w > 0 && usable.h > 0) {
+        scale = std::max(1, std::min(usable.w * 85 / 100 / 320, usable.h * 85 / 100 / 180));
+    }
+    width = 320 * scale;
+    height = 180 * scale;
+}
+
 } // namespace
 
 std::unique_ptr<Window> Window::create(const WindowDesc& desc) {
+    int width = desc.width;
+    int height = desc.height;
+    if (width <= 0 || height <= 0) {
+        defaultSize(width, height);
+    }
     SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN;
     switch (desc.api) {
     case GraphicsApi::OpenGL:
@@ -75,7 +92,7 @@ std::unique_ptr<Window> Window::create(const WindowDesc& desc) {
         break;
     }
 
-    SDL_Window* window = SDL_CreateWindow(desc.title.c_str(), desc.width, desc.height, flags);
+    SDL_Window* window = SDL_CreateWindow(desc.title.c_str(), width, height, flags);
     if (!window) {
         log::error("SDL_CreateWindow failed: {}", SDL_GetError());
         if (desc.api == GraphicsApi::Vulkan) {
@@ -127,6 +144,60 @@ void Window::show() {
 
 void Window::setSize(int width, int height) {
     SDL_SetWindowSize(window_, width, height);
+    SDL_SyncWindow(window_);
+}
+
+void Window::setFullscreen(bool fullscreen) {
+    if (fullscreen && !this->fullscreen()) {
+        windowed_ = placement();
+    }
+    if (!SDL_SetWindowFullscreen(window_, fullscreen)) {
+        log::warn("Cannot {} fullscreen: {}", fullscreen ? "enter" : "leave", SDL_GetError());
+    }
+    SDL_SyncWindow(window_);
+}
+
+bool Window::fullscreen() const {
+    return (SDL_GetWindowFlags(window_) & SDL_WINDOW_FULLSCREEN) != 0;
+}
+
+WindowRect Window::placement() const {
+    if (fullscreen()) {
+        return windowed_;
+    }
+    WindowRect r;
+    SDL_GetWindowPosition(window_, &r.x, &r.y);
+    SDL_GetWindowSize(window_, &r.width, &r.height);
+    return r;
+}
+
+void Window::setPlacement(const WindowRect& rect) {
+    WindowRect r = rect;
+    int count = 0;
+    SDL_DisplayID* displays = SDL_GetDisplays(&count);
+    bool visible = false;
+    for (int i = 0; i < count && !visible; ++i) {
+        SDL_Rect usable{};
+        if (SDL_GetDisplayUsableBounds(displays[i], &usable)) {
+            // At least a corner big enough to grab and drag back.
+            const int overlapW = std::min(r.x + r.width, usable.x + usable.w) - std::max(r.x, usable.x);
+            const int overlapH = std::min(r.y + r.height, usable.y + usable.h) - std::max(r.y, usable.y);
+            visible = overlapW >= 64 && overlapH >= 64;
+        }
+    }
+    SDL_free(displays);
+    if (!visible) {
+        SDL_Rect usable{};
+        if (SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable)) {
+            r.width = std::min(r.width, usable.w);
+            r.height = std::min(r.height, usable.h);
+            r.x = usable.x + (usable.w - r.width) / 2;
+            r.y = usable.y + (usable.h - r.height) / 2;
+        }
+        log::info("The saved window position is off every display; centring the window");
+    }
+    SDL_SetWindowSize(window_, r.width, r.height);
+    SDL_SetWindowPosition(window_, r.x, r.y);
     SDL_SyncWindow(window_);
 }
 

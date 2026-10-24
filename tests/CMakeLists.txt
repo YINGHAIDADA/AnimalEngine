@@ -15,7 +15,8 @@ add_executable(animal_tests
     pack_tests.cpp
     cooker_tests.cpp
     audio_tests.cpp
-    mechanism_tests.cpp)
+    mechanism_tests.cpp
+    settings_tests.cpp)
 animal_set_compile_options(animal_tests)
 if(ANIMAL_DEV_TOOLS)
     target_sources(animal_tests PRIVATE devtools_tests.cpp)

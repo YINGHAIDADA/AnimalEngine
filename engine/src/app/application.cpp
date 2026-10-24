@@ -408,8 +408,10 @@ int Application::run(int argc, char** argv) {
             double accumulator = 0.0;
             uint64_t framesRendered = 0;
             int screenshotCounter = 0;
+            uint64_t frameStart = platform::nowNanoseconds();
 
             while (!context.quitRequested) {
+                frameStart = platform::nowNanoseconds();
                 profiler::beginFrame();
                 std::optional<profiler::Zone> eventsZone(std::in_place, "events");
                 platform::FrameEvents events = platform::pollEvents();
@@ -542,6 +544,14 @@ int Application::run(int argc, char** argv) {
 
                 if (lastFrame) {
                     break;
+                }
+                // Frame cap (without vsync): sleep out the rest of the frame.
+                if (context.frameCap > 0 && !commandLine->deterministic && window) {
+                    const uint64_t budget = 1'000'000'000ull / static_cast<uint64_t>(context.frameCap);
+                    const uint64_t spent = platform::nowNanoseconds() - frameStart;
+                    if (spent < budget) {
+                        platform::sleepNanoseconds(budget - spent);
+                    }
                 }
             }
             context.events = nullptr;

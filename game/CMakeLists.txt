@@ -2,6 +2,7 @@ set(ANIMAL_GAME_SOURCES
     src/cave_room.cpp
     src/cave_room.h
     src/dev/dev_tools.h
+    src/game_settings.cpp
     src/main.cpp
     src/map_screen.cpp
     src/mechanisms.cpp

@@ -139,6 +139,27 @@ std::optional<Key> keyFromName(std::string_view name) {
     return static_cast<Key>(it - std::begin(kKeyNames));
 }
 
+namespace {
+constexpr const char* kGamepadButtonNames[] = {"South",    "East",      "West",         "North",
+                                               "DpadUp",   "DpadDown",  "DpadLeft",     "DpadRight",
+                                               "LeftShoulder", "RightShoulder", "Back", "Start"};
+static_assert(std::size(kGamepadButtonNames) == static_cast<size_t>(GamepadButton::Count),
+              "Gamepad button name table out of sync");
+} // namespace
+
+std::optional<GamepadButton> gamepadButtonFromName(std::string_view name) {
+    const auto it = std::find(std::begin(kGamepadButtonNames), std::end(kGamepadButtonNames), name);
+    if (it == std::end(kGamepadButtonNames)) {
+        return std::nullopt;
+    }
+    return static_cast<GamepadButton>(it - std::begin(kGamepadButtonNames));
+}
+
+std::string_view gamepadButtonName(GamepadButton button) {
+    const auto index = static_cast<size_t>(button);
+    return index < std::size(kGamepadButtonNames) ? std::string_view(kGamepadButtonNames[index]) : std::string_view();
+}
+
 std::string_view keyName(Key key) {
     const auto index = static_cast<size_t>(key);
     return index < std::size(kKeyNames) ? std::string_view(kKeyNames[index]) : std::string_view();

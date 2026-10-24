@@ -256,6 +256,11 @@ public:
     void submit(const CommandList& commands) override;
     void endFrame() override;
     void waitIdle() override { glFinish(); }
+    void setVsync(bool vsync) override {
+        if (!SDL_GL_SetSwapInterval(vsync ? 1 : 0)) {
+            log::warn("OpenGL: cannot set the swap interval: {}", SDL_GetError());
+        }
+    }
     std::vector<GpuTiming> gpuTimings() const override { return gpuTimings_; }
 
 private:

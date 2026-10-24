@@ -420,6 +420,9 @@ public:
     virtual void submit(const CommandList& commands) = 0;
     virtual void endFrame() = 0;
     virtual void waitIdle() = 0;
+    // Waits for the display's refresh when presenting (true) or presents as soon as possible.
+    // Takes effect from the next frame.
+    virtual void setVsync(bool vsync) = 0;
 
     // Timer scopes of the most recent frame whose GPU results are available (a few frames old),
     // in the order they began. Empty when unsupported or nothing has been measured yet.

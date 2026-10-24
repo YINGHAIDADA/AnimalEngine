@@ -14,6 +14,7 @@
 #include <animal/framework/look.h>
 #include <animal/framework/platformer.h>
 #include <animal/framework/save.h>
+#include <animal/framework/settings.h>
 #include <animal/framework/sprite_sheet.h>
 #include <animal/framework/tuning.h>
 #include <animal/framework/water.h>
@@ -87,6 +88,11 @@ private:
     void drawHearts(animal::Renderer2D& renderer) const;
     void updateMechanisms(animal::Entity& player, float dt);
     void drawEnding(animal::Renderer2D& renderer);
+    // game_settings.cpp (ADR-0036)
+    void loadSettings(animal::EngineContext& context);
+    void applyDisplaySettings(animal::EngineContext& context);
+    void applyVolumes();
+    void saveSettings(animal::EngineContext& context);
     // A sound at a room position (panned by where it is on screen), slightly varied in pitch.
     void playSound(animal::audio::SoundHandle sound, float x, float volume = 1.0f);
     animal::Look roomLook(const animal::WorldRoom& worldRoom);
@@ -146,6 +152,8 @@ private:
     float stunned_ = 0.0f;      // seconds of knockback without control
     float submersion_ = 0.0f;   // share of the player under water (last step)
 
+    animal::Settings settings_;  // the player's volumes, display and controls (ADR-0036)
+    std::string settingsPath_;   // empty: not persisted (test runs, unless --settings=path)
     animal::SaveData save_;  // progress: checkpoint and collected gems
     std::string savePath_;   // empty: progress is not persisted (--demo, --deterministic)
     std::set<std::string> gemFlags_; // save flags of every gem in the world

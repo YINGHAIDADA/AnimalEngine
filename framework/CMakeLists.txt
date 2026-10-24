@@ -16,6 +16,7 @@ set(ANIMAL_FRAMEWORK_HEADERS
     include/animal/framework/platforms.h
     include/animal/framework/platformer.h
     include/animal/framework/save.h
+    include/animal/framework/settings.h
     include/animal/framework/sprite_sheet.h
     include/animal/framework/tilemap.h
     include/animal/framework/triggers.h
@@ -39,6 +40,7 @@ set(ANIMAL_FRAMEWORK_SOURCES
     src/platforms.cpp
     src/platformer.cpp
     src/save.cpp
+    src/settings.cpp
     src/sprite_sheet.cpp
     src/tilemap.cpp
     src/triggers.cpp

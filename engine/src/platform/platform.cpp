@@ -151,6 +151,10 @@ uint64_t nowNanoseconds() {
     return SDL_GetTicksNS();
 }
 
+void sleepNanoseconds(uint64_t duration) {
+    SDL_DelayPrecise(duration);
+}
+
 std::string userDataDirectory(const char* organization, const char* application) {
     char* path = SDL_GetPrefPath(organization, application);
     if (!path) {

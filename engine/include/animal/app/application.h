@@ -28,7 +28,7 @@ class Renderer2D;
 struct AppConfig {
     std::string title = "Animal Engine";
     std::string applicationId = "Game"; // the per-user folder (saves, logs/, crashes/)
-    int windowWidth = 1280;
+    int windowWidth = 1280; // points; 0 = the largest multiple of 320×180 that fits the display
     int windowHeight = 720;
     rhi::Backend backend = rhi::Backend::OpenGL;
     bool vsync = true;
@@ -49,6 +49,7 @@ struct EngineContext {
     audio::AudioSystem* audio = nullptr; // silent without a device (--mute, headless)
     std::string dataDirectory; // with trailing separator
     bool customData = false;   // --data: a data directory other than the deployed one (test data)
+    int frameCap = 0;          // frames per second the loop sleeps down to (0: none; use with vsync off)
     FrameStats stats;
     bool demo = false;          // --demo: the game drives itself with scripted input
     bool deterministic = false; // --deterministic: one fixed step per frame (reproducible runs)

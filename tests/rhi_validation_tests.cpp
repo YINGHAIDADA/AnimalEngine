@@ -54,6 +54,7 @@ public:
     void submit(const CommandList&) override {}
     void endFrame() override {}
     void waitIdle() override {}
+    void setVsync(bool) override {}
     std::vector<GpuTiming> gpuTimings() const override { return {}; }
 
 private:
