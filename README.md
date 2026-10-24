@@ -93,7 +93,7 @@ cmake --build --preset windows-ninja-debug
 | `--pack=data.pak` | 从资源包读取数据（不加时，可执行文件旁有 `data.pak` 就自动使用，否则读 `data/` 散文件；ADR-0031） |
 | `--input-script=path.txt` | 在指定帧注入按键 / 鼠标（画布像素坐标）/ 文本事件，用于自动化 UI 测试与演示；格式见 `engine/src/app/input_script.h` |
 | `--headless` | 不开窗口、不绘制（RHI Null 后端），模拟照常运行；配合 `--demo --deterministic --frames=N` 做自动通关测试（ADR-0032） |
-| `--expect=room:NAME,gems:N,visited:N,flag:NAME,finished:true,health:N,grounded:true,respawns:N` | （示例游戏）退出时检查结果，未满足时退出码 3 |
+| `--expect=room:NAME,gems:N,visited:N,flag:NAME,finished:true,health:N,dynamite:N,crawlers:N,lanternSwing:true,…` | （示例游戏）退出时检查结果，未满足时退出码 3 |
 | `--record-input=path.txt` | 把按键录成输入脚本（退出时写入）；配合 `--deterministic` 录制的脚本可逐帧重放 |
 | `--data=dir` | 从指定目录读取数据（测试用 `test_data`，ADR-0035）；此时开发工具关闭、不读写存档 |
 | `--settings=path` | （示例游戏）读写这个设置文件（测试运行默认不读写真实的设置文件） |
@@ -104,7 +104,7 @@ cmake --build --preset windows-ninja-debug
 | `--mute` | 不打开音频设备（音频系统照常运行但不出声；无头运行自动静音） |
 | `--crash-test=segv\|abort\|exception` | 启动后故意崩溃，检查崩溃报告；`--crash-dir=路径` 改变报告目录 |
 
-玩法：10 个房间的洞穴（世界布局见 `tools/scripts/make_area.py` 开头），散落着 19 颗宝石（右上角计数）。断桥上有移动平台与坠落平台；坠入深渊就到了尖刺竖井，底部的宝珠赋予**下潜**能力（在水中按住下），旁边的开关打开断桥通往闸门大厅的门；有了下潜，烟雾深坑的水池下面是一片淹没的区域（水流会推着你走，神殿里的开关打开暗流中的小门），淹没隧道向上通往闸门大厅。闸门要 14 颗宝石才开，门后是终点。启动后是标题画面（继续 / 新游戏 / 设置 / 退出）；游戏中按 Escape 或手柄 Menu 暂停。设置里可以调整音量、全屏、垂直同步与帧率上限，并在“按键”页为每个动作重新绑定键盘按键与手柄按键（ADR-0036）；设置保存在用户数据目录下的 `settings.json`。F11 或 Alt+Enter 切换全屏，窗口大小与位置会被记住。提示文字随最近使用的设备显示键名或手柄按键。按 M（手柄 Back）打开地图：显示进入过的房间及其地形（岩石、水、红色的尖刺）、门（打开后变淡）与开关（按下后变绿）、其中还没拾取的宝石和自己的位置，所在房间正常亮度、其他房间变暗，打开时游戏暂停。左上角是血量：3 颗发光的心，每颗 4 滴；被甲虫撞到（会被弹开）、碰到尖刺（发着微微红光）或被平台挤住各掉 1 滴，后两种还会回到检查点（进入房间后第一次站稳的位置）；血掉光时回到检查点并回满（掉出世界不扣血）；走进提示区域时屏幕下方显示提示。拾取宝石、按下开关、获得能力、进入新房间后第一次站稳时与退出游戏时自动保存，下次启动从该处继续（存档位置见 ADR-0011；`--demo` / `--deterministic` / `--start-room` 不读写存档）。存档写入前会保留上一份为 `save.json.bak`：存档损坏时自动用备份恢复，来自更新版本的存档不会被覆盖（ADR-0032）。
+玩法：10 个房间的洞穴（世界布局见 `tools/scripts/make_area.py` 开头），散落着 19 颗宝石（右上角计数）。断桥上有移动平台与坠落平台；坠入深渊就到了尖刺竖井，底部的宝珠赋予**下潜**能力（在水中按住下），旁边的开关打开断桥通往闸门大厅的门；有了下潜，烟雾深坑的水池下面是一片淹没的区域（水流会推着你走，神殿里的开关打开暗流中的小门），淹没隧道向上通往闸门大厅。闸门要 14 颗宝石才开，门后是终点。启动后是标题画面（继续 / 新游戏 / 设置 / 退出）；游戏中按 Escape 或手柄 Menu 暂停。设置里可以调整音量、全屏、垂直同步与帧率上限，并在“按键”页为每个动作重新绑定键盘按键与手柄按键（ADR-0036）；设置保存在用户数据目录下的 `settings.json`。F11 或 Alt+Enter 切换全屏，窗口大小与位置会被记住。提示文字随最近使用的设备显示键名或手柄按键。洞里散落着炸药：碰到即拾取（血量下方按数量显示），按 X（手柄西键）朝面向的方向抛出，引信闪烁两秒后爆炸——喷出一团烟雾，炸死附近的甲虫，把玩家、吊灯、藤蔓和草推开（ADR-0038）。吊灯会被碰得摆动，但它比角色重得多。按 M（手柄 Back）打开地图：显示进入过的房间及其地形（岩石、水、红色的尖刺）、门（打开后变淡）与开关（按下后变绿）、其中还没拾取的宝石和自己的位置，所在房间正常亮度、其他房间变暗，打开时游戏暂停。左上角是血量：3 颗发光的心，每颗 4 滴；被甲虫撞到（会被弹开）、碰到尖刺（发着微微红光）或被平台挤住各掉 1 滴，后两种还会回到检查点（进入房间后第一次站稳的位置）；血掉光时回到检查点并回满（掉出世界不扣血）；走进提示区域时屏幕下方显示提示。拾取宝石、按下开关、获得能力、进入新房间后第一次站稳时与退出游戏时自动保存，下次启动从该处继续（存档位置见 ADR-0011；`--demo` / `--deterministic` / `--start-room` 不读写存档）。存档写入前会保留上一份为 `save.json.bak`：存档损坏时自动用备份恢复，来自更新版本的存档不会被覆盖（ADR-0032）。
 
 音效：跳跃、落地、抓藤蔓、宝石、被撞、入水，以及洞穴环境声（ADR-0033）；源文件在 `assets/source/sounds/`（WAV 或 Ogg Vorbis，当前是 `tools/scripts/make_placeholder_audio.py` 生成的占位音效，同名替换即可），音量分组在参数表中（`audio.*`）。
 
@@ -171,7 +171,7 @@ $B/AnimalCooker --verify=data.pak --manifest=assets/cook.json
 | Tileset Tile 属性 | `solid`、`grass`、`light*`、`hazard`（`up` / `down` / `full`） | 碰撞、长草（`plants/grass.plant.json`）、发光 Tile、尖刺 | ADR-0010、0013、0034 |
 | 地图属性 | `look`、`look.*` | 观感预设与单项覆盖 | ADR-0015 |
 | 地图属性 | `wind.strength`、`wind.gusts`、`wind.gustInterval`、`wind.gustSpeed` | 微风与阵风 | ADR-0019 |
-| 点对象 | `spawn`、`candle`、`vent`、`vine`、`light`、`lantern`、`gem`、`crawler`、`wind`、`switch`（`flag`）、`ability`（`name` = `dive`）、`entry` | 起点、道具、光源、宝石、甲虫、气流、开关、能力、测试与传送的落点 | ADR-0010、0011、0013、0019、0034 |
+| 点对象 | `spawn`、`candle`、`vent`、`vine`、`light`、`lantern`（可摆动）、`gem`、`crawler`、`wind`、`switch`（`flag`）、`ability`（`name` = `dive`）、`dynamite`、`entry` | 起点、道具、光源、宝石、甲虫、气流、开关、能力、炸药拾取物、测试与传送的落点 | ADR-0010、0011、0013、0019、0034、0038 |
 | 矩形对象 | `trigger`、`water`（`currentX` / `currentY` 水流、`deepening` 随深度加深）、`plants`、`emitter`（也可为点）、`platform`（`travelX` / `travelY`、`speed`、`pause`、`phase`、`falls`）、`door`（`flag` 或 `gems`）、`goal` | 提示区域、水域、植物、粒子发射器、移动 / 坠落平台、门与宝石门、终点 | ADR-0011、0017、0018、0019、0020、0034 |
 | 预设文件 | `looks/*.look.json`、`effects/*.effect.json`（`"gpu": true` 走 GPU）、`plants/*.plant.json` | 可复用的观感、粒子效果、植物种类；格式错误会给出文件名与字段 | ADR-0015、0017、0019、0020 |
 | 参数文件 | `world/tuning.json` | 覆盖代码中登记的玩家 / 攀爬 / 游泳 / 烟雾参数（只写与默认值不同的项） | ADR-0027 |
