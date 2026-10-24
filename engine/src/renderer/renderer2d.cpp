@@ -8,6 +8,7 @@
 #include <animal/core/assert.h>
 #include <animal/core/log.h>
 #include <animal/renderer/renderer2d.h>
+#include <animal/resources/bitmap_font.h>
 #include <animal/rhi/command_list.h>
 
 #include <algorithm>
@@ -483,6 +484,35 @@ void Renderer2D::drawText(Vec2 position, std::string_view text, Color color, uin
                             font_->glyphUV(ch), c);
             }
             x += DebugFont::kAdvance * scale;
+        }
+    }
+}
+
+float Renderer2D::textLineHeight(const BitmapFont& font, uint32_t size) const {
+    return static_cast<float>(font.lineHeight() * static_cast<int>(overlayScale() * size));
+}
+
+float Renderer2D::textWidth(const BitmapFont& font, std::string_view text, uint32_t size) const {
+    return static_cast<float>(font.width(text) * static_cast<int>(overlayScale() * size));
+}
+
+void Renderer2D::drawText(const BitmapFont& font, Vec2 position, std::string_view text, Color color, uint32_t size) {
+    const auto scale = static_cast<float>(overlayScale() * size);
+    const Color shadow = Color::rgba(0, 0, 0, color.a);
+    const float cellW = static_cast<float>(font.cellWidth()) * scale;
+    const float cellH = static_cast<float>(font.lineHeight()) * scale;
+    for (int layer = 0; layer < 2; ++layer) {
+        const Vec2 offset = layer == 0 ? Vec2{scale, scale} : Vec2{};
+        const Color c = layer == 0 ? shadow : color;
+        float x = position.x;
+        for (size_t i = 0; i < text.size();) {
+            const char32_t ch = nextCodePoint(text, i);
+            const BitmapFont::Glyph glyph = font.glyph(ch);
+            if (ch != U' ') {
+                batch_.draw(font.texture(), {x + offset.x, position.y + offset.y, cellW, cellH}, font.cellUV(glyph.cell),
+                            c);
+            }
+            x += static_cast<float>(glyph.advance) * scale;
         }
     }
 }

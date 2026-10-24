@@ -1131,7 +1131,7 @@
       {
        "name": "message",
        "type": "string",
-       "value": "THE BRIDGE IS LONG GONE"
+       "value": "level.bridge_gone"
       },
       {
        "name": "once",

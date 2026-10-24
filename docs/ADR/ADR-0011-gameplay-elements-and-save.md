@@ -9,7 +9,7 @@
 
 | 类型 | 形状与位置 | 属性 |
 |---|---|---|
-| `trigger` | 矩形对象（`x`、`y`、`width`、`height`） | `message`（string，进入时显示）、`once`（bool，缺省 true） |
+| `trigger` | 矩形对象（`x`、`y`、`width`、`height`） | `message`（string，进入时显示；文本表中的键按当前语言显示，否则按原文，见 ADR-0041）、`once`（bool，缺省 true） |
 | `gem` | 点对象，宝石中心 | — |
 | `crawler` | 点对象，甲虫脚底中心 | — |
 

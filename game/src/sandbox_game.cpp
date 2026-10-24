@@ -141,6 +141,11 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     loadSettings(context);
     input_ = context.input;
     context_ = &context;
+    auto font = animal::BitmapFont::load(*context.device, context.dataDirectory + "fonts/ui.font.json");
+    if (!font || (!loadLanguage(settings_.language) && !loadLanguage(animal::Settings{}.language))) {
+        return false;
+    }
+    font_ = std::move(*font);
     const std::string textures = context.dataDirectory + "textures/";
     auto tileset = animal::loadMaterial(*context.device, textures + "tileset");
     auto props = animal::loadMaterial(*context.device, textures + "props");
@@ -681,7 +686,7 @@ void SandboxGame::respawn(animal::Renderer2D& renderer) {
     ++respawns_;
     if (health_ <= 0) {
         health_ = kMaxHealth;
-        showMessage("KNOCKED OUT");
+        showMessage(text("message.knocked_out"));
     }
     enterRoom(*checkpointRoom_, renderer); // rebuilds the room even when already in it
     placePlayerFeet(checkpointFeet_);
@@ -732,8 +737,8 @@ void SandboxGame::updateGameplay(animal::Entity& player) {
         }
     }
 
-    for (std::string& message : cave_.enteredTriggers(collider)) {
-        showMessage(std::move(message));
+    for (const std::string& message : cave_.enteredTriggers(collider)) {
+        showMessage(levelText(message));
     }
 
     if (checkpointPending_ && playerState_.grounded && !climb_.climbing) {
@@ -957,17 +962,18 @@ void SandboxGame::onScreen(animal::EngineContext&, animal::Renderer2D& renderer)
     }
     const animal::PresentLayout& layout = renderer.presentLayout();
     const float margin = static_cast<float>(6 * renderer.overlayScale());
-    const std::string gems = std::format("GEMS {}/{}", collectedGems(), gemFlags_.size());
-    renderer.drawText({static_cast<float>(layout.x + layout.width) - margin - renderer.textWidth(gems),
-                       static_cast<float>(layout.y) + margin},
+    const std::string gems = text("hud.gems", collectedGems(), gemFlags_.size());
+    renderer.drawText(font_, {static_cast<float>(layout.x + layout.width) - margin - renderer.textWidth(font_, gems),
+                              static_cast<float>(layout.y) + margin},
                       gems, kHudColor);
 
     if (messageTime_ > 0.0f && !message_.empty()) {
         const float fade = std::min({1.0f, messageTime_ / 0.6f, (kMessageSeconds - messageTime_) / 0.3f});
         animal::Color color = kMessageColor;
         color.a = static_cast<uint8_t>(std::lround(255.0f * fade));
-        renderer.drawText({static_cast<float>(layout.x) + (layout.width - renderer.textWidth(message_)) * 0.5f,
-                           static_cast<float>(layout.y + layout.height) - margin - renderer.textLineHeight()},
+        renderer.drawText(font_,
+                          {static_cast<float>(layout.x) + (layout.width - renderer.textWidth(font_, message_)) * 0.5f,
+                           static_cast<float>(layout.y + layout.height) - margin - renderer.textLineHeight(font_)},
                           message_, color);
     }
 }
@@ -1024,6 +1030,7 @@ void SandboxGame::onShutdown(animal::EngineContext& context) {
     animal::destroyMaterial(*context.device, assets_.props);
     animal::destroyMaterial(*context.device, creature_);
     animal::destroyMaterial(*context.device, assets_.crawler);
+    font_.destroy(*context.device);
 }
 
 } // namespace game

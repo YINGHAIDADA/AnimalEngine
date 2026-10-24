@@ -1127,7 +1127,7 @@
       {
        "name": "message",
        "type": "string",
-       "value": "AN OLD GATE, HUNGRY FOR GEMS"
+       "value": "level.old_gate"
       },
       {
        "name": "once",

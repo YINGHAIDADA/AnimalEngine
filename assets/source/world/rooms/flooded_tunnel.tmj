@@ -1022,7 +1022,7 @@
       {
        "name": "message",
        "type": "string",
-       "value": "THE WATER RISES TOWARDS A LIGHT"
+       "value": "level.water_light"
       },
       {
        "name": "once",

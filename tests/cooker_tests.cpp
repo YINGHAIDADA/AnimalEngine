@@ -2,6 +2,7 @@
 // references fail the cook.
 
 #include <animal/core/file.h>
+#include <animal/resources/loaders.h>
 
 #include "cooker.h"
 #include "test_harness.h"
@@ -49,6 +50,8 @@ TEST(cooker_packs_the_test_data_deterministically) {
     CHECK(a.pack.size() < a.categories.at("world").sourceBytes + a.categories.at("shaders").sourceBytes +
                               a.categories.at("sounds").sourceBytes);
     CHECK(hasEntry(a, "sounds/gem.wav") && hasEntry(a, "sounds/cave_ambience.wav"));
+    CHECK(hasEntry(a, "fonts/ui.font.json") && hasEntry(a, "fonts/ui.png") &&
+          hasEntry(a, "strings/zh-Hans.strings.json") && hasEntry(a, "strings/en.strings.json"));
     CHECK(std::ranges::find(a.unreferenced, "shaders/conformance.vert.ashd") != a.unreferenced.end());
 
     // The written pack loads like the game would read it.
@@ -92,6 +95,37 @@ TEST(cooker_reports_missing_references_and_invalid_data) {
     CHECK(mentions("b.look.json")); // invalid field
     CHECK(mentions("nope.frag"));
     CHECK(std::ranges::find(r.unreferenced, "world/notes.txt") != r.unreferenced.end());
+    fs::remove_all(dir, cleanupError);
+}
+
+// ADR-0041: text the font cannot show fails the cook; a key one language lacks is a warning.
+TEST(cooker_checks_text_against_the_font) {
+    const fs::path dir = fs::temp_directory_path() / "animal_cook_text";
+    fs::remove_all(dir, cleanupError);
+    fs::create_directories(dir / "source" / "fonts");
+    fs::create_directories(dir / "source" / "strings");
+    const auto write = [](const fs::path& p, const std::string& text) {
+        writeFileAtomic(p.generic_string(), text.data(), text.size());
+    };
+    const std::vector<uint8_t> sheet(24 * 16 * 4, 255);
+    CHECK(writePng((dir / "source" / "fonts" / "ui.png").generic_string(), 24, 16, sheet.data()));
+    write(dir / "source" / "fonts" / "ui.font.json", R"({"format": "animal-font", "version": 1, "image": "ui.png",
+        "cellWidth": 12, "cellHeight": 16, "baseline": 13, "columns": 2, "characters": "中", "advances": [12, 12]})");
+    write(dir / "source" / "strings" / "zh-Hans.strings.json", R"({"format": "animal-strings", "version": 1,
+        "language": "zh-Hans", "name": "中", "strings": {"a": "中文", "b": "中"}})");
+    write(dir / "source" / "strings" / "en.strings.json", R"({"format": "animal-strings", "version": 1,
+        "language": "en", "name": "中", "strings": {"a": "中"}})");
+    write(dir / "cook.json", R"({"format": "animal-cook", "version": 1, "dataVersion": "t",
+        "files": ["fonts/ui.font.json", "strings/zh-Hans.strings.json", "strings/en.strings.json"],
+        "materials": [], "shaders": []})");
+    cooker::Options o;
+    o.manifest = (dir / "cook.json").generic_string();
+    o.sourceRoot = (dir / "source").generic_string();
+    o.shaderDirectory = (dir / "shaders").generic_string();
+    const cooker::Result r = cooker::cook(o);
+    CHECK(!r.ok);
+    CHECK(r.errors.size() == 1 && r.errors[0].find("U+6587") != std::string::npos); // 文
+    CHECK(std::ranges::any_of(r.warnings, [](const std::string& w) { return w.find("en: no text for b") != std::string::npos; }));
     fs::remove_all(dir, cleanupError);
 }
 

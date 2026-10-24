@@ -59,9 +59,6 @@ std::string percent(float v) {
     return std::format("{}%", static_cast<int>(std::lround(v * 100.0f)));
 }
 
-std::string onOff(bool v) {
-    return v ? "ON" : "OFF";
-}
 
 } // namespace
 
@@ -122,9 +119,9 @@ std::vector<SandboxGame::MenuItem> SandboxGame::menuItems() {
     case Page::Title: {
         const bool hasSave = !savePath_.empty() && animal::fileExists(savePath_);
         if (hasSave) {
-            items.push_back(entry("CONTINUE", [this] { closeMenus(); }));
+            items.push_back(entry(text("menu.continue"), [this] { closeMenus(); }));
         }
-        items.push_back(entry("NEW GAME", [this, hasSave, &context] {
+        items.push_back(entry(text("menu.new_game"), [this, hasSave, &context] {
                              if (hasSave) {
                                  openPage(Page::ConfirmNewGame);
                              } else {
@@ -132,43 +129,50 @@ std::vector<SandboxGame::MenuItem> SandboxGame::menuItems() {
                                  closeMenus();
                              }
                          }));
-        items.push_back(entry("SETTINGS", [this] { openPage(Page::Settings); }));
-        items.push_back(entry("QUIT", [&context] { context.quitRequested = true; }));
+        items.push_back(entry(text("menu.settings"), [this] { openPage(Page::Settings); }));
+        items.push_back(entry(text("menu.quit"), [&context] { context.quitRequested = true; }));
         break;
     }
     case Page::ConfirmNewGame:
-        items.push_back(entry("START OVER (PROGRESS IS LOST)", [this, &context] {
+        items.push_back(entry(text("menu.start_over"), [this, &context] {
                              resetProgress(*context.renderer);
                              closeMenus();
                          }));
-        items.push_back(entry("BACK", [this] { backPage(); }));
+        items.push_back(entry(text("menu.back"), [this] { backPage(); }));
         break;
     case Page::Pause:
-        items.push_back(entry("RESUME", [this] { closeMenus(); }));
-        items.push_back(entry("SETTINGS", [this] { openPage(Page::Settings); }));
-        items.push_back(entry("QUIT TO TITLE", [this] {
+        items.push_back(entry(text("menu.resume"), [this] { closeMenus(); }));
+        items.push_back(entry(text("menu.settings"), [this] { openPage(Page::Settings); }));
+        items.push_back(entry(text("menu.quit_to_title"), [this] {
                              saveProgress();
                              openTitle();
                          }));
         break;
-    case Page::Settings:
-        items.push_back(entry("AUDIO", [this] { openPage(Page::Audio); }));
-        items.push_back(entry("DISPLAY", [this] { openPage(Page::Display); }));
-        items.push_back(entry("GRAPHICS", [this] { openPage(Page::Graphics); }));
-        items.push_back(entry("CONTROLS", [this] { openPage(Page::Controls); }));
-        items.push_back(entry("BACK", [this] { backPage(); }));
+    case Page::Settings: {
+        items.push_back(entry(text("menu.audio"), [this] { openPage(Page::Audio); }));
+        items.push_back(entry(text("menu.display"), [this] { openPage(Page::Display); }));
+        items.push_back(entry(text("menu.graphics"), [this] { openPage(Page::Graphics); }));
+        items.push_back(entry(text("menu.controls"), [this] { openPage(Page::Controls); }));
+        const auto changeLanguage = [this](int step) {
+            cycleLanguage(step);
+            settingsChanged_ = true;
+        };
+        items.push_back(setting(text("menu.language"), strings_.name(), [changeLanguage] { changeLanguage(1); },
+                                changeLanguage));
+        items.push_back(entry(text("menu.back"), [this] { backPage(); }));
         break;
+    }
     case Page::Audio: {
         const auto volume = [&](const char* label, float& value) {
-            items.push_back(setting(label, percent(value), nullptr, [&value](int step) {
+            items.push_back(setting(text(label), percent(value), nullptr, [&value](int step) {
                 value = std::clamp(std::round((value + 0.1f * static_cast<float>(step)) * 10.0f) / 10.0f, 0.0f, 1.0f);
             }));
         };
-        volume("MASTER", settings_.masterVolume);
-        volume("EFFECTS", settings_.effectsVolume);
-        volume("AMBIENCE", settings_.ambienceVolume);
-        volume("MUSIC", settings_.musicVolume);
-        items.push_back(entry("BACK", [this] { backPage(); }));
+        volume("audio.master", settings_.masterVolume);
+        volume("audio.effects", settings_.effectsVolume);
+        volume("audio.ambience", settings_.ambienceVolume);
+        volume("audio.music", settings_.musicVolume);
+        items.push_back(entry(text("menu.back"), [this] { backPage(); }));
         break;
     }
     case Page::Display: {
@@ -178,9 +182,9 @@ std::vector<SandboxGame::MenuItem> SandboxGame::menuItems() {
                 applyDisplaySettings(context);
             };
         };
-        items.push_back(setting("FULLSCREEN", onOff(settings_.fullscreen), [f = toggle(settings_.fullscreen)] { f(1); },
+        items.push_back(setting(text("display.fullscreen"), text(settings_.fullscreen ? "value.on" : "value.off"), [f = toggle(settings_.fullscreen)] { f(1); },
                                 toggle(settings_.fullscreen)));
-        items.push_back(setting("VSYNC", onOff(settings_.vsync), [f = toggle(settings_.vsync)] { f(1); },
+        items.push_back(setting(text("display.vsync"), text(settings_.vsync ? "value.on" : "value.off"), [f = toggle(settings_.vsync)] { f(1); },
                                 toggle(settings_.vsync)));
         const auto cycleCap = [this, &context](int step) {
             const auto& caps = animal::Settings::kFrameCaps;
@@ -190,15 +194,15 @@ std::vector<SandboxGame::MenuItem> SandboxGame::menuItems() {
             settings_.frameCap = caps[((index + step) % count + count) % count];
             applyDisplaySettings(context);
         };
-        MenuItem cap = setting("FRAME CAP", settings_.frameCap == 0 ? "OFF" : std::to_string(settings_.frameCap),
+        MenuItem cap = setting(text("display.frame_cap"), settings_.frameCap == 0 ? text("value.off") : std::to_string(settings_.frameCap),
                                [cycleCap] { cycleCap(1); }, cycleCap);
         cap.disabled = settings_.vsync; // the display's refresh paces the frames
         items.push_back(cap);
-        items.push_back(entry("BACK", [this] { backPage(); }));
+        items.push_back(entry(text("menu.back"), [this] { backPage(); }));
         break;
     }
     case Page::Graphics: {
-        items.push_back(setting("BRIGHTNESS", percent(settings_.brightness), nullptr, [this](int step) {
+        items.push_back(setting(text("graphics.brightness"), percent(settings_.brightness), nullptr, [this](int step) {
             const float next = std::round((settings_.brightness + 0.1f * static_cast<float>(step)) * 10.0f) / 10.0f;
             settings_.brightness = std::clamp(next, animal::Settings::kMinBrightness, animal::Settings::kMaxBrightness);
         }));
@@ -210,14 +214,14 @@ std::vector<SandboxGame::MenuItem> SandboxGame::menuItems() {
                     changed();
                 }
             };
-            items.push_back(setting(label, value ? std::move(on) : std::move(off), [flip] { flip(1); }, flip));
+            items.push_back(setting(text(label), value ? std::move(on) : std::move(off), [flip] { flip(1); }, flip));
         };
-        toggle("SHADOWS", settings_.shadows, "ON", "OFF");
-        toggle("INDIRECT + AO", settings_.fillLight, "ON", "OFF");
-        toggle("BLOOM", settings_.bloom, "ON", "OFF");
-        toggle("PARTICLES", settings_.particles, "ON", "OFF", [this, &context] { applyParticles(*context.renderer); });
-        toggle("LIGHT BANDS", settings_.lightBands, "SCENE", "SMOOTH");
-        items.push_back(entry("BACK", [this] { backPage(); }));
+        toggle("graphics.shadows", settings_.shadows, text("value.on"), text("value.off"));
+        toggle("graphics.fill_light", settings_.fillLight, text("value.on"), text("value.off"));
+        toggle("graphics.bloom", settings_.bloom, text("value.on"), text("value.off"));
+        toggle("graphics.particles", settings_.particles, text("value.on"), text("value.off"), [this, &context] { applyParticles(*context.renderer); });
+        toggle("graphics.light_bands", settings_.lightBands, text("value.scene"), text("value.smooth"));
+        items.push_back(entry(text("menu.back"), [this] { backPage(); }));
         break;
     }
     case Page::Controls: {
@@ -227,17 +231,17 @@ std::vector<SandboxGame::MenuItem> SandboxGame::menuItems() {
             std::string value = b.keys.empty() ? "-" : inputLabel(b.keys.front());
             value += " / ";
             value += b.buttons.empty() ? "-" : animal::platform::gamepadButtonLabel(b.buttons.front());
-            items.push_back(setting(infos[i].label, value, [this, i] {
+            items.push_back(setting(text(infos[i].label), value, [this, i] {
                 menu_.rebindAction = i;
                 menu_.rebindWait = kRebindTimeout;
                 openPage(Page::Rebind);
             }, nullptr));
         }
-        items.push_back(entry("RESET TO DEFAULTS", [this] {
+        items.push_back(entry(text("menu.reset_controls"), [this] {
                              settings_.bindings.clear();
                              bindActions();
                          }));
-        items.push_back(entry("BACK", [this] { backPage(); }));
+        items.push_back(entry(text("menu.back"), [this] { backPage(); }));
         break;
     }
     case Page::Rebind:
@@ -354,34 +358,49 @@ void SandboxGame::drawFrontEnd(animal::Renderer2D& renderer) {
                                static_cast<float>(screen.width), static_cast<float>(screen.height)};
     const bool title = menu_.page == Page::Title || menu_.page == Page::ConfirmNewGame;
     renderer.fillRect(canvas, title ? kTitleShade : kMenuShade);
-    const float line = renderer.textLineHeight();
-    const auto centred = [&](const std::string& text, float y, animal::Color color, uint32_t size = 1) {
-        renderer.drawText({canvas.x + (canvas.width - renderer.textWidth(text, size)) * 0.5f, y}, text, color, size);
+    const float line = renderer.textLineHeight(font_);
+    const auto width = [&](std::string_view s, uint32_t size = 1) { return renderer.textWidth(font_, s, size); };
+    const auto centred = [&](const std::string& s, float y, animal::Color color, uint32_t size = 1) {
+        renderer.drawText(font_, {canvas.x + (canvas.width - width(s, size)) * 0.5f, y}, s, color, size);
     };
 
-    float y = canvas.y + canvas.height * 0.2f;
+    float y = canvas.y + canvas.height * 0.15f;
     if (title) {
-        centred("ANIMAL ENGINE", y, kTitleText, 3);
-        y += line * 5.0f;
-        const std::string version = "V" ANIMAL_GAME_VERSION;
-        renderer.drawText({canvas.x + canvas.width - renderer.textWidth(version) - line,
-                           canvas.y + canvas.height - line * 2.5f},
+        centred(text("title.name"), y, kTitleText, 3);
+        y += line * 4.5f;
+        const std::string version = "v" ANIMAL_GAME_VERSION;
+        renderer.drawText(font_, {canvas.x + canvas.width - width(version) - line, canvas.y + canvas.height - line * 1.5f},
                           version, kHint);
     } else {
-        static constexpr const char* kHeadings[] = {"", "", "", "PAUSED", "SETTINGS", "AUDIO", "DISPLAY", "GRAPHICS", "CONTROLS", ""};
-        centred(kHeadings[static_cast<size_t>(menu_.page)], y, kTitleText, 2);
-        y += line * 4.0f;
+        static constexpr const char* kHeadings[] = {"", "", "", "menu.paused", "menu.settings", "menu.audio",
+                                                    "menu.display", "menu.graphics", "menu.controls", ""};
+        if (const char* heading = kHeadings[static_cast<size_t>(menu_.page)]; *heading) {
+            centred(text(heading), y, kTitleText, 2);
+        }
+        y += line * 3.0f;
     }
 
+    const std::string confirm = usingGamepad() ? animal::platform::gamepadButtonLabel(GamepadButton::South) : "ENTER";
+    const std::string cancel = usingGamepad() ? animal::platform::gamepadButtonLabel(GamepadButton::East) : "ESC";
     if (menu_.page == Page::Rebind) {
         const auto& info = actionInfos()[menu_.rebindAction];
-        centred(std::format("PRESS A KEY OR BUTTON FOR {}", info.label), y, kSelected);
-        centred("ESC CANCELS", y + line * 2.0f, kHint);
+        centred(text("menu.rebind", text(info.label)), y, kSelected);
+        centred(text("menu.rebind_cancel", "ESC"), y + line * 2.0f, kHint);
         return;
     }
 
+    // Labels in one column and values in another, the pair centred; plain entries centred alone.
     const std::vector<MenuItem> items = menuItems();
-    const float column = renderer.textWidth("RESET TO DEFAULTS") + renderer.textWidth("  ");
+    float labels = 0.0f;
+    float values = 0.0f;
+    for (const MenuItem& item : items) {
+        if (!item.value.empty()) {
+            labels = std::max(labels, width("> " + item.label));
+            values = std::max(values, width("< " + item.value + " >"));
+        }
+    }
+    const float gap = width("    ");
+    const float left = canvas.x + (canvas.width - labels - gap - values) * 0.5f;
     for (size_t i = 0; i < items.size(); ++i) {
         const MenuItem& item = items[i];
         const bool selected = static_cast<int>(i) == menu_.selected;
@@ -389,26 +408,22 @@ void SandboxGame::drawFrontEnd(animal::Renderer2D& renderer) {
         if (item.value.empty()) {
             centred(selected ? "> " + item.label + " <" : item.label, y, color);
         } else {
-            const float width = column + renderer.textWidth("XXXXXXXXXXXXX");
-            const float left = canvas.x + (canvas.width - width) * 0.5f;
-            renderer.drawText({left, y}, (selected ? "> " : "  ") + item.label, color);
+            renderer.drawText(font_, {left, y}, (selected ? "> " : "  ") + item.label, color);
             const std::string value = item.adjust ? "< " + item.value + " >" : item.value;
-            renderer.drawText({left + column, y}, value, color);
+            renderer.drawText(font_, {left + labels + gap, y}, value, color);
         }
-        y += line * 1.6f;
+        y += line * 1.25f;
     }
     const bool canGoBack = menu_.page != Page::Title;
     const bool adjustable = std::ranges::any_of(items, [](const MenuItem& item) { return item.adjust != nullptr; });
-    std::string hint = usingGamepad() ? animal::platform::gamepadButtonLabel(GamepadButton::South) + " SELECT"
-                                      : std::string("ENTER SELECT");
+    std::string hint = text("menu.hint_select", confirm);
     if (canGoBack) {
-        hint += usingGamepad() ? "  " + animal::platform::gamepadButtonLabel(GamepadButton::East) + " BACK"
-                               : std::string("  ESC BACK");
+        hint += "    " + text("menu.hint_back", cancel);
     }
     if (adjustable) {
-        hint += usingGamepad() ? "  D-PAD CHANGE" : "  ARROWS CHANGE";
+        hint += "    " + text("menu.hint_change", text(usingGamepad() ? "menu.dpad" : "menu.arrows"));
     }
-    centred(hint, canvas.y + canvas.height - line * 2.5f, kHint);
+    centred(hint, canvas.y + canvas.height - line * 1.5f, kHint);
 }
 
 } // namespace game

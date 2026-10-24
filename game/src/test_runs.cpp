@@ -118,7 +118,8 @@ bool SandboxGame::checkExpectations() {
             actual = screenName();
             met = actual == expected;
         } else if (name == "setting") {
-            // setting:NAME:VALUE for masterVolume, effectsVolume, fullscreen, vsync, frameCap, brightness,
+            // setting:NAME:VALUE for masterVolume, effectsVolume, fullscreen, vsync, frameCap, language
+            // (saved / shown, e.g. "en/en"), brightness,
             // shadows, fillLight, bloom, particles, lightBands, key.ACTION
             const size_t colon = expected.find(':');
             const std::string key = expected.substr(0, colon);
@@ -133,6 +134,8 @@ bool SandboxGame::checkExpectations() {
                 actual = settings_.vsync ? "true" : "false";
             } else if (key == "frameCap") {
                 actual = std::to_string(settings_.frameCap);
+            } else if (key == "language") {
+                actual = settings_.language + "/" + strings_.language();
             } else if (key == "brightness") {
                 actual = std::format("{:.1f}", settings_.brightness);
             } else if (key == "shadows" || key == "fillLight" || key == "bloom" || key == "particles" ||

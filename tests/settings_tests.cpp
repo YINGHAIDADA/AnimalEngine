@@ -16,6 +16,7 @@ using platform::Key;
 
 TEST(settings_round_trip) {
     Settings s;
+    s.language = "en";
     s.masterVolume = 0.5f;
     s.musicVolume = 0.0f;
     s.fullscreen = true;
@@ -46,6 +47,7 @@ TEST(settings_clamp_and_drop_what_they_cannot_use) {
     CHECK(s->frameCap == 0);                       // not one of the choices
     CHECK(s->windowSize == Vec2i{} && !s->windowPosition);
     CHECK(s->brightness == Settings::kMaxBrightness);
+    CHECK(s->language == "zh-Hans"); // the default when the file has none
     CHECK(s->shadows && !s->bloom && s->fillLight); // a mistyped switch keeps its default
     const InputBinding jump{{Key::Space}, {GamepadButton::South}};
     CHECK(s->bindings.size() == 1 && s->bindings.at("jump") == jump);

@@ -21,6 +21,7 @@
 
 namespace animal {
 
+class BitmapFont;
 class DebugFont;
 class FluidPass;
 class LightingPass;
@@ -103,8 +104,11 @@ public:
     void endWorldOverlay();
 
     void beginScreen(Color letterboxColor);
-    // `size` multiplies the HUD text size (titles).
+    // Debug-font text (ASCII capitals, digits, punctuation). `size` multiplies the text size (titles).
     void drawText(Vec2 position, std::string_view text, Color color, uint32_t size = 1);
+    // UTF-8 text in a pixel font (ADR-0041): one font pixel is overlayScale() * size window pixels;
+    // `position` is the top left of the line, which is font.lineHeight() font pixels tall.
+    void drawText(const BitmapFont& font, Vec2 position, std::string_view text, Color color, uint32_t size = 1);
     void endScreen();
 
     // Solid rectangle in the current pass's coordinates (world pixels in the world passes,
@@ -119,6 +123,8 @@ public:
     uint32_t overlayScale() const;
     float textLineHeight() const;
     float textWidth(std::string_view text, uint32_t size = 1) const;
+    float textLineHeight(const BitmapFont& font, uint32_t size = 1) const;
+    float textWidth(const BitmapFont& font, std::string_view text, uint32_t size = 1) const;
     // Totals of the last completed frame.
     SpriteBatchStats stats() const;
     uint32_t lightCount() const;

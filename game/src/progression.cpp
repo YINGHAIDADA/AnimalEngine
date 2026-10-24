@@ -20,7 +20,6 @@ constexpr animal::Color kEndShade = animal::Color::rgba(4, 4, 10, 225);
 constexpr animal::Color kEndTitle = animal::Color::rgba(150, 240, 215);
 constexpr animal::Color kEndText = animal::Color::rgba(235, 228, 210);
 constexpr animal::Color kEndHint = animal::Color::rgba(120, 130, 140);
-constexpr const char* kDiveMessage = "YOU CAN DIVE: HOLD DOWN IN WATER";
 
 constexpr float kHeartFullCell = 10.0f; // cells of the props material
 constexpr float kHeartEmptyCell = 11.0f;
@@ -42,15 +41,15 @@ void SandboxGame::loadProgress() {
     case animal::SaveLoad::Status::TooNew:
         animal::log::error("{}", load.message);
         savePath_.clear(); // never overwrite progress from a newer version
-        showMessage("SAVE FROM A NEWER VERSION - NOT SAVING");
+        showMessage(text("message.newer_save"));
         return;
     case animal::SaveLoad::Status::Unusable:
         animal::log::error("{}", load.message);
-        showMessage("SAVE DAMAGED - NEW GAME");
+        showMessage(text("message.save_damaged"));
         return;
     case animal::SaveLoad::Status::Recovered:
         animal::log::warn("{}", load.message);
-        showMessage("SAVE RESTORED FROM BACKUP");
+        showMessage(text("message.save_restored"));
         break;
     case animal::SaveLoad::Status::Loaded:
         if (!load.message.empty()) {
@@ -100,7 +99,7 @@ void SandboxGame::resetProgress(animal::Renderer2D& renderer) {
     checkpointRoom_ = startRoom_;
     checkpointFeet_ = startFeet_;
     respawn(renderer);
-    showMessage("PROGRESS RESET");
+    showMessage(text("message.progress_reset"));
 }
 
 size_t SandboxGame::collectedGems() const {
@@ -199,8 +198,8 @@ void SandboxGame::updateMechanisms(animal::Entity& player, float dt) {
     }
     Mechanisms::Touch touch = cave_.touchMechanisms(collider);
     save_.flags.insert(touch.flags.begin(), touch.flags.end());
-    for (std::string& message : touch.messages) {
-        showMessage(std::move(message));
+    for (const std::string& message : touch.messages) {
+        showMessage(levelText(message));
     }
     if (touch.pressed) {
         playSound(sounds_.click, x);
@@ -208,11 +207,11 @@ void SandboxGame::updateMechanisms(animal::Entity& player, float dt) {
     if (touch.ability) {
         playSound(sounds_.ability, x);
         if (touch.messages.empty()) {
-            showMessage(kDiveMessage);
+            showMessage(text("message.dive"));
         }
     }
     if (touch.gateNeeds) {
-        showMessage(std::format("THE GATE NEEDS {} GEMS ({} FOUND)", *touch.gateNeeds, collectedGems()));
+        showMessage(text("message.gate", *touch.gateNeeds, collectedGems()));
     }
     if (!touch.flags.empty()) {
         saveProgress();
@@ -233,20 +232,21 @@ void SandboxGame::drawEnding(animal::Renderer2D& renderer) {
     const animal::RectF canvas{static_cast<float>(screen.x), static_cast<float>(screen.y),
                                static_cast<float>(screen.width), static_cast<float>(screen.height)};
     renderer.fillRect(canvas, kEndShade);
-    const float line = renderer.textLineHeight();
-    const auto centred = [&](const std::string& text, float y, animal::Color color) {
-        renderer.drawText({canvas.x + (canvas.width - renderer.textWidth(text)) * 0.5f, y}, text, color);
+    const float line = renderer.textLineHeight(font_);
+    const auto centred = [&](const std::string& s, float y, animal::Color color, uint32_t size = 1) {
+        renderer.drawText(font_, {canvas.x + (canvas.width - renderer.textWidth(font_, s, size)) * 0.5f, y}, s, color,
+                          size);
     };
     const int seconds = static_cast<int>(save_.playSeconds);
-    float y = canvas.y + canvas.height * 0.3f;
-    centred("THE END", y, kEndTitle);
-    y += line * 2.5f;
-    centred(std::format("GEMS {}/{}", collectedGems(), gemFlags_.size()), y, kEndText);
-    y += line * 1.5f;
-    centred(std::format("ROOMS {}/{}", save_.visited.size(), world_.rooms.size()), y, kEndText);
-    y += line * 1.5f;
-    centred(std::format("TIME {}:{:02}", seconds / 60, seconds % 60), y, kEndText);
-    centred(prompt(Jump) + " CONTINUE", canvas.y + canvas.height - line * 3.0f, kEndHint);
+    float y = canvas.y + canvas.height * 0.25f;
+    centred(text("ending.title"), y, kEndTitle, 2);
+    y += line * 3.0f;
+    centred(text("ending.gems", collectedGems(), gemFlags_.size()), y, kEndText);
+    y += line * 1.25f;
+    centred(text("ending.rooms", save_.visited.size(), world_.rooms.size()), y, kEndText);
+    y += line * 1.25f;
+    centred(text("ending.time", std::format("{}:{:02}", seconds / 60, seconds % 60)), y, kEndText);
+    centred(text("ending.continue", prompt(Jump)), canvas.y + canvas.height - line * 2.0f, kEndHint);
 }
 
 } // namespace game

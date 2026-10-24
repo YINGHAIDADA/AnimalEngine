@@ -1092,7 +1092,7 @@
       {
        "name": "message",
        "type": "string",
-       "value": "CLIMB THE LEDGES TO GET BACK UP"
+       "value": "level.climb_ledges"
       },
       {
        "name": "once",

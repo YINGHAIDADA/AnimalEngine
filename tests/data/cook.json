@@ -4,6 +4,9 @@
   "dataVersion": "sandbox-1",
   "world": "world/test.world",
   "files": [
+    "fonts/ui.font.json",
+    "strings/zh-Hans.strings.json",
+    "strings/en.strings.json",
     "world/tuning.json",
     "world/effects/ember.effect.json",
     "world/effects/spark.effect.json",

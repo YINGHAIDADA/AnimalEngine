@@ -1005,7 +1005,7 @@
       {
        "name": "message",
        "type": "string",
-       "value": "SOMETHING OPENED FAR ABOVE"
+       "value": "level.opened_above"
       }
      ]
     },
@@ -1029,7 +1029,7 @@
       {
        "name": "message",
        "type": "string",
-       "value": "YOU CAN DIVE: HOLD DOWN IN WATER"
+       "value": "message.dive"
       }
      ]
     },
@@ -1131,7 +1131,7 @@
       {
        "name": "message",
        "type": "string",
-       "value": "MIND THE SPIKES"
+       "value": "level.spikes"
       },
       {
        "name": "once",

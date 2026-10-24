@@ -1,0 +1,8 @@
+# title: settings > language: from the default (Chinese) to English
+10 key Down
+15 key Enter
+20 key Down
+23 key Down
+26 key Down
+29 key Down
+34 key Right

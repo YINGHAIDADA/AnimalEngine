@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Writes assets/package/THIRD_PARTY_NOTICES.txt: the licences of the third-party code compiled into
-the released game, taken verbatim from the pinned sources in external/. Run after updating a
-dependency. (Dear ImGui, glslang and SPIRV-Cross are build or development tools and not shipped.)
+the released game, taken verbatim from the pinned sources in external/, and of the UI font (copied to
+assets/package/fonts by make_font.py). Run after updating a dependency. (Dear ImGui, glslang and SPIRV-Cross are build or development tools and not shipped.)
 
     python3 tools/scripts/make_notices.py
 """
@@ -66,12 +66,24 @@ COMPONENTS = [
     ("Khronos OpenGL headers", "OpenGL API headers", khronos_licence),
 ]
 
+FONTS = ROOT / "assets" / "package" / "fonts"
+# The UI font (ADR-0041): a subset of Fusion Pixel Font, which draws on the fonts after it.
+FONT_COMPONENTS = [
+    ("Fusion Pixel Font", "fusion-pixel.txt"),
+    ("Ark Pixel Font", "ark-pixel.txt"),
+    ("Cubic 11", "cubic-11.txt"),
+    ("Galmuri", "galmuri.txt"),
+]
+
 
 def main():
     parts = ["Third-party software in Animal Engine\n",
              "The released game contains the following third-party code, under the licences below.\n"]
     for name, use, licence in COMPONENTS:
         parts.append("\n" + "=" * 78 + f"\n{name} - {use}\n" + "=" * 78 + "\n\n" + licence())
+    for name, file in FONT_COMPONENTS:
+        text = (FONTS / file).read_text(encoding="utf-8").strip() + "\n"
+        parts.append("\n" + "=" * 78 + f"\n{name} - UI font (subset)\n" + "=" * 78 + "\n\n" + text)
     OUT.write_text("".join(parts), encoding="utf-8")
     print(f"wrote {OUT}")
 

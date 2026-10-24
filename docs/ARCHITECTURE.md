@@ -125,6 +125,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | 阴影 | 画布尺寸 R8 遮挡图（`setLightOccluders`，画布空间）；光照 pass 中每个像素沿整数 Bresenham 走向光源：穿出一块遮挡物即挡住，所在遮挡物内按深度衰减（`shadowPenetration`）（ADR-0012）。 |
 | 颜色空间 | 全程 UNorm、在显示空间计算（不做 sRGB 转换）。M2 评估后保留：美术、光照分级与抖动、调色都在这个空间里调好，两后端逐像素一致；改为线性空间会改变全部观感与色阶分布，收益不足。 |
 | 调试文字 | 内置 3×5 像素字体（不依赖资源文件），覆盖层缩放 = 画布缩放 / 2（至少 1）。 |
+| 界面文字 | `BitmapFont`：12×16 格子的位图字体（`fonts/ui.font.json`），UTF-8，与调试文字同一缩放；文本来自按语言的文本表（`strings/*.strings.json`），缺键回退英文（ADR-0041）。 |
 
 ### 5.1 渲染目标与 pass 一览
 

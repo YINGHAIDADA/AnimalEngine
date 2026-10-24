@@ -29,6 +29,7 @@ std::string serializeSettings(const Settings& s) {
     Json json;
     json["format"] = kFormat;
     json["version"] = Settings::kVersion;
+    json["language"] = s.language;
     json["audio"] = {{"master", s.masterVolume}, {"effects", s.effectsVolume}, {"ambience", s.ambienceVolume},
                      {"music", s.musicVolume}};
     Json display = {{"fullscreen", s.fullscreen}, {"vsync", s.vsync}, {"frameCap", s.frameCap}};
@@ -78,6 +79,10 @@ std::optional<Settings> parseSettings(std::string_view text, std::string* error)
         return fail("settings version " + std::to_string(version) + " is not supported");
     }
     Settings s;
+    if (const auto language = json.find("language");
+        language != json.end() && language->is_string() && !language->get<std::string>().empty()) {
+        s.language = language->get<std::string>();
+    }
     if (const auto audio = json.find("audio"); audio != json.end() && audio->is_object()) {
         s.masterVolume = volume(*audio, "master", s.masterVolume);
         s.effectsVolume = volume(*audio, "effects", s.effectsVolume);

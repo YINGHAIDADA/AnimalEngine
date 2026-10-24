@@ -103,17 +103,18 @@ void SandboxGame::drawMap(animal::Renderer2D& renderer) {
     const animal::PresentLayout& screen = renderer.presentLayout();
     const float u = static_cast<float>(renderer.overlayScale());
     const float margin = 6.0f * u;
-    const float line = renderer.textLineHeight();
+    const float line = renderer.textLineHeight(font_);
     const animal::RectF canvas{static_cast<float>(screen.x), static_cast<float>(screen.y),
                                static_cast<float>(screen.width), static_cast<float>(screen.height)};
     renderer.fillRect(canvas, kShade);
 
-    renderer.drawText({canvas.x + margin, canvas.y + margin}, "MAP", kTitle);
-    const std::string rooms = std::format("ROOMS {}/{}", save_.visited.size(), world_.rooms.size());
-    renderer.drawText({canvas.x + canvas.width - margin - renderer.textWidth(rooms), canvas.y + margin}, rooms, kTitle);
-    const std::string hint = prompt(Map) + " CLOSE";
-    renderer.drawText({canvas.x + (canvas.width - renderer.textWidth(hint)) * 0.5f,
-                       canvas.y + canvas.height - margin - line},
+    renderer.drawText(font_, {canvas.x + margin, canvas.y + margin}, text("map.title"), kTitle);
+    const std::string rooms = text("map.rooms", save_.visited.size(), world_.rooms.size());
+    renderer.drawText(font_, {canvas.x + canvas.width - margin - renderer.textWidth(font_, rooms), canvas.y + margin},
+                      rooms, kTitle);
+    const std::string hint = text("map.close", prompt(Map));
+    renderer.drawText(font_, {canvas.x + (canvas.width - renderer.textWidth(font_, hint)) * 0.5f,
+                              canvas.y + canvas.height - margin - line},
                       hint, kHint);
 
     const float band = margin * 2.0f + line;

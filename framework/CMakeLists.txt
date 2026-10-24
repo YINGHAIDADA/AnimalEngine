@@ -20,6 +20,7 @@ set(ANIMAL_FRAMEWORK_HEADERS
     include/animal/framework/save.h
     include/animal/framework/settings.h
     include/animal/framework/sprite_sheet.h
+    include/animal/framework/strings.h
     include/animal/framework/tilemap.h
     include/animal/framework/triggers.h
     include/animal/framework/tuning.h
@@ -46,6 +47,7 @@ set(ANIMAL_FRAMEWORK_SOURCES
     src/save.cpp
     src/settings.cpp
     src/sprite_sheet.cpp
+    src/strings.cpp
     src/tilemap.cpp
     src/triggers.cpp
     src/tuning.cpp

@@ -17,12 +17,15 @@
 #include <animal/framework/save.h>
 #include <animal/framework/settings.h>
 #include <animal/framework/sprite_sheet.h>
+#include <animal/framework/strings.h>
 #include <animal/framework/tuning.h>
 #include <animal/framework/water.h>
 #include <animal/renderer/camera2d.h>
+#include <animal/resources/bitmap_font.h>
 #include <animal/resources/loaders.h>
 
 #include <array>
+#include <format>
 #include <functional>
 #include <map>
 #include <optional>
@@ -56,7 +59,7 @@ enum Action : animal::ActionId {
 // V1 visual systems in every room.
 class SandboxGame final : public animal::Application {
 public:
-    // An action, the name it is saved under (settings) and shown with (menus), and its defaults.
+    // An action, the name it is saved under (settings), the text key of its menu label, and its defaults.
     struct ActionInfo {
         Action id;
         const char* name;
@@ -140,6 +143,16 @@ private:
     void addBlastSmoke(animal::Renderer2D& renderer) const;
     void drawDynamiteHud(animal::Renderer2D& renderer) const;
     void vineSounds(const animal::Entity& player, bool climbing, float dt); // rustling and swishing
+    // text.cpp (ADR-0041)
+    bool loadLanguage(const std::string& language); // its string table, English answering missing keys
+    void cycleLanguage(int step);
+    // The current language's text for `key`, with "{0}", "{1}", ... replaced by the arguments.
+    template <typename... Args>
+    std::string text(std::string_view key, const Args&... args) const {
+        const std::string values[] = {std::format("{}", args)..., std::string()};
+        return strings_.format(key, std::span(values, sizeof...(Args)));
+    }
+    std::string levelText(const std::string& message) const; // a text key, or text shown as written
     // game_settings.cpp (ADR-0036)
     void loadSettings(animal::EngineContext& context);
     void applyDisplaySettings(animal::EngineContext& context);
@@ -228,6 +241,8 @@ private:
     float submersion_ = 0.0f;   // share of the player under water (last step)
 
     animal::Settings settings_;  // the player's volumes, display and controls (ADR-0036)
+    animal::Strings strings_;    // the language's text (ADR-0041)
+    animal::BitmapFont font_;    // the text the player reads
     std::string settingsPath_;   // empty: not persisted (test runs, unless --settings=path)
     animal::Settings savedSettings_; // as last read or written
     bool settingsChanged_ = false;   // changed in the menus: written when they close

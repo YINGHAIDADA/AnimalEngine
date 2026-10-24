@@ -8,6 +8,8 @@
 #include <animal/framework/level.h>
 #include <animal/framework/look.h>
 #include <animal/framework/sprite_sheet.h>
+#include <animal/framework/strings.h>
+#include <animal/resources/bitmap_font.h>
 #include <animal/resources/loaders.h>
 #include <animal/rhi/shader_package.h>
 
@@ -27,7 +29,7 @@ namespace {
 namespace fs = std::filesystem;
 using Json = nlohmann::ordered_json;
 
-enum class Kind { World, Room, Tileset, Look, Effect, Plant, Tuning, SpriteSheet, Shader, Sound, Json };
+enum class Kind { World, Room, Tileset, Look, Effect, Plant, Tuning, SpriteSheet, Shader, Sound, Font, Strings, Image, Json };
 
 struct Item {
     Kind kind = Kind::Json;
@@ -72,6 +74,9 @@ Kind kindOf(const std::string& key) {
     if (key.ends_with(".plant.json")) return Kind::Plant;
     if (key.ends_with("tuning.json")) return Kind::Tuning;
     if (key.ends_with(".wav") || key.ends_with(".ogg")) return Kind::Sound;
+    if (key.ends_with(".font.json")) return Kind::Font;
+    if (key.ends_with(".strings.json")) return Kind::Strings;
+    if (key.ends_with(".png")) return Kind::Image;
     return Kind::Json;
 }
 
@@ -202,6 +207,7 @@ private:
     void cookAtlas(const Json& manifest);
     void validateCooked();
     void findUnreferencedAndDuplicates();
+    void checkText();
     TextReader cookedReader() const;
 
     Options options_;
@@ -212,6 +218,10 @@ private:
     std::deque<std::string> queue_;
     std::set<std::string> consumed_;    // source files read (by key; shaders as "shaders/x.ashd")
     std::string worldKey_;
+    // Text the player reads (ADR-0041), checked against every font once everything is read.
+    std::vector<std::string> fonts_;                       // keys
+    std::vector<StringTable> tables_;
+    std::vector<std::pair<std::string, std::string>> levelMessages_; // room key, message (a key or text)
 };
 
 void Cook::enqueue(const std::string& key, Kind kind, const std::string& from) {
@@ -277,9 +287,15 @@ void Cook::process(const std::string& key) {
         break;
     }
     case Kind::Room: {
-        if (!parseRoom(source, path, sourceReader, &parseError)) {
+        const std::optional<Room> room = parseRoom(source, path, sourceReader, &parseError);
+        if (!room) {
             error(parseError);
             return;
+        }
+        for (const LevelObject& object : room->objects) {
+            if (std::string message = object.properties.getString("message"); !message.empty()) {
+                levelMessages_.emplace_back(key, std::move(message));
+            }
         }
         const Json json = Json::parse(source);
         if (const auto tilesets = json.find("tilesets"); tilesets != json.end()) {
@@ -330,6 +346,35 @@ void Cook::process(const std::string& key) {
             error(parseError);
         }
         break;
+    case Kind::Font: {
+        const std::optional<BitmapFontDesc> font = parseBitmapFont(source, path, &parseError);
+        if (!font) {
+            error(parseError);
+            return;
+        }
+        fonts_.push_back(key);
+        if (const auto image = keyOf(font->image)) {
+            enqueue(*image, Kind::Image, key);
+        } else {
+            error(std::format("{}: the glyph sheet {} is outside the source tree", key, font->image));
+        }
+        break;
+    }
+    case Kind::Strings: {
+        std::optional<StringTable> table = parseStringTable(source, path, &parseError);
+        if (!table) {
+            error(parseError);
+            return;
+        }
+        tables_.push_back(std::move(*table));
+        break;
+    }
+    case Kind::Image:
+        if (!loadImage(path, &parseError)) {
+            error(std::format("{}: {}", key, parseError));
+        }
+        item.cooked = item.source; // a glyph sheet, loaded as it is (not part of the material atlas)
+        return;
     case Kind::Tuning:
     case Kind::Tileset:
     case Kind::Json:
@@ -458,6 +503,12 @@ void Cook::validateCooked() {
         case Kind::SpriteSheet:
             ok = parseAsepriteSheet(cooked, path, &parseError).has_value();
             break;
+        case Kind::Font:
+            ok = parseBitmapFont(cooked, path, &parseError).has_value();
+            break;
+        case Kind::Strings:
+            ok = parseStringTable(cooked, path, &parseError).has_value();
+            break;
         default:
             break;
         }
@@ -495,6 +546,8 @@ void Cook::findUnreferencedAndDuplicates() {
     visit(sourceRoot_ + "world", "", sourceRoot_);
     visit(sourceRoot_ + "textures", "", sourceRoot_);
     visit(sourceRoot_ + "sounds", "", sourceRoot_);
+    visit(sourceRoot_ + "fonts", "", sourceRoot_);
+    visit(sourceRoot_ + "strings", "", sourceRoot_);
     visit(shaderDir_, "shaders/", shaderDir_);
     for (auto& [content, keys] : byContent) {
         if (keys.size() > 1) {
@@ -503,6 +556,51 @@ void Cook::findUnreferencedAndDuplicates() {
     }
     for (const std::string& key : result_.unreferenced) {
         result_.warnings.push_back(key + ": not referenced (not packed)");
+    }
+}
+
+// Every language has every key (a missing one shows the English text: a warning), level messages that
+// name a key exist, and every character the player can read is in each font (a box would show: an error).
+void Cook::checkText() {
+    std::set<std::string> keys;
+    for (const StringTable& table : tables_) {
+        for (const auto& [key, value] : table.strings) {
+            keys.insert(key);
+        }
+    }
+    for (const StringTable& table : tables_) {
+        for (const std::string& key : keys) {
+            if (!table.strings.contains(key)) {
+                result_.warnings.push_back(std::format("strings {}: no text for {} (the fallback is shown)",
+                                                       table.language, key));
+            }
+        }
+    }
+    std::vector<std::pair<std::string, std::string>> shown; // where, text
+    for (const StringTable& table : tables_) {
+        shown.emplace_back("strings " + table.language, table.name);
+        for (const auto& [key, value] : table.strings) {
+            shown.emplace_back(std::format("strings {} {}", table.language, key), value);
+        }
+    }
+    for (const auto& [room, message] : levelMessages_) {
+        if (!keys.contains(message)) {
+            shown.emplace_back(room, message); // shown as written
+        }
+    }
+    for (const std::string& fontKey : fonts_) {
+        const auto desc = parseBitmapFont(text(items_.at(fontKey).source), absolute(fontKey), nullptr);
+        const BitmapFont font(*desc, {});
+        for (const auto& [where, s] : shown) {
+            if (const std::u32string missing = font.missing(s); !missing.empty()) {
+                std::string chars;
+                for (const char32_t c : missing) {
+                    chars += std::format("{}U+{:04X}", chars.empty() ? "" : " ", static_cast<uint32_t>(c));
+                }
+                error(std::format("{}: \"{}\" has characters {} lacks ({}); add them with tools/scripts/make_font.py",
+                                  where, s, fontKey, chars));
+            }
+        }
     }
 }
 
@@ -553,6 +651,7 @@ Result Cook::run() {
     }
     cookAtlas(manifest);
     validateCooked();
+    checkText();
     findUnreferencedAndDuplicates();
 
     std::vector<PackInput> inputs;

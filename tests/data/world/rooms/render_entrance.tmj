@@ -1174,7 +1174,7 @@
       {
        "name": "message",
        "type": "string",
-       "value": "HOLD UP NEAR A VINE TO CLIMB"
+       "value": "level.climb_vine"
       },
       {
        "name": "once",
@@ -1197,7 +1197,7 @@
       {
        "name": "message",
        "type": "string",
-       "value": "THE TUNNEL LEADS EAST"
+       "value": "level.tunnel_east"
       },
       {
        "name": "once",

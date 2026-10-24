@@ -14,7 +14,8 @@ set(ANIMAL_GAME_SOURCES
     src/progression.cpp
     src/sandbox_game.cpp
     src/sandbox_game.h
-    src/test_runs.cpp)
+    src/test_runs.cpp
+    src/text.cpp)
 
 if(ANIMAL_DEV_TOOLS)
     list(APPEND ANIMAL_GAME_SOURCES
@@ -94,7 +95,22 @@ animal_add_data_files(animal_game_world
     DESTINATION world
     FILES ${ANIMAL_GAME_WORLD_FILES})
 
-add_dependencies(animal_game animal_shaders animal_game_textures animal_game_world animal_game_sounds)
+# The UI font and the string tables (ADR-0041).
+file(GLOB ANIMAL_GAME_FONT_FILES CONFIGURE_DEPENDS RELATIVE "${PROJECT_SOURCE_DIR}/assets/source/fonts"
+    "${PROJECT_SOURCE_DIR}/assets/source/fonts/*")
+animal_add_data_files(animal_game_fonts
+    SOURCE_DIR "${PROJECT_SOURCE_DIR}/assets/source/fonts"
+    DESTINATION fonts
+    FILES ${ANIMAL_GAME_FONT_FILES})
+file(GLOB ANIMAL_GAME_STRING_FILES CONFIGURE_DEPENDS RELATIVE "${PROJECT_SOURCE_DIR}/assets/source/strings"
+    "${PROJECT_SOURCE_DIR}/assets/source/strings/*.strings.json")
+animal_add_data_files(animal_game_strings
+    SOURCE_DIR "${PROJECT_SOURCE_DIR}/assets/source/strings"
+    DESTINATION strings
+    FILES ${ANIMAL_GAME_STRING_FILES})
+
+add_dependencies(animal_game animal_shaders animal_game_textures animal_game_world animal_game_sounds animal_game_fonts
+    animal_game_strings)
 
 # Release layout (ADR-0031): cmake --build <dir> --target animal_package
 #   build/<preset>/package/<Config>/AnimalGame + data.pak (+ cook report)
@@ -108,6 +124,12 @@ foreach(rel IN LISTS ANIMAL_GAME_TEXTURE_FILES)
 endforeach()
 foreach(rel IN LISTS ANIMAL_GAME_SOUND_FILES)
     list(APPEND ANIMAL_COOK_INPUTS "${PROJECT_SOURCE_DIR}/assets/source/sounds/${rel}")
+endforeach()
+foreach(rel IN LISTS ANIMAL_GAME_FONT_FILES)
+    list(APPEND ANIMAL_COOK_INPUTS "${PROJECT_SOURCE_DIR}/assets/source/fonts/${rel}")
+endforeach()
+foreach(rel IN LISTS ANIMAL_GAME_STRING_FILES)
+    list(APPEND ANIMAL_COOK_INPUTS "${PROJECT_SOURCE_DIR}/assets/source/strings/${rel}")
 endforeach()
 add_custom_command(
     OUTPUT "${ANIMAL_PACKAGE_DIR}/data.pak"
@@ -250,6 +272,7 @@ if(ANIMAL_BUILD_TESTS)
     animal_add_menu_test(volume --frames=40 "--expect=screen:audio,setting:masterVolume:0.8")
     animal_add_menu_test(display --frames=60 "--expect=screen:display,setting:vsync:false,setting:frameCap:30")
     animal_add_menu_test(rebind --frames=70 "--expect=screen:controls,setting:key.right:L")
+    animal_add_menu_test(language --frames=50 "--expect=screen:settings,setting:language:en/en")
     animal_add_menu_test(graphics --frames=80 "--expect=screen:graphics,setting:brightness:1.1,setting:shadows:false,setting:fillLight:true,setting:bloom:true,setting:particles:false,setting:lightBands:false")
     add_test(NAME menu_ending_returns_to_title COMMAND ${ANIMAL_TEST_RUN} --menus --start-room=test_gate --gems=3
              "--input-script=${PROJECT_SOURCE_DIR}/tests/input/menu_ending.txt" --frames=240

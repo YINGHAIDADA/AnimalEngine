@@ -19,14 +19,14 @@ using animal::platform::Key;
 
 const std::vector<SandboxGame::ActionInfo>& actionTable() {
     static const std::vector<SandboxGame::ActionInfo> table = {
-        {MoveLeft, "left", "MOVE LEFT", {{Key::Left, Key::A}, {GamepadButton::DpadLeft}, {{GamepadAxis::LeftX, -1.0f}}}},
-        {MoveRight, "right", "MOVE RIGHT", {{Key::Right, Key::D}, {GamepadButton::DpadRight}, {{GamepadAxis::LeftX, 1.0f}}}},
-        {MoveUp, "up", "UP / CLIMB", {{Key::Up, Key::W}, {GamepadButton::DpadUp}, {{GamepadAxis::LeftY, -1.0f}}}},
-        {MoveDown, "down", "DOWN / DIVE", {{Key::Down, Key::S}, {GamepadButton::DpadDown}, {{GamepadAxis::LeftY, 1.0f}}}},
-        {Jump, "jump", "JUMP", {{Key::Space, Key::Z}, {GamepadButton::South}, {}}},
-        {Map, "map", "MAP", {{Key::M}, {GamepadButton::Back}, {}}},
-        {Pause, "pause", "PAUSE", {{Key::Escape, Key::P}, {GamepadButton::Start}, {}}},
-        {Throw, "throw", "THROW DYNAMITE", {{Key::X}, {GamepadButton::West}, {}}},
+        {MoveLeft, "left", "action.left", {{Key::Left, Key::A}, {GamepadButton::DpadLeft}, {{GamepadAxis::LeftX, -1.0f}}}},
+        {MoveRight, "right", "action.right", {{Key::Right, Key::D}, {GamepadButton::DpadRight}, {{GamepadAxis::LeftX, 1.0f}}}},
+        {MoveUp, "up", "action.up", {{Key::Up, Key::W}, {GamepadButton::DpadUp}, {{GamepadAxis::LeftY, -1.0f}}}},
+        {MoveDown, "down", "action.down", {{Key::Down, Key::S}, {GamepadButton::DpadDown}, {{GamepadAxis::LeftY, 1.0f}}}},
+        {Jump, "jump", "action.jump", {{Key::Space, Key::Z}, {GamepadButton::South}, {}}},
+        {Map, "map", "action.map", {{Key::M}, {GamepadButton::Back}, {}}},
+        {Pause, "pause", "action.pause", {{Key::Escape, Key::P}, {GamepadButton::Start}, {}}},
+        {Throw, "throw", "action.throw", {{Key::X}, {GamepadButton::West}, {}}},
     };
     return table;
 }

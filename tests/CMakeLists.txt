@@ -17,6 +17,8 @@ add_executable(animal_tests
     audio_tests.cpp
     mechanism_tests.cpp
     settings_tests.cpp
+    bitmap_font_tests.cpp
+    strings_tests.cpp
     swing_and_throw_tests.cpp)
 animal_set_compile_options(animal_tests)
 if(ANIMAL_DEV_TOOLS)

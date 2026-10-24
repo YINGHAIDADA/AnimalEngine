@@ -1034,7 +1034,7 @@
       {
        "name": "message",
        "type": "string",
-       "value": "THE CURRENT PULLS EAST"
+       "value": "level.current_east"
       },
       {
        "name": "once",

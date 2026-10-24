@@ -992,7 +992,7 @@
       {
        "name": "message",
        "type": "string",
-       "value": "A DOOR GROANS IN THE DEEP"
+       "value": "level.door_deep"
       }
      ]
     },

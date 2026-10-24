@@ -29,6 +29,8 @@ struct Settings {
     static constexpr float kMinBrightness = 0.7f;
     static constexpr float kMaxBrightness = 1.5f;
 
+    std::string language = "zh-Hans"; // a string table's language (ADR-0041)
+
     // Audio, 0..1.
     float masterVolume = 1.0f;
     float effectsVolume = 1.0f;
