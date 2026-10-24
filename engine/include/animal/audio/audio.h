@@ -64,6 +64,11 @@ public:
     bool init(bool device = true);
     void shutdown();
     bool hasDevice() const { return stream_ != nullptr; }
+    // After playback devices change: the stream follows the system default by itself (SDL moves
+    // streams opened on the default device); this opens one if there was no device so far, and
+    // logs the device in use.
+    void devicesChanged();
+    std::string deviceName() const; // of the device playing, or "no device"
 
     // Loads through the file layer (resource packs included); the same path loads once.
     SoundHandle load(const std::string& path);
@@ -115,6 +120,9 @@ private:
     static void callback(void* user, SDL_AudioStream* stream, int additional, int total);
 
     void* stream_ = nullptr; // SDL_AudioStream
+    bool wantDevice_ = false; // init(true): keep trying to open one when devices change
+    bool subsystemInit_ = false;
+    void openDevice();
     mutable std::mutex mutex_;
     struct VoiceSlot {
         Voice voice;

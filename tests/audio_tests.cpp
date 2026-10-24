@@ -5,6 +5,9 @@
 
 #include "test_harness.h"
 
+#include <SDL3/SDL_hints.h>
+#include <SDL3/SDL_timer.h>
+
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -168,6 +171,31 @@ TEST(audio_reload_keeps_playing_voices_and_refuses_bad_files) {
     CHECK(!rig.audio.reload(path));
     CHECK(!rig.audio.reload((rig.dir / "never_loaded.wav").generic_string()));
     CHECK(!rig.audio.load((rig.dir / "missing.wav").generic_string()).valid());
+}
+
+} // namespace
+
+namespace {
+
+// The device path (an SDL audio stream fed by the mixer on SDL's audio thread) through SDL's dummy
+// driver, which consumes audio in real time without hardware: a short sound must play to its end.
+TEST(audio_device_stream_plays_through_the_dummy_driver) {
+    SDL_SetHint(SDL_HINT_AUDIO_DRIVER, "dummy");
+    {
+        animal::audio::AudioSystem audio;
+        CHECK(audio.init(true) && audio.hasDevice());
+        const auto sound = audio.load(std::string(ANIMAL_TEST_ASSETS_DIR) + "/sounds/grab.wav"); // 50 ms
+        const auto voice = audio.play(sound);
+        bool finished = false;
+        for (int i = 0; i < 100 && !finished; ++i) { // up to a second
+            SDL_Delay(10);
+            finished = !audio.playing(voice);
+        }
+        CHECK(finished);
+        audio.devicesChanged(); // with a device: keeps it
+        CHECK(audio.hasDevice());
+    }
+    SDL_ResetHint(SDL_HINT_AUDIO_DRIVER);
 }
 
 } // namespace

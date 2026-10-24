@@ -159,6 +159,7 @@ struct InputEvent {
 
 struct FrameEvents {
     bool quitRequested = false;
+    bool audioDevicesChanged = false; // a playback device was added or removed, or the default changed
     std::vector<InputEvent> input;
 };
 

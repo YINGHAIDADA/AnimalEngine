@@ -421,6 +421,9 @@ int Application::run(int argc, char** argv) {
                 if (recorder) {
                     recorder->record(framesRendered, events.input);
                 }
+                if (events.audioDevicesChanged) {
+                    audio.devicesChanged();
+                }
                 if (inputScript) {
                     // Canvas pixel centres in window points, from the last frame's layout.
                     const PresentLayout& layout = renderer.presentLayout();

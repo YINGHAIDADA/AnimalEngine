@@ -89,26 +89,52 @@ AudioSystem::~AudioSystem() {
 }
 
 bool AudioSystem::init(bool device) {
+    wantDevice_ = device;
     if (!device) {
         log::info("Audio: no device (silent)");
         return true;
     }
-    if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
-        log::warn("Audio: {}; continuing without sound", SDL_GetError());
-        return true;
+    openDevice();
+    return true;
+}
+
+void AudioSystem::openDevice() {
+    if (!subsystemInit_) {
+        if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
+            log::warn("Audio: {}; continuing without sound", SDL_GetError());
+            return;
+        }
+        subsystemInit_ = true;
     }
     const SDL_AudioSpec spec{SDL_AUDIO_F32, 2, kSampleRate};
     SDL_AudioStream* stream =
         SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, &AudioSystem::callback, this);
     if (!stream) {
         log::warn("Audio: no playback device ({}); continuing without sound", SDL_GetError());
-        SDL_QuitSubSystem(SDL_INIT_AUDIO);
-        return true;
+        return;
     }
     stream_ = stream;
     SDL_ResumeAudioStreamDevice(stream);
-    log::info("Audio: {} Hz stereo on the default device", kSampleRate);
-    return true;
+    log::info("Audio: {} Hz stereo on {}", kSampleRate, deviceName());
+}
+
+std::string AudioSystem::deviceName() const {
+    if (!stream_) {
+        return "no device";
+    }
+    const char* name = SDL_GetAudioDeviceName(SDL_GetAudioStreamDevice(static_cast<SDL_AudioStream*>(stream_)));
+    return name ? name : "the default device";
+}
+
+void AudioSystem::devicesChanged() {
+    if (!wantDevice_) {
+        return;
+    }
+    if (!stream_) {
+        openDevice();
+        return;
+    }
+    log::info("Audio: playback devices changed; playing on {}", deviceName());
 }
 
 void AudioSystem::shutdown() {
@@ -119,8 +145,12 @@ void AudioSystem::shutdown() {
     if (stream_) {
         SDL_DestroyAudioStream(static_cast<SDL_AudioStream*>(stream_));
         stream_ = nullptr;
-        SDL_QuitSubSystem(SDL_INIT_AUDIO);
     }
+    if (subsystemInit_) {
+        SDL_QuitSubSystem(SDL_INIT_AUDIO);
+        subsystemInit_ = false;
+    }
+    wantDevice_ = false;
     const std::lock_guard lock(mutex_);
     for (VoiceSlot& slot : voices_) {
         slot.active = false;

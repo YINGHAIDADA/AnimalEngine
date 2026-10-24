@@ -141,6 +141,11 @@ FrameEvents pollEvents() {
         if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
             events.quitRequested = true;
         }
+        if ((event.type == SDL_EVENT_AUDIO_DEVICE_ADDED || event.type == SDL_EVENT_AUDIO_DEVICE_REMOVED ||
+             event.type == SDL_EVENT_AUDIO_DEVICE_FORMAT_CHANGED) &&
+            !event.adevice.recording) {
+            events.audioDevicesChanged = true;
+        }
         detail::handleGamepadEvent(event);
         translateInputEvent(event, events.input);
     }
