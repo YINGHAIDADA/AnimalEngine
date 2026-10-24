@@ -1,5 +1,6 @@
 set(ANIMAL_GAME_SOURCES
     src/cave_room.cpp
+    src/controls.cpp
     src/cave_room.h
     src/dev/dev_tools.h
     src/game_settings.cpp
@@ -170,4 +171,10 @@ if(ANIMAL_BUILD_TESTS)
     animal_add_capability_test(gate_stays_closed test_gate hold_right --gems=2 --frames=300 "--expect=finished:false")
     animal_add_capability_test(swim_up test_rise swim_up --flags=ability:dive --frames=240
         "--expect=room:test_rise_above")
+    # Controls (ADR-0036): the player's rebinding from a settings file replaces the default keys.
+    set(ANIMAL_REBOUND "--settings=${PROJECT_SOURCE_DIR}/tests/input/rebound_settings.json")
+    animal_add_capability_test(rebound_key test_walk hold_l ${ANIMAL_REBOUND} --frames=300
+        "--expect=room:test_walk_east")
+    animal_add_capability_test(rebound_default_unbound test_walk hold_right ${ANIMAL_REBOUND} --frames=300
+        "--expect=room:test_walk")
 endif()

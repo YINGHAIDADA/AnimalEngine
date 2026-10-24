@@ -48,4 +48,10 @@ void ActionMap::endFixedStep() {
     }
 }
 
+bool ActionMap::pressedThisFrame(ActionId action, const platform::Input& input) const {
+    const ActionBinding& b = binding(action);
+    return std::ranges::any_of(b.keys, [&](platform::Key k) { return input.pressed(k); }) ||
+           std::ranges::any_of(b.buttons, [&](platform::GamepadButton g) { return input.pressed(g); });
+}
+
 } // namespace animal

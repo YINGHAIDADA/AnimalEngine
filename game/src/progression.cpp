@@ -245,7 +245,7 @@ void SandboxGame::drawEnding(animal::Renderer2D& renderer) {
     centred(std::format("ROOMS {}/{}", save_.visited.size(), world_.rooms.size()), y, kEndText);
     y += line * 1.5f;
     centred(std::format("TIME {}:{:02}", seconds / 60, seconds % 60), y, kEndText);
-    centred(usingGamepad_ ? "A CONTINUE" : "SPACE CONTINUE", canvas.y + canvas.height - line * 3.0f, kEndHint);
+    centred(prompt(Jump) + " CONTINUE", canvas.y + canvas.height - line * 3.0f, kEndHint);
 }
 
 } // namespace game

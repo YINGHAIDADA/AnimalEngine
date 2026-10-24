@@ -20,6 +20,7 @@ void SandboxGame::loadSettings(animal::EngineContext& context) {
     if (!settingsPath_.empty()) {
         settings_ = animal::loadSettings(settingsPath_);
     }
+    savedSettings_ = settings_;
     if (context.window) {
         if (settings_.windowSize.x > 0 && settings_.windowSize.y > 0) {
             const animal::platform::WindowRect current = context.window->placement();
@@ -61,7 +62,12 @@ void SandboxGame::saveSettings(animal::EngineContext& context) {
             settings_.windowPosition = animal::Vec2i{windowed.x, windowed.y};
         }
     }
-    if (!settingsPath_.empty() && !animal::saveSettings(settingsPath_, settings_)) {
+    if (settingsPath_.empty() || settings_ == savedSettings_) {
+        return; // unchanged: the file stays as it is
+    }
+    if (animal::saveSettings(settingsPath_, settings_)) {
+        savedSettings_ = settings_;
+    } else {
         animal::log::warn("Could not write the settings file {}", settingsPath_);
     }
 }

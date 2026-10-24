@@ -1,0 +1,7 @@
+{
+  "format": "animal-settings",
+  "version": 1,
+  "controls": {
+    "right": {"keys": ["L"], "buttons": ["DpadRight"]}
+  }
+}

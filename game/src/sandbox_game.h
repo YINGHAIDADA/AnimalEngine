@@ -44,11 +44,23 @@ enum Action : animal::ActionId {
     MoveUp,
     MoveDown,
     Jump,
+    Map,   // read every frame (ActionMap::pressedThisFrame)
+    Pause,
 };
 
 // M1b sandbox: a Tiled world of single-screen rooms, a platformer-controlled creature, and the
 // V1 visual systems in every room.
 class SandboxGame final : public animal::Application {
+public:
+    // An action, the name it is saved under (settings) and shown with (menus), and its defaults.
+    struct ActionInfo {
+        Action id;
+        const char* name;
+        const char* label;
+        animal::ActionBinding defaults;
+    };
+    static const std::vector<ActionInfo>& actionInfos();
+
 protected:
     animal::AppConfig configure() override;
     bool onArgument(std::string_view argument) override;
@@ -64,7 +76,12 @@ protected:
 private:
     friend struct DevPanels; // the developer tools inspect and edit the game state
 
-    void bindActions();
+    // controls.cpp (ADR-0036)
+    void bindActions(); // defaults, with the player's rebinding from the settings
+    animal::ActionBinding bindingFor(const ActionInfo& info) const;
+    bool usingGamepad() const; // the gamepad was used last: prompts name its buttons
+    std::string prompt(Action action) const; // "SPACE", "A", "CROSS"...
+    static std::string inputLabel(animal::platform::Key key);
     void applyDemoInput();
     const animal::Room* roomData(const animal::WorldRoom& worldRoom);
     bool enterRoom(const animal::WorldRoom& worldRoom, animal::Renderer2D& renderer);
@@ -154,6 +171,7 @@ private:
 
     animal::Settings settings_;  // the player's volumes, display and controls (ADR-0036)
     std::string settingsPath_;   // empty: not persisted (test runs, unless --settings=path)
+    animal::Settings savedSettings_; // as last read or written
     animal::SaveData save_;  // progress: checkpoint and collected gems
     std::string savePath_;   // empty: progress is not persisted (--demo, --deterministic)
     std::set<std::string> gemFlags_; // save flags of every gem in the world
@@ -173,7 +191,7 @@ private:
     animal::ActionMap actions_;
     bool showCollision_ = false;
     bool mapOpen_ = false; // M / Back: the map of the rooms seen so far; the world pauses
-    bool usingGamepad_ = false;
+    const animal::platform::Input* input_ = nullptr;
     uint32_t stressLights_ = 0; // --stress-lights=N: extra moving shadow-casting lights
     std::string startRoomName_; // --start-room=NAME: begin there (testing; progress is not saved)
     std::set<std::string> testFlags_; // --flags=a,b: save flags to begin with (testing)

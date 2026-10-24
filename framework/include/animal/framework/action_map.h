@@ -35,6 +35,11 @@ public:
     void applyStrength(ActionId action, float strength);
     void endFixedStep();
 
+    const ActionBinding& binding(ActionId action) const { return state(action).binding; }
+    // A key or button of the action went down this frame (for menus and toggles read every frame,
+    // not by the fixed steps).
+    bool pressedThisFrame(ActionId action, const platform::Input& input) const;
+
     bool down(ActionId action) const { return state(action).down; }
     bool pressed(ActionId action) const { return state(action).pressedLatch; }
     // 0..1: 1 for digital inputs, the deflection for analog stick bindings.

@@ -86,13 +86,6 @@ void SandboxGame::addStressLights(animal::Renderer2D& renderer) const {
     }
 }
 
-void SandboxGame::bindActions() {
-    actions_.bind(MoveLeft, {{Key::Left, Key::A}, {GamepadButton::DpadLeft}, {{GamepadAxis::LeftX, -1.0f}}});
-    actions_.bind(MoveRight, {{Key::Right, Key::D}, {GamepadButton::DpadRight}, {{GamepadAxis::LeftX, 1.0f}}});
-    actions_.bind(MoveUp, {{Key::Up, Key::W}, {GamepadButton::DpadUp}, {{GamepadAxis::LeftY, -1.0f}}});
-    actions_.bind(MoveDown, {{Key::Down, Key::S}, {GamepadButton::DpadDown}, {{GamepadAxis::LeftY, 1.0f}}});
-    actions_.bind(Jump, {{Key::Space, Key::Z}, {GamepadButton::South}, {}});
-}
 
 const animal::Room* SandboxGame::roomData(const animal::WorldRoom& worldRoom) {
     if (const auto it = rooms_.find(worldRoom.path); it != rooms_.end()) {
@@ -144,6 +137,7 @@ void SandboxGame::placePlayerFeet(animal::Vec2 feet) {
 
 bool SandboxGame::onInit(animal::EngineContext& context) {
     loadSettings(context);
+    input_ = context.input;
     const std::string textures = context.dataDirectory + "textures/";
     auto tileset = animal::loadMaterial(*context.device, textures + "tileset");
     auto props = animal::loadMaterial(*context.device, textures + "props");
@@ -627,13 +621,8 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
     if (input.pressed(Key::F8)) {
         resetProgress(renderer);
     }
-    if (input.pressed(Key::M) || input.pressed(GamepadButton::Back)) {
+    if (actions_.pressedThisFrame(Map, input)) {
         mapOpen_ = !mapOpen_;
-    }
-    if (input.gamepadConnected() && (input.down(GamepadButton::South) || input.axis(GamepadAxis::LeftX) != 0.0f)) {
-        usingGamepad_ = true;
-    } else if (input.down(Key::Left) || input.down(Key::Right) || input.down(Key::Space) || input.down(Key::Z)) {
-        usingGamepad_ = false;
     }
 }
 
@@ -965,8 +954,8 @@ void SandboxGame::onDebugText(animal::EngineContext& context, std::vector<std::s
                                 renderer.post().enabled ? "ON" : "OFF",
                                 shadowsEnabled_ ? "ON" : "OFF"));
     lines.push_back(std::format("LOOK {}  F9 RELOAD LOOKS", lookName_));
-    lines.push_back(usingGamepad_ ? "GAMEPAD: STICK MOVE  UP GRAB VINE  A JUMP"
-                                  : "ARROWS/WASD MOVE  UP GRAB VINE  SPACE/Z JUMP");
+    lines.push_back(std::format("{}/{} MOVE  {} GRAB VINE  {} JUMP  {} MAP  {} PAUSE", prompt(MoveLeft),
+                                prompt(MoveRight), prompt(MoveUp), prompt(Jump), prompt(Map), prompt(Pause)));
     lines.push_back(std::format("M MAP  F2 COLLISION VIEW ({})  F8 RESET PROGRESS{}", showCollision_ ? "ON" : "OFF",
                                 savePath_.empty() ? " (NOT SAVED)" : ""));
 }

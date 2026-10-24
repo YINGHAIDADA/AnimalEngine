@@ -111,7 +111,7 @@ void SandboxGame::drawMap(animal::Renderer2D& renderer) {
     renderer.drawText({canvas.x + margin, canvas.y + margin}, "MAP", kTitle);
     const std::string rooms = std::format("ROOMS {}/{}", save_.visited.size(), world_.rooms.size());
     renderer.drawText({canvas.x + canvas.width - margin - renderer.textWidth(rooms), canvas.y + margin}, rooms, kTitle);
-    const std::string hint = usingGamepad_ ? "BACK CLOSE" : "M CLOSE";
+    const std::string hint = prompt(Map) + " CLOSE";
     renderer.drawText({canvas.x + (canvas.width - renderer.textWidth(hint)) * 0.5f,
                        canvas.y + canvas.height - margin - line},
                       hint, kHint);

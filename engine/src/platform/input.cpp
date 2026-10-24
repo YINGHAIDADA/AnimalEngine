@@ -7,6 +7,7 @@
 #include <SDL3/SDL_mouse.h>
 
 #include <algorithm>
+#include <string>
 #include <cmath>
 #include <iterator>
 #include <vector>
@@ -210,6 +211,62 @@ void Input::update(const FrameEvents& events) {
         const float raw = gamepad ? static_cast<float>(SDL_GetGamepadAxis(gamepad, kAxes[i])) / 32767.0f : 0.0f;
         axes_[i] = applyDeadzone(std::clamp(raw, -1.0f, 1.0f), kStickDeadzone);
     }
+
+    bool keyPressed = false;
+    for (size_t i = 0; i < keys_.current.size() && !keyPressed; ++i) {
+        keyPressed = keys_.current[i] && !keys_.previous[i];
+    }
+    bool padUsed = false;
+    for (size_t i = 0; i < buttons_.current.size() && !padUsed; ++i) {
+        padUsed = buttons_.current[i] && !buttons_.previous[i];
+    }
+    for (const float a : axes_) {
+        padUsed = padUsed || std::fabs(a) > 0.5f;
+    }
+    if (keyPressed) {
+        lastDevice_ = InputDevice::Keyboard;
+    } else if (padUsed) {
+        lastDevice_ = InputDevice::Gamepad;
+    } else if (!gamepadConnected_) {
+        lastDevice_ = InputDevice::Keyboard;
+    }
+}
+
+std::string gamepadButtonLabel(GamepadButton button) {
+    SDL_Gamepad* gamepad = detail::activeGamepad();
+    const SDL_GamepadType type = gamepad ? SDL_GetGamepadType(gamepad) : SDL_GAMEPAD_TYPE_XBOXONE;
+    const bool playstation = type == SDL_GAMEPAD_TYPE_PS3 || type == SDL_GAMEPAD_TYPE_PS4 || type == SDL_GAMEPAD_TYPE_PS5;
+    const bool nintendo = type == SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO ||
+                          type == SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR ||
+                          type == SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT ||
+                          type == SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT;
+    switch (button) {
+    case GamepadButton::South:
+    case GamepadButton::East:
+    case GamepadButton::West:
+    case GamepadButton::North:
+        switch (SDL_GetGamepadButtonLabelForType(type, kButtons[static_cast<size_t>(button)])) {
+        case SDL_GAMEPAD_BUTTON_LABEL_A: return "A";
+        case SDL_GAMEPAD_BUTTON_LABEL_B: return "B";
+        case SDL_GAMEPAD_BUTTON_LABEL_X: return "X";
+        case SDL_GAMEPAD_BUTTON_LABEL_Y: return "Y";
+        case SDL_GAMEPAD_BUTTON_LABEL_CROSS: return "CROSS";
+        case SDL_GAMEPAD_BUTTON_LABEL_CIRCLE: return "CIRCLE";
+        case SDL_GAMEPAD_BUTTON_LABEL_SQUARE: return "SQUARE";
+        case SDL_GAMEPAD_BUTTON_LABEL_TRIANGLE: return "TRIANGLE";
+        default: return std::string(gamepadButtonName(button));
+        }
+    case GamepadButton::DpadUp: return "D-PAD UP";
+    case GamepadButton::DpadDown: return "D-PAD DOWN";
+    case GamepadButton::DpadLeft: return "D-PAD LEFT";
+    case GamepadButton::DpadRight: return "D-PAD RIGHT";
+    case GamepadButton::LeftShoulder: return playstation ? "L1" : (nintendo ? "L" : "LB");
+    case GamepadButton::RightShoulder: return playstation ? "R1" : (nintendo ? "R" : "RB");
+    case GamepadButton::Back: return playstation ? "SHARE" : (nintendo ? "-" : "VIEW");
+    case GamepadButton::Start: return playstation ? "OPTIONS" : (nintendo ? "+" : "MENU");
+    case GamepadButton::Count: break;
+    }
+    return {};
 }
 
 KeyModifiers Input::modifiers() const {

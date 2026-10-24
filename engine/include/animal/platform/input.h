@@ -171,6 +171,12 @@ std::string_view keyName(Key key); // "" for Key::Count
 std::optional<GamepadButton> gamepadButtonFromName(std::string_view name);
 std::string_view gamepadButtonName(GamepadButton button);
 
+// A label for a gamepad button as printed on the active gamepad ("A", "CROSS", "LB", "OPTIONS"...);
+// Xbox-style labels without a gamepad.
+std::string gamepadButtonLabel(GamepadButton button);
+
+enum class InputDevice : uint8_t { Keyboard, Gamepad };
+
 struct MousePosition {
     float x = 0.0f; // window points
     float y = 0.0f;
@@ -206,6 +212,8 @@ public:
     float wheel() const { return mouseCaptured_ ? 0.0f : wheel_; } // this frame, > 0 scrolls up
 
     bool gamepadConnected() const { return gamepadConnected_; }
+    // The device used last (a key pressed, or a gamepad button / stick pushed): prompts follow it.
+    InputDevice lastDevice() const { return lastDevice_; }
     bool down(GamepadButton button) const { return buttons_.current[index(button)]; }
     bool pressed(GamepadButton button) const {
         return buttons_.current[index(button)] && !buttons_.previous[index(button)];
@@ -236,6 +244,7 @@ private:
     std::array<bool, static_cast<size_t>(MouseButton::Count)> syntheticButtons_{};
     std::optional<MousePosition> syntheticMouse_;
     bool gamepadConnected_ = false;
+    InputDevice lastDevice_ = InputDevice::Keyboard;
     bool keyboardCaptured_ = false;
     bool mouseCaptured_ = false;
 };
