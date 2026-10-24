@@ -26,6 +26,15 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 include(AnimalCompileOptions)
 
+# Release binaries must not carry this machine's paths (ADR-0037): __FILE__ in assertions and logs
+# (ours and SDL's) is made relative to the source folder. Debug builds keep full paths for debuggers.
+if(MSVC)
+    file(TO_NATIVE_PATH "${PROJECT_SOURCE_DIR}/" ANIMAL_SOURCE_PREFIX)
+    add_compile_options("$<$<CONFIG:Release,MinSizeRel>:/d1trimfile:${ANIMAL_SOURCE_PREFIX}>")
+else()
+    add_compile_options("$<$<CONFIG:Release,MinSizeRel>:-ffile-prefix-map=${PROJECT_SOURCE_DIR}/=>")
+endif()
+
 add_subdirectory(external)
 
 # Single- and multi-config generators share one layout: build/<preset>/bin/<Config>/
