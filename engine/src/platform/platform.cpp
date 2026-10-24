@@ -176,6 +176,12 @@ std::string executableDirectory() {
     return base ? std::string(base) : std::string("./");
 }
 
+void showErrorDialog(const std::string& title, const std::string& message) {
+    if (!SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, title.c_str(), message.c_str(), nullptr)) {
+        log::error("{}: {}", title, message);
+    }
+}
+
 std::string clipboardText() {
     char* text = SDL_GetClipboardText();
     std::string result = text ? text : "";

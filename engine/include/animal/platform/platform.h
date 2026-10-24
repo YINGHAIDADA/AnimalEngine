@@ -25,6 +25,8 @@ std::string executableDirectory();
 std::string userDataDirectory(const char* organization, const char* application);
 
 // System clipboard (UTF-8 text); empty when it holds no text.
+// A modal error message for the player (when there is no console: release builds).
+void showErrorDialog(const std::string& title, const std::string& message);
 std::string clipboardText();
 void setClipboardText(const std::string& text);
 

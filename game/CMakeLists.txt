@@ -149,7 +149,7 @@ add_custom_target(animal_package
             "-DNOTICES=${PROJECT_SOURCE_DIR}/assets/package/THIRD_PARTY_NOTICES.txt" "-DVERSION=${PROJECT_VERSION}"
             "-DSOURCE_DIR=${PROJECT_SOURCE_DIR}" "-DPLIST=${CMAKE_CURRENT_BINARY_DIR}/Info.plist"
             "-DICNS=${PROJECT_SOURCE_DIR}/assets/package/AnimalGame.icns"
-            "-DCODESIGN_IDENTITY=${ANIMAL_CODESIGN_IDENTITY}"
+            "-DCODESIGN_IDENTITY=${ANIMAL_CODESIGN_IDENTITY}" "-DDEV_TOOLS=${ANIMAL_DEV_TOOLS}"
             -P "${PROJECT_SOURCE_DIR}/cmake/AssemblePackage.cmake"
     COMMENT "Package ${ANIMAL_PACKAGE_NAME}"
     VERBATIM)
@@ -186,6 +186,16 @@ if(ANIMAL_BUILD_TESTS)
             COMMAND "${CMAKE_COMMAND}" "-DGAME=$<TARGET_FILE:animal_game>"
                     "-DDIR=${CMAKE_CURRENT_BINARY_DIR}/crash_test_${mode}" -DMODE=${mode}
                     -P "${PROJECT_SOURCE_DIR}/cmake/CheckCrashReport.cmake")
+    endforeach()
+
+    # Resource packs (ADR-0037): a damaged pack stops the game with a clear error; the test data cooked
+    # into a pack runs like the loose files.
+    foreach(mode damaged packed)
+        add_test(NAME data_pack_${mode}
+            COMMAND "${CMAKE_COMMAND}" "-DGAME=$<TARGET_FILE:animal_game>" "-DCOOKER=$<TARGET_FILE:animal_asset_cooker>"
+                    "-DSOURCE=${PROJECT_SOURCE_DIR}" "-DDATA=${ANIMAL_TEST_DATA_DIR}" "-DSHADERS=${ANIMAL_DATA_DIR}/shaders"
+                    "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/data_pack_test" -DMODE=${mode}
+                    -P "${PROJECT_SOURCE_DIR}/cmake/CheckDataPack.cmake")
     endforeach()
 
     # Capabilities (ADR-0034, ADR-0035): one test room each, trivial input (tests/input), checked

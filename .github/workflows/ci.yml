@@ -111,6 +111,12 @@ jobs:
       - name: Cook and assemble
         run: cmake --build build/ci --target animal_package
 
+      - name: Check the package (manifest, no build paths, runs from a temporary folder)
+        shell: bash
+        run: |
+          PY=$(command -v python3 || command -v python)
+          "$PY" tools/scripts/check_package.py build/ci/package/Release/AnimalEngine-*.zip --forbid "$GITHUB_WORKSPACE"
+
       - name: Cook again and compare (determinism)
         shell: bash
         run: |

@@ -12,6 +12,11 @@ foreach(var PLATFORM OUT NAME EXE PACK README NOTICES VERSION SOURCE_DIR)
     endif()
 endforeach()
 
+if(DEV_TOOLS)
+    message(WARNING "This build includes the developer tools (and paths of this machine): release packages are "
+                    "built with -DANIMAL_DEV_TOOLS=OFF")
+endif()
+
 set(root "${OUT}/${NAME}")
 file(REMOVE_RECURSE "${root}" "${OUT}/${NAME}.zip" "${OUT}/${NAME}.manifest.json")
 file(MAKE_DIRECTORY "${root}")

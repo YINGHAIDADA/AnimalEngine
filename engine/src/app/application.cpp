@@ -368,18 +368,17 @@ int Application::run(int argc, char** argv) {
             packPath = platform::executableDirectory() + "data.pak";
         }
         bool packFailed = false;
-        if (!packPath.empty()) {
-            std::string packError;
-            if (!mountPack(packPath, context.dataDirectory, &packError)) {
-                log::error("Cannot use the resource pack: {}", packError);
-                packFailed = true;
-            }
+        std::string packError;
+        if (!packPath.empty() && !mountPack(packPath, context.dataDirectory, &packError)) {
+            log::error("Cannot use the resource pack: {}", packError);
+            packFailed = true;
         }
         context.demo = commandLine->demo;
         context.deterministic = commandLine->deterministic;
         log::info("Backend: {} | data: {}", rhi::backendName(config.backend), context.dataDirectory);
 
         std::optional<InputScript> inputScript;
+        bool startedUp = false;
         std::optional<InputRecorder> recorder;
         if (!commandLine->recordInputPath.empty()) {
             recorder.emplace();
@@ -391,6 +390,7 @@ int Application::run(int argc, char** argv) {
             log::error("Startup failed; see the errors above");
             exitCode = 1;
         } else {
+            startedUp = true;
             if (!commandLine->crashTest.empty()) {
                 crashOnPurpose(commandLine->crashTest);
             }
@@ -566,6 +566,15 @@ int Application::run(int argc, char** argv) {
             }
             onShutdown(context);
             exitCode = std::max(exitCode, context.exitCode);
+        }
+        // A player without a console must still learn why the game did not start.
+        if (!startedUp && !headless) {
+            const std::string logFile = log::fileLogPath();
+            const std::string details = logFile.empty() ? "" : "\n\nDetails are in the log file:\n" + logFile;
+            platform::showErrorDialog(config.title,
+                                      packFailed ? "The game data (data.pak) is damaged or cannot be read (" + packError +
+                                                       ").\nPlease download or install the game again." + details
+                                                 : "The game could not start." + details);
         }
 
         if (device) {
