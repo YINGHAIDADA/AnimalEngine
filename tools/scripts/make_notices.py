@@ -6,6 +6,7 @@ assets/package/fonts by make_font.py). Run after updating a dependency. (Dear Im
     python3 tools/scripts/make_notices.py
 """
 
+import json
 import pathlib
 import re
 
@@ -66,14 +67,8 @@ COMPONENTS = [
     ("Khronos OpenGL headers", "OpenGL API headers", khronos_licence),
 ]
 
+# The UI font (ADR-0041) and the fonts it draws glyphs from, as make_font.py listed them.
 FONTS = ROOT / "assets" / "package" / "fonts"
-# The UI font (ADR-0041): a subset of Fusion Pixel Font, which draws on the fonts after it.
-FONT_COMPONENTS = [
-    ("Fusion Pixel Font", "fusion-pixel.txt"),
-    ("Ark Pixel Font", "ark-pixel.txt"),
-    ("Cubic 11", "cubic-11.txt"),
-    ("Galmuri", "galmuri.txt"),
-]
 
 
 def main():
@@ -81,9 +76,9 @@ def main():
              "The released game contains the following third-party code, under the licences below.\n"]
     for name, use, licence in COMPONENTS:
         parts.append("\n" + "=" * 78 + f"\n{name} - {use}\n" + "=" * 78 + "\n\n" + licence())
-    for name, file in FONT_COMPONENTS:
-        text = (FONTS / file).read_text(encoding="utf-8").strip() + "\n"
-        parts.append("\n" + "=" * 78 + f"\n{name} - UI font (subset)\n" + "=" * 78 + "\n\n" + text)
+    for font in json.loads((FONTS / "licences.json").read_text(encoding="utf-8")):
+        text = (FONTS / font["file"]).read_text(encoding="utf-8").strip() + "\n"
+        parts.append("\n" + "=" * 78 + f"\n{font['name']} - UI font (subset)\n" + "=" * 78 + "\n\n" + text)
     OUT.write_text("".join(parts), encoding="utf-8")
     print(f"wrote {OUT}")
 
