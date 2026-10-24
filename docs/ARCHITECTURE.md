@@ -41,7 +41,8 @@ Device::beginFrame（窗口最小化时返回 false，跳过渲染）
     game.onRender:  beginWorld(camera) … drawSprite / drawGlow / addLight / addFluidSplat … endWorld
                     → [有 GPU 粒子时] GPU 粒子模拟一步（ADR-0020）
                     → 材质 pass（albedo / normal / emissive / 材质标志；末尾画 lit 样式的 GPU 粒子）→ 流体烟雾一步（ADR-0008）
-                    → 光照 pass（光照 + 边缘光两个 RGBA16F，按遮挡图做硬边阴影）→ 合成到 320×180 画布（含被照亮的烟与边缘光）
+                    → 光照 pass（光照 + 边缘光两个 RGBA16F，按遮挡图做硬边阴影）→ 间接光：降采样 + 模糊（ADR-0039）
+                    → 合成到 320×180 画布（含被照亮的烟与边缘光、间接光、环境光遮蔽、后墙深度雾）
                     → [有水时] 合成改写到 lit，水 pass（折射、倒影、水色）读 lit 写画布（ADR-0018）
                     → 发光 pass（drawGlow 收集的像素与 glow 样式的 GPU 粒子，加色混合叠加到画布，不受光照影响）
                     → 后处理：泛光（亮部提取 → 半分辨率模糊 → 量化抖动加回）+ 调色 → 最终画布（ADR-0009）
@@ -118,6 +119,7 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | 泛光与调色 | 后处理 pass：阈值提取亮部、160×90 两轮高斯模糊、按光照级数量化抖动后加回；曝光 / 分区色调 / 饱和度 / 对比度 / 暗角（ADR-0009）。 |
 | 烟雾 | 160×90 网格的 stable fluids（平流、浮力、涡量约束、Jacobi 压力投影），片元着色器实现；合成时被同一光照照亮（ADR-0008）。 |
 | 光照 | 画布分辨率的延迟光照：材质 pass 写 albedo / normal / emissive（RGBA8），光照 pass 加色累积到 RGBA16F，合成 `albedo × (ambient + light) + emissive`，可选量化 + 有序抖动（ADR-0007）。 |
+| 纵深与补光 | 材质标志 g = 深度（`setLayerDepth`，后墙 = 1）：后墙直接光减弱、法线压平、混入深度雾；光照缓冲模糊后作为间接光；静态 Tile 的环境光遮蔽与上下渐变调制环境光（ADR-0039）。 |
 | 光源类型 | `PointLight`：点光源，或设置 `coneAngle` + `direction` 成为聚光灯（锥体外缘五分之一软过渡，再被光照分级切成色阶）；每个光源可关闭阴影（ADR-0013）。 |
 | 边缘光 | `SpriteMaterial::rim` 写入材质标志；光照 pass 对“朝向光源的邻居不是边缘光精灵”的像素累积光色，合成时与环境边缘光一起加色叠加，不乘 albedo（ADR-0014）。 |
 | 阴影 | 画布尺寸 R8 遮挡图（`setLightOccluders`，画布空间）；光照 pass 中每个像素沿整数 Bresenham 走向光源：穿出一块遮挡物即挡住，所在遮挡物内按深度衰减（`shadowPenetration`）（ADR-0012）。 |
@@ -133,10 +135,12 @@ Device::submit(CommandList) → [截图 readTexture] → Device::endFrame（呈�
 | albedo | 画布 | RGBA8 | 材质 pass，Clear = 背景色，预乘 over | 合成（最近邻） |
 | normal | 画布 | RGBA8 | 材质 pass，Clear = (0.5, 0.5, 1, 0)，预乘 over | 光照 pass（最近邻） |
 | emissive | 画布 | RGBA8 | 材质 pass，Clear = 0，预乘 over | 合成（最近邻） |
-| 材质标志（r = 边缘光强度） | 画布 | RGBA8 | 材质 pass，Clear = 0，预乘 over | 光照 pass、合成（`texelFetch`） |
+| 材质标志（r = 边缘光强度，g = 深度） | 画布 | RGBA8 | 材质 pass，Clear = 0，预乘 over | 光照 pass、合成（`texelFetch`） |
 | 光照遮挡图 | 画布 | R8 | CPU `setLightOccluders`（进入房间时） | 光照 pass（`texelFetch`） |
+| 环境光遮蔽 | 画布 | R8 | CPU，由遮挡图计算（进入房间时） | 合成（`texelFetch`） |
 | light | 画布 | RGBA16F | 光照 pass，Clear = 0，加色 One/One | 合成（最近邻） |
 | rim light | 画布 | RGBA16F | 光照 pass（第二个附件），Clear = 0，加色 One/One | 合成（最近邻） |
+| indirect ×2 | 画布 / 4 | RGBA16F | 降采样 / 模糊（乒乓），DontCare，不透明 | 模糊（线性）、合成（`texelFetch`，手动双线性） |
 | 流体速度 ×2、烟 ×2、压力 ×2、散度、旋度 | 流体网格 | RGBA16F | 流体各 pass，DontCare，不透明（乒乓，跨帧保留；`resetFluid` 时 Clear） | 流体各 pass（平流的速度 / 来源 / 密度为线性，其余最近邻）；烟 [0] 由合成读取（线性） |
 | GPU 粒子状态 A / B ×2 | 128×128 | RGBA32F | GPU 粒子模拟，DontCare，不透明（两个附件，乒乓） | 模拟与绘制（`texelFetch`，绘制在顶点着色器中） |
 | 流体障碍 | 流体网格 | R8 | CPU `setFluidObstacles` | 流体各 pass（最近邻） |

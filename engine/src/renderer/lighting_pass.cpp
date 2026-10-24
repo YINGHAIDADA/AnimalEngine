@@ -29,7 +29,8 @@ bool LightingPass::init(rhi::Device& device, const std::string& shaderDirectory,
     targets_ = targets;
     sampler_ = device.createSampler({});
     linearSampler_ = device.createSampler({rhi::Filter::Linear, rhi::Filter::Linear});
-    return sampler_ && linearSampler_ && initLightPipeline(shaderDirectory) && initCompositePipeline(shaderDirectory, outputFormat);
+    return sampler_ && linearSampler_ && initLightPipeline(shaderDirectory) && initIndirect(shaderDirectory) &&
+           initCompositePipeline(shaderDirectory, outputFormat);
 }
 
 bool LightingPass::initLightPipeline(const std::string& shaderDirectory) {
@@ -77,7 +78,9 @@ bool LightingPass::initLightPipeline(const std::string& shaderDirectory) {
     occluderDesc.format = rhi::Format::R8_UNorm;
     occluderDesc.debugName = "light occluders";
     occluders_ = device_->createTexture(occluderDesc);
-    if (!occluders_) {
+    occluderDesc.debugName = "ambient occlusion";
+    ambientOcclusion_ = device_->createTexture(occluderDesc);
+    if (!occluders_ || !ambientOcclusion_) {
         return false;
     }
     setOccluders(std::vector<uint8_t>(size_t{targets_.extent.width} * targets_.extent.height, 0));
@@ -100,6 +103,73 @@ bool LightingPass::initLightPipeline(const std::string& shaderDirectory) {
 
     vertices_.reserve(size_t{kMaxLights} * 4);
     return lightVertices_ && lightIndices_ && lightViewGroup_ && lightInputGroup_;
+}
+
+bool LightingPass::initIndirect(const std::string& shaderDirectory) {
+    indirectVertex_ = loadShader(*device_, shaderDirectory + "composite.vert.ashd");
+    downsampleFragment_ = loadShader(*device_, shaderDirectory + "light_downsample.frag.ashd");
+    blurFragment_ = loadShader(*device_, shaderDirectory + "post_blur.frag.ashd");
+    if (!indirectVertex_ || !downsampleFragment_ || !blurFragment_) {
+        return false;
+    }
+    const auto pipeline = [&](rhi::ShaderHandle fragment, const char* name) {
+        rhi::GraphicsPipelineDesc desc;
+        desc.vertexShader = indirectVertex_;
+        desc.fragmentShader = fragment;
+        desc.vertexBuffers = {{2 * sizeof(float), rhi::VertexStepMode::Vertex}};
+        desc.vertexAttributes = {{0, 0, rhi::VertexFormat::Float2, 0}};
+        desc.colorTargets = {{rhi::Format::RGBA16_Float, rhi::BlendState::opaque()}};
+        desc.debugName = name;
+        return device_->createGraphicsPipeline(desc);
+    };
+    downsamplePipeline_ = pipeline(downsampleFragment_, "indirect downsample");
+    blurPipeline_ = pipeline(blurFragment_, "indirect blur");
+    if (!downsamplePipeline_ || !blurPipeline_) {
+        return false;
+    }
+
+    const uint32_t width = (targets_.extent.width + 3) / 4;
+    const uint32_t height = (targets_.extent.height + 3) / 4;
+    for (size_t i = 0; i < indirect_.size(); ++i) {
+        rhi::TextureDesc desc;
+        desc.width = width;
+        desc.height = height;
+        desc.format = rhi::Format::RGBA16_Float;
+        desc.usage = rhi::TextureUsage::Sampled | rhi::TextureUsage::RenderTarget;
+        desc.debugName = i == 0 ? "indirect 0" : "indirect 1";
+        indirect_[i] = device_->createTexture(desc);
+    }
+    downsampleUniforms_ = device_->createBuffer({4 * sizeof(float), rhi::BufferUsage::Uniform, "indirect downsample"});
+    const float size[4] = {static_cast<float>(targets_.extent.width), static_cast<float>(targets_.extent.height), 0.0f,
+                           0.0f};
+    device_->writeBuffer(downsampleUniforms_, 0, size, sizeof(size));
+    // Two blurs, a wide one (every second texel) and a narrow one: the light spreads some 40 pixels.
+    const float steps[4][4] = {{2.0f / static_cast<float>(width), 0.0f, 0.0f, 0.0f},
+                               {0.0f, 2.0f / static_cast<float>(height), 0.0f, 0.0f},
+                               {1.0f / static_cast<float>(width), 0.0f, 0.0f, 0.0f},
+                               {0.0f, 1.0f / static_cast<float>(height), 0.0f, 0.0f}};
+    for (size_t i = 0; i < blurUniforms_.size(); ++i) {
+        blurUniforms_[i] = device_->createBuffer({4 * sizeof(float), rhi::BufferUsage::Uniform, "indirect blur"});
+        device_->writeBuffer(blurUniforms_[i], 0, steps[i], sizeof(steps[i]));
+    }
+
+    const auto group = [&](rhi::PipelineHandle pipe, uint32_t set, rhi::BindGroupEntry entry) {
+        rhi::BindGroupDesc desc;
+        desc.pipeline = pipe;
+        desc.set = set;
+        desc.entries = {entry};
+        desc.debugName = "indirect";
+        return device_->createBindGroup(desc);
+    };
+    downsampleSettings_ = group(downsamplePipeline_, 0, rhi::BindGroupEntry::uniformBuffer(0, downsampleUniforms_));
+    downsampleInputs_ = group(downsamplePipeline_, 1, rhi::BindGroupEntry::textureSampler(0, targets_.light, sampler_));
+    for (size_t i = 0; i < blurSettings_.size(); ++i) {
+        blurSettings_[i] = group(blurPipeline_, 0, rhi::BindGroupEntry::uniformBuffer(0, blurUniforms_[i]));
+    }
+    for (size_t i = 0; i < blurInputs_.size(); ++i) {
+        blurInputs_[i] = group(blurPipeline_, 1, rhi::BindGroupEntry::textureSampler(0, indirect_[i], linearSampler_));
+    }
+    return indirect_[0] && indirect_[1] && downsampleSettings_ && downsampleInputs_ && blurInputs_[0] && blurInputs_[1];
 }
 
 bool LightingPass::initCompositePipeline(const std::string& shaderDirectory, rhi::Format outputFormat) {
@@ -143,6 +213,8 @@ bool LightingPass::initCompositePipeline(const std::string& shaderDirectory, rhi
         rhi::BindGroupEntry::textureSampler(3, targets_.smoke, linearSampler_),
         rhi::BindGroupEntry::textureSampler(4, targets_.rim, sampler_),
         rhi::BindGroupEntry::textureSampler(5, targets_.flags, sampler_),
+        rhi::BindGroupEntry::textureSampler(6, indirect_[0], sampler_),
+        rhi::BindGroupEntry::textureSampler(7, ambientOcclusion_, sampler_),
     };
     inputGroup.debugName = "composite inputs";
     compositeInputGroup_ = device_->createBindGroup(inputGroup);
@@ -153,9 +225,25 @@ void LightingPass::shutdown() {
     if (!device_) {
         return;
     }
-    for (rhi::BindGroupHandle group :
-         {lightViewGroup_, lightInputGroup_, compositeSettingsGroup_, compositeInputGroup_}) {
+    for (rhi::BindGroupHandle group : {lightViewGroup_, lightInputGroup_, compositeSettingsGroup_, compositeInputGroup_,
+                                       downsampleSettings_, downsampleInputs_, blurInputs_[0], blurInputs_[1]}) {
         device_->destroy(group);
+    }
+    for (rhi::BindGroupHandle group : blurSettings_) {
+        device_->destroy(group);
+    }
+    for (rhi::BufferHandle buffer : blurUniforms_) {
+        device_->destroy(buffer);
+    }
+    device_->destroy(downsampleUniforms_);
+    for (rhi::TextureHandle texture : indirect_) {
+        device_->destroy(texture);
+    }
+    device_->destroy(ambientOcclusion_);
+    device_->destroy(downsamplePipeline_);
+    device_->destroy(blurPipeline_);
+    for (rhi::ShaderHandle shader : {indirectVertex_, downsampleFragment_, blurFragment_}) {
+        destroyShader(*device_, shader);
     }
     for (rhi::BufferHandle buffer : {lightVertices_, lightIndices_, viewUniforms_, triangle_, compositeUniforms_}) {
         device_->destroy(buffer);
@@ -182,6 +270,54 @@ void LightingPass::setOccluders(std::span<const uint8_t> mask) {
     std::transform(mask.begin(), mask.end(), bytes.begin(), [](uint8_t v) { return v ? uint8_t{255} : uint8_t{0}; });
     device_->writeTexture(occluders_, {0, 0, targets_.extent.width, targets_.extent.height}, bytes.data(),
                           targets_.extent.width);
+
+    // Ambient occlusion of every open pixel: the share of occluder pixels in the box around it (an
+    // integral image), doubled and capped, so a pixel against a flat wall reads about 0.9 and open
+    // space 0. Occluder pixels keep their ambient light.
+    const int w = static_cast<int>(targets_.extent.width);
+    const int h = static_cast<int>(targets_.extent.height);
+    constexpr int kRadius = 6;
+    std::vector<int> sum(static_cast<size_t>((w + 1) * (h + 1)), 0);
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            const int solid = mask[static_cast<size_t>(y * w + x)] ? 1 : 0;
+            sum[static_cast<size_t>((y + 1) * (w + 1) + x + 1)] = solid + sum[static_cast<size_t>(y * (w + 1) + x + 1)] +
+                                                                  sum[static_cast<size_t>((y + 1) * (w + 1) + x)] -
+                                                                  sum[static_cast<size_t>(y * (w + 1) + x)];
+        }
+    }
+    const auto boxSum = [&](int x0, int y0, int x1, int y1) { // inclusive-exclusive, clamped
+        x0 = std::clamp(x0, 0, w);
+        x1 = std::clamp(x1, 0, w);
+        y0 = std::clamp(y0, 0, h);
+        y1 = std::clamp(y1, 0, h);
+        return sum[static_cast<size_t>(y1 * (w + 1) + x1)] - sum[static_cast<size_t>(y0 * (w + 1) + x1)] -
+               sum[static_cast<size_t>(y1 * (w + 1) + x0)] + sum[static_cast<size_t>(y0 * (w + 1) + x0)];
+    };
+    constexpr int kArea = (2 * kRadius + 1) * (2 * kRadius + 1);
+    std::vector<uint8_t> occlusion(bytes.size(), 0);
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            if (mask[static_cast<size_t>(y * w + x)]) {
+                continue;
+            }
+            const int solid = boxSum(x - kRadius, y - kRadius, x + kRadius + 1, y + kRadius + 1);
+            occlusion[static_cast<size_t>(y * w + x)] = static_cast<uint8_t>(std::min(255, solid * 2 * 255 / kArea));
+        }
+    }
+    device_->writeTexture(ambientOcclusion_, {0, 0, targets_.extent.width, targets_.extent.height}, occlusion.data(),
+                          targets_.extent.width);
+}
+
+void LightingPass::fullscreen(rhi::CommandList& commands, rhi::PipelineHandle pipeline, rhi::BindGroupHandle settings,
+                              rhi::BindGroupHandle inputs, rhi::TextureHandle target) {
+    commands.beginRenderPass(rhi::RenderPassDesc::single({target, rhi::LoadOp::DontCare, rhi::StoreOp::Store, {}}));
+    commands.setPipeline(pipeline);
+    commands.setVertexBuffer(0, triangle_);
+    commands.setBindGroup(0, settings);
+    commands.setBindGroup(1, inputs);
+    commands.draw(3);
+    commands.endRenderPass();
 }
 
 void LightingPass::beginFrame() {
@@ -226,7 +362,8 @@ void LightingPass::render(rhi::CommandList& commands, const Mat4& viewProjection
     const LightView view = {viewProjection,
                             {static_cast<float>(targets_.extent.width), static_cast<float>(targets_.extent.height),
                              settings.shadows ? 1.0f : 0.0f, std::max(0.0f, settings.shadowPenetration)},
-                            {std::max(0.0f, settings.rimIntensity), 0.0f, 0.0f, 0.0f}};
+                            {std::max(0.0f, settings.rimIntensity), std::clamp(settings.backFlatten, 0.0f, 1.0f), 0.0f,
+                             0.0f}};
     device_->writeBuffer(viewUniforms_, 0, &view, sizeof(view));
     const CompositeUniforms uniforms = {
         {settings.ambient.x, settings.ambient.y, settings.ambient.z, 0.0f},
@@ -235,6 +372,9 @@ void LightingPass::render(rhi::CommandList& commands, const Mat4& viewProjection
         {static_cast<float>(targets_.extent.width), static_cast<float>(targets_.extent.height), 0.0f, 0.0f},
         {smoke.tint.x, smoke.tint.y, smoke.tint.z, smoke.opacity},
         {settings.rimAmbient.x, settings.rimAmbient.y, settings.rimAmbient.z, 0.0f},
+        {std::max(0.0f, settings.backLight), std::clamp(settings.depthFog, 0.0f, 1.0f),
+         std::clamp(settings.ambientOcclusion, 0.0f, 1.0f), std::clamp(settings.ambientGradient, -1.0f, 1.0f)},
+        {settings.depthFogColor.x, settings.depthFogColor.y, settings.depthFogColor.z, std::max(0.0f, settings.indirect)},
     };
     device_->writeBuffer(compositeUniforms_, 0, &uniforms, sizeof(uniforms));
 
@@ -252,6 +392,14 @@ void LightingPass::render(rhi::CommandList& commands, const Mat4& viewProjection
         commands.drawIndexed(static_cast<uint32_t>(count * 6));
     }
     commands.endRenderPass();
+
+    // Indirect light: always computed (the composite samples it even at strength 0), tiny at a
+    // quarter of the resolution.
+    fullscreen(commands, downsamplePipeline_, downsampleSettings_, downsampleInputs_, indirect_[0]);
+    fullscreen(commands, blurPipeline_, blurSettings_[0], blurInputs_[0], indirect_[1]);
+    fullscreen(commands, blurPipeline_, blurSettings_[1], blurInputs_[1], indirect_[0]);
+    fullscreen(commands, blurPipeline_, blurSettings_[2], blurInputs_[0], indirect_[1]);
+    fullscreen(commands, blurPipeline_, blurSettings_[3], blurInputs_[1], indirect_[0]);
 
     commands.beginRenderPass(rhi::RenderPassDesc::single({output, rhi::LoadOp::DontCare, rhi::StoreOp::Store, {}}));
     commands.setPipeline(compositePipeline_);

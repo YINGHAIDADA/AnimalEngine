@@ -25,6 +25,14 @@ struct Look {
     float shadowPenetration = 0.0f;
     float rimIntensity = 0.0f;
     Vec3 rimAmbient;
+    // Depth (ADR-0039)
+    float backLight = 1.0f;
+    float backFlatten = 0.0f;
+    float depthFog = 0.0f;
+    Vec3 depthFogColor;
+    float indirect = 0.0f;
+    float ambientOcclusion = 0.0f;
+    float ambientGradient = 0.0f;
     // Bloom and grading (ADR-0009)
     float bloomThreshold = 0.0f;
     float bloomKnee = 0.0f;
@@ -46,7 +54,8 @@ struct Look {
 
 // Parses a look file over `defaults`. File format (every field optional):
 //   {"format": "animal-look", "version": 1, "base": "other.look.json", "exposure": 1.2, ...}
-// `base` (relative to this file) is applied first. Colours ("ambient", "rimAmbient") are "#rrggbb";
+// `base` (relative to this file) is applied first. Colours ("ambient", "rimAmbient",
+// "depthFogColor") are "#rrggbb";
 // tints ("shadowTint", "highlightTint", "smokeTint") are [r, g, b] and may exceed 1. Unknown
 // fields, wrong types and base cycles are errors.
 std::optional<Look> parseLook(std::string_view json, const std::string& path, const TextReader& read,

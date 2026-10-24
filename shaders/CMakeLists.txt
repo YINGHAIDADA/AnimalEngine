@@ -13,6 +13,7 @@ animal_add_shaders(animal_shaders
         light.frag
         composite.vert
         composite.frag
+        light_downsample.frag
         fluid_advect.frag
         fluid_splat.frag
         fluid_curl.frag

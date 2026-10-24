@@ -4,6 +4,7 @@
   "base": "cave.look.json",
   "ambient": "#0e1222",
   "rimAmbient": "#182234",
+  "depthFogColor": "#171d33",
   "bloomIntensity": 1.2,
   "saturation": 1.2,
   "shadowTint": [0.82, 0.94, 1.22],

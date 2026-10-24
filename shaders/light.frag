@@ -14,12 +14,12 @@ layout(location = 6) flat in vec4 vSpot;
 layout(set = 0, binding = 0, std140) uniform View {
     mat4 viewProjection;
     vec4 params; // xy: canvas size, z: shadows enabled, w: penetration in pixels
-    vec4 rim;    // x: rim intensity
+    vec4 rim;    // x: rim intensity, y: how much the back wall's normals are flattened
 } view;
 
 layout(set = 1, binding = 0) uniform sampler2D normalBuffer;
 layout(set = 1, binding = 1) uniform sampler2D occluders;
-layout(set = 1, binding = 2) uniform sampler2D materialFlags; // r: rim strength
+layout(set = 1, binding = 2) uniform sampler2D materialFlags; // r: rim strength, g: depth (1 = back wall)
 
 layout(location = 0) out vec4 outLight;
 layout(location = 1) out vec4 outRim;
@@ -114,6 +114,11 @@ void main() {
 
     vec3 n = texture(normalBuffer, vScreenUV).rgb * 2.0 - 1.0;
     n = dot(n, n) > 1e-6 ? normalize(n) : vec3(0.0, 0.0, 1.0);
+    // The back wall is further away: its relief catches the light less.
+    float depth = texelFetch(materialFlags, pixel, 0).g;
+    if (depth > 0.0 && view.rim.y > 0.0) {
+        n = normalize(mix(n, vec3(0.0, 0.0, 1.0), view.rim.y * depth));
+    }
     vec3 l = normalize(vec3(toLight, vParams.y));
     float diffuse = max(dot(n, l), 0.0);
     outLight = vec4(vColor.rgb * (diffuse * falloff * visible), 0.0);

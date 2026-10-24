@@ -28,6 +28,21 @@ struct LightingSettings {
     float rimIntensity = 1.0f;
     // ...and the top and side edges always get this, so characters read in the dark.
     Vec3 rimAmbient{0.10f, 0.10f, 0.14f};
+    // Depth (ADR-0039): the back wall (sprites drawn with Renderer2D::setLayerDepth(1)) takes this
+    // share of the direct light, its normals are flattened by `backFlatten`, and it is pulled towards
+    // `depthFogColor` by `depthFog`.
+    float backLight = 1.0f;
+    float backFlatten = 0.0f;
+    float depthFog = 0.0f;
+    Vec3 depthFogColor{0.10f, 0.10f, 0.15f};
+    // Indirect light: the light blurred wide at a quarter of the resolution, added with this strength
+    // (light bouncing off the walls around a lamp).
+    float indirect = 0.0f;
+    // Ambient occlusion from the light occluders (solid tiles): open space next to walls gets this
+    // much less ambient and indirect light; ambient brighter at the top and darker at the bottom by
+    // `ambientGradient`.
+    float ambientOcclusion = 0.0f;
+    float ambientGradient = 0.0f;
 };
 
 } // namespace animal

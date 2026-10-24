@@ -121,7 +121,8 @@ void SpriteBatch::begin(rhi::CommandList& commands, const Mat4& viewProjection) 
     runStart_ = quadCount();
 }
 
-void SpriteBatch::draw(const SpriteTextures& textures, const RectF& dst, const RectF& uv, Color color, float rim) {
+void SpriteBatch::draw(const SpriteTextures& textures, const RectF& dst, const RectF& uv, Color color, float rim,
+                       float depth) {
     if (!commands_) {
         return;
     }
@@ -147,10 +148,11 @@ void SpriteBatch::draw(const SpriteTextures& textures, const RectF& dst, const R
     const float u1 = uv.x + uv.width;
     const float v1 = uv.y + uv.height;
     const auto r = static_cast<uint8_t>(std::lround(std::clamp(rim, 0.0f, 1.0f) * 255.0f));
-    vertices_.push_back({x0, y0, u0, v0, c, {r, 0, 0, 0}});
-    vertices_.push_back({x1, y0, u1, v0, c, {r, 0, 0, 0}});
-    vertices_.push_back({x1, y1, u1, v1, c, {r, 0, 0, 0}});
-    vertices_.push_back({x0, y1, u0, v1, c, {r, 0, 0, 0}});
+    const auto d = static_cast<uint8_t>(std::lround(std::clamp(depth, 0.0f, 1.0f) * 255.0f));
+    vertices_.push_back({x0, y0, u0, v0, c, {r, d, 0, 0}});
+    vertices_.push_back({x1, y0, u1, v0, c, {r, d, 0, 0}});
+    vertices_.push_back({x1, y1, u1, v1, c, {r, d, 0, 0}});
+    vertices_.push_back({x0, y1, u0, v1, c, {r, d, 0, 0}});
 }
 
 void SpriteBatch::flush() {

@@ -545,10 +545,13 @@ void CaveRoom::drawBehindPlayer(animal::Renderer2D& renderer, const CaveAssets& 
         for (int tx = 0; tx < tiles_.width(); ++tx) {
             const animal::TileId tile = tiles_.tile(tx, ty);
             if (tile != 0) {
+                const bool back = !tiles_.isSolidId(tile) && tiles_.hazardOf(tile) == animal::Hazard::None;
+                renderer.setLayerDepth(back ? 1.0f : 0.0f);
                 renderer.drawSprite(assets.tileset, {tx * size, ty * size}, {tile * size, 0.0f, size, size});
             }
         }
     }
+    renderer.setLayerDepth(0.0f);
     for (const Candle& candle : candles_) {
         renderer.drawSprite(assets.props, candle.position, {0.0f, 0.0f, size, size});
     }

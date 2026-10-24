@@ -341,6 +341,7 @@ ctest --test-dir build/<preset> --output-on-failure
   - ADR-0036 设置、显示、输入与游戏前端：`settings.json`、全屏 / 窗口位置 / 运行中切换垂直同步 / 帧率上限、音频设备迁移、可重映射输入与按设备的提示、标题 / 暂停 / 设置菜单（Accepted）。
   - ADR-0037 发行包与发行校验：macOS `.app` 与 Windows exe、README / 许可证 / 清单 / zip、启动失败对话框、`check_package.py` 与资源包测试（Accepted；签名公证待接入）。
   - ADR-0038 摆动的吊灯、炸药与藤蔓音效：带质量的单摆、弹跳抛射物、拾取与投掷的炸药（烟雾、闪光、冲击波、炸死甲虫）、藤蔓攀爬与摆荡音效（Accepted）。
+  - ADR-0039 纵深层次与补光：后墙层（减弱直接光、压平法线、深度雾）、模糊光照缓冲得到的间接光、Tile 环境光遮蔽与环境光渐变，均为 Look 参数（Accepted）。
 
 ## 13. 当前待确认项（不阻塞 M0）
 

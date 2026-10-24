@@ -38,6 +38,13 @@ const Field kFields[] = {
     {"shadowPenetration", Kind::Float, &Look::shadowPenetration},
     {"rimIntensity", Kind::Float, &Look::rimIntensity},
     {"rimAmbient", Kind::Color, &Look::rimAmbient},
+    {"backLight", Kind::Float, &Look::backLight},
+    {"backFlatten", Kind::Float, &Look::backFlatten},
+    {"depthFog", Kind::Float, &Look::depthFog},
+    {"depthFogColor", Kind::Color, &Look::depthFogColor},
+    {"indirect", Kind::Float, &Look::indirect},
+    {"ambientOcclusion", Kind::Float, &Look::ambientOcclusion},
+    {"ambientGradient", Kind::Float, &Look::ambientGradient},
     {"bloomThreshold", Kind::Float, &Look::bloomThreshold},
     {"bloomKnee", Kind::Float, &Look::bloomKnee},
     {"bloomIntensity", Kind::Float, &Look::bloomIntensity},
@@ -241,6 +248,13 @@ Look Look::engineDefaults() {
     look.shadowPenetration = lighting.shadowPenetration;
     look.rimIntensity = lighting.rimIntensity;
     look.rimAmbient = lighting.rimAmbient;
+    look.backLight = lighting.backLight;
+    look.backFlatten = lighting.backFlatten;
+    look.depthFog = lighting.depthFog;
+    look.depthFogColor = lighting.depthFogColor;
+    look.indirect = lighting.indirect;
+    look.ambientOcclusion = lighting.ambientOcclusion;
+    look.ambientGradient = lighting.ambientGradient;
     look.bloomThreshold = post.bloomThreshold;
     look.bloomKnee = post.bloomKnee;
     look.bloomIntensity = post.bloomIntensity;
@@ -322,6 +336,13 @@ void applyLook(const Look& look, LightingSettings& lighting, PostSettings& post,
     lighting.shadowPenetration = look.shadowPenetration;
     lighting.rimIntensity = look.rimIntensity;
     lighting.rimAmbient = look.rimAmbient;
+    lighting.backLight = look.backLight;
+    lighting.backFlatten = look.backFlatten;
+    lighting.depthFog = look.depthFog;
+    lighting.depthFogColor = look.depthFogColor;
+    lighting.indirect = look.indirect;
+    lighting.ambientOcclusion = look.ambientOcclusion;
+    lighting.ambientGradient = look.ambientGradient;
     post.bloomThreshold = look.bloomThreshold;
     post.bloomKnee = look.bloomKnee;
     post.bloomIntensity = look.bloomIntensity;

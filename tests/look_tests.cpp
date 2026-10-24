@@ -144,4 +144,27 @@ TEST(look_applies_without_touching_switches) {
     CHECK(near(fluid.smokeTint, {1.0f, 0.5f, 0.25f}) && near(fluid.buoyancy, 99.0f));
 }
 
+TEST(look_depth_fields_default_off_and_reach_the_lighting) {
+    const LightingSettings defaults;
+    CHECK(near(defaults.backLight, 1.0f) && near(defaults.backFlatten, 0.0f) && near(defaults.depthFog, 0.0f));
+    CHECK(near(defaults.indirect, 0.0f) && near(defaults.ambientOcclusion, 0.0f));
+    CHECK(near(defaults.ambientGradient, 0.0f));
+
+    const auto look = parse(R"({"format": "animal-look", "version": 1, "backLight": 0.8, "backFlatten": 0.3,
+        "depthFog": 0.2, "depthFogColor": "#336699", "indirect": 0.6, "ambientOcclusion": 0.7,
+        "ambientGradient": 0.35})");
+    CHECK(look.has_value());
+    LightingSettings lighting;
+    PostSettings post;
+    FluidSettings fluid;
+    applyLook(*look, lighting, post, fluid);
+    CHECK(near(lighting.backLight, 0.8f) && near(lighting.backFlatten, 0.3f) && near(lighting.depthFog, 0.2f));
+    CHECK(near(lighting.depthFogColor, {0.2f, 0.4f, 0.6f}));
+    CHECK(near(lighting.indirect, 0.6f) && near(lighting.ambientOcclusion, 0.7f));
+    CHECK(near(lighting.ambientGradient, 0.35f));
+
+    const Look middle = mixLooks(Look::engineDefaults(), *look, 0.5f);
+    CHECK(near(middle.backLight, 0.9f) && near(middle.indirect, 0.3f));
+}
+
 } // namespace

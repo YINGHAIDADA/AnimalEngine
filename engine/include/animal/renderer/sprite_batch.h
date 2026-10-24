@@ -46,9 +46,10 @@ public:
     void beginFrame();
     void begin(rhi::CommandList& commands, const Mat4& viewProjection);
     // `color` is straight alpha. `uv` is in normalized texture coordinates, v = 0 at the top;
-    // a negative width mirrors horizontally. `rim` (0..1) reaches the shader as vParams.x.
+    // a negative width mirrors horizontally. `rim` (0..1) reaches the shader as vParams.x, `depth`
+    // (0..1, 1 = the back wall) as vParams.y.
     void draw(const SpriteTextures& textures, const RectF& dst, const RectF& uv, Color color = Color::white(),
-              float rim = 0.0f);
+              float rim = 0.0f, float depth = 0.0f);
     void draw(rhi::TextureHandle texture, const RectF& dst, const RectF& uv, Color color = Color::white()) {
         draw(SpriteTextures{texture}, dst, uv, color);
     }
@@ -64,7 +65,7 @@ private:
         float x, y;
         float u, v;
         Color color;
-        uint8_t params[4]; // x: rim strength
+        uint8_t params[4]; // x: rim strength, y: depth (1 = back wall)
     };
 
     struct View {

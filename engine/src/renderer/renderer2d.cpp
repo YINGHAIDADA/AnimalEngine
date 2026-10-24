@@ -205,6 +205,7 @@ void Renderer2D::beginFrame(rhi::CommandList& commands) {
 void Renderer2D::beginWorld(const Camera2D& camera, Color clearColor) {
     ANIMAL_ASSERT(commands_ != nullptr && phase_ == Phase::Idle);
     phase_ = Phase::World;
+    layerDepth_ = 0.0f;
     worldViewProjection_ = camera.viewProjection(kCanvasExtent);
     worldOrigin_ = camera.topLeft(kCanvasExtent);
     lights_.clear();
@@ -250,7 +251,7 @@ void Renderer2D::drawSprite(const SpriteMaterial& material, Vec2 position, const
     if (phase_ == Phase::World) {
         litBatch_.draw({texture.handle, material.normal ? material.normal : flatNormal_,
                         material.emissive ? material.emissive : noEmission_},
-                       dst, uv, tint, material.rim);
+                       dst, uv, tint, material.rim, layerDepth_);
     } else {
         batch_.draw(texture.handle, dst, uv, tint);
     }

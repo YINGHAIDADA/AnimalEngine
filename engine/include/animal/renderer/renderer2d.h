@@ -64,6 +64,9 @@ public:
                     bool flipX = false);
     // Unlit additive pixel (fireflies, embers) in world pixels; drawn over the lit result.
     void drawGlow(Vec2 position, Color color, float size = 1.0f);
+    // Depth of the world sprites drawn from now on: 0 = the playing plane, 1 = the back wall (lit
+    // and fogged by the look's back-wall settings). Reset to 0 by beginWorld.
+    void setLayerDepth(float depth) { layerDepth_ = depth; }
     void addLight(const PointLight& light);
     void addFluidSplat(const FluidSplat& splat);
     void addWater(const WaterSurface& surface); // ADR-0018
@@ -142,6 +145,7 @@ private:
     SpriteBatch batch_;    // unlit: overlays and the screen pass
     SpriteBatch litBatch_; // material pass into the G-buffer
     SpriteBatch glowBatch_; // additive glow over the composited canvas
+    float layerDepth_ = 0.0f;
 
     struct GlowQuad {
         RectF rect;
