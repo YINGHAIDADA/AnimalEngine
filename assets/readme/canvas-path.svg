@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="200" viewBox="0 0 1200 200" role="img" aria-labelledby="path-title path-desc">
+  <title id="path-title">一帧画到窗口上的路径</title>
+  <desc id="path-desc">同一条路径：固定步、材质、光照、烟与水、泛光，然后按整数倍呈现。固定输入时，OpenGL 4.1 与 Vulkan 1.2 逐像素相同。</desc>
+  <rect x="1.5" y="1.5" width="1197" height="197" rx="18" fill="#161822" stroke="#343A4E" stroke-width="2"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Hiragino Sans GB, Noto Sans SC, sans-serif">
+    <rect x="48" y="32" width="1104" height="84" rx="8" fill="#10121C" stroke="#343A4E"/>
+    <g fill="#F6F3EA" font-size="28" font-weight="650" text-anchor="middle">
+      <text x="140" y="84">固定步</text>
+      <text x="324" y="84">材质</text>
+      <text x="508" y="84">光照</text>
+      <text x="692" y="84">烟与水</text>
+      <text x="876" y="84">泛光</text>
+      <text x="1060" y="84">整数倍</text>
+    </g>
+    <g stroke="#3A4158" stroke-width="1.5">
+      <path d="M228 74 l8 0 l-3 -5 m3 5 l-3 5" fill="none"/>
+      <path d="M412 74 l8 0 l-3 -5 m3 5 l-3 5" fill="none"/>
+      <path d="M596 74 l8 0 l-3 -5 m3 5 l-3 5" fill="none"/>
+      <path d="M780 74 l8 0 l-3 -5 m3 5 l-3 5" fill="none"/>
+      <path d="M964 74 l8 0 l-3 -5 m3 5 l-3 5" fill="none"/>
+    </g>
+    <text x="600" y="158" text-anchor="middle" fill="#C8CBD6" font-size="22">固定输入时，OpenGL 4.1 与 Vulkan 1.2 逐像素相同。</text>
+  </g>
+</svg>

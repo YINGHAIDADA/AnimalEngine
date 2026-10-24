@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/header.PNG" alt="Animal Engine" width="880">
+  <img src="assets/readme/hero.svg" width="100%" alt="Animal Engine：为像素风二维探索准备的 C++20 引擎，附带一座可以玩通的洞穴。画布锁在 320×180，按整数倍放大，边缘留黑。示意画布旁标明 OpenGL 4.1 与 Vulkan 1.2。">
 </p>
 
 <p align="center">
@@ -12,11 +12,9 @@
   <a href="LICENSE"><img alt="GPL-3.0-or-later" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg"></a>
 </p>
 
-<h1 align="center">Animal Engine</h1>
+Animal Engine 是为像素风二维探索游戏准备的 C++20 引擎，并附带一座可以玩通的洞穴。
 
-<p align="center">
-  为像素风二维探索游戏准备的 C++20 引擎，并附带一座可以玩通的洞穴。
-</p>
+画布锁在 **320×180**。窗口按整数倍放大，多出来的边缘留黑，像素边界始终清楚。
 
 <p align="center">
   <a href="#画面"><b>画面</b></a>
@@ -30,11 +28,9 @@
   <a href="#开发"><b>开发</b></a>
 </p>
 
-画布锁在 **320×180**。窗口按整数倍放大，多出来的边缘留黑，像素边界始终清楚。光照、烟雾、水面和植被都画在这张小画布上，再合成、泛光、调色。OpenGL 4.1 与 Vulkan 走同一条路径：固定步长、固定输入时，两后端的画面逐像素相同。
-
 ## 画面
 
-题图是宣传画。下面的录像和静帧都是引擎自己画出的 320×180 画布，按最近邻放大，像素边保持硬边。
+下面的录像和静帧都是引擎自己画出的 320×180 画布，按最近邻放大，像素边保持硬边。
 
 <p align="center">
   <img src="docs/screenshots/demo.gif" alt="演示：抓住入口的藤蔓，跑进水晶长廊" width="720"><br>
@@ -78,6 +74,12 @@
     </td>
   </tr>
 </table>
+
+光照、烟雾、水面和植被都画在这张小画布上，再合成、泛光、调色。OpenGL 4.1 与 Vulkan 走同一条路径：固定步长、固定输入时，两后端的画面逐像素相同。
+
+<p align="center">
+  <img src="assets/readme/canvas-path.svg" width="100%" alt="一帧的路径：固定步、材质、光照、烟与水、泛光，然后按整数倍呈现。固定输入时 OpenGL 4.1 与 Vulkan 1.2 逐像素相同。">
+</p>
 
 | | |
 |---|---|
@@ -345,7 +347,7 @@ $B/AnimalCooker --verify=data.pak --manifest=assets/cook.json
 | [docs/ART_PIPELINE.md](docs/ART_PIPELINE.md) | 精灵图层、法线图和贴图约定 |
 | [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | 已知、尚未处理的问题 |
 
-内容可以从启动玩到终点，发行包也能在 macOS 与 Windows 上打出来。代码签名、公证，以及在干净机器上的安装验证还留在后续。里程碑的定义和验收记录在 [PROJECT.md](PROJECT.md)，尚未处理的问题在 [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)。
+代码签名、公证，以及在干净机器上的安装验证还留在后续。里程碑和验收记录在 [PROJECT.md](PROJECT.md)，尚未处理的问题在 [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)。
 
 ## 许可证
 
