@@ -1,0 +1,9 @@
+# title: settings > display > vsync off, frame cap up once
+10 key Down
+15 key Enter
+20 key Down
+25 key Enter
+30 key Down
+35 key Enter
+40 key Down
+45 key Right

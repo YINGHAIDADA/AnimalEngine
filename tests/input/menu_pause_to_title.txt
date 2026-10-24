@@ -1,0 +1,6 @@
+# title: new game, pause, quit to title
+10 key Enter
+40 key Escape
+45 key Down
+50 key Down
+55 key Enter

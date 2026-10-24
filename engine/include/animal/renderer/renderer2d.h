@@ -100,7 +100,8 @@ public:
     void endWorldOverlay();
 
     void beginScreen(Color letterboxColor);
-    void drawText(Vec2 position, std::string_view text, Color color);
+    // `size` multiplies the HUD text size (titles).
+    void drawText(Vec2 position, std::string_view text, Color color, uint32_t size = 1);
     void endScreen();
 
     // Solid rectangle in the current pass's coordinates (world pixels in the world passes,
@@ -114,7 +115,7 @@ public:
     const PresentLayout& presentLayout() const { return presentLayout_; }
     uint32_t overlayScale() const;
     float textLineHeight() const;
-    float textWidth(std::string_view text) const;
+    float textWidth(std::string_view text, uint32_t size = 1) const;
     // Totals of the last completed frame.
     SpriteBatchStats stats() const;
     uint32_t lightCount() const;

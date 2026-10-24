@@ -1,0 +1,6 @@
+# title: settings > audio > master down twice
+10 key Down
+15 key Enter
+20 key Enter
+25 key Left
+30 key Left

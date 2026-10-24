@@ -6,6 +6,7 @@
 #include <animal/core/log.h>
 
 #include <algorithm>
+#include <format>
 #include <cstdlib>
 #include <string>
 
@@ -58,6 +59,14 @@ bool SandboxGame::onArgument(std::string_view argument) {
         settingsPath_ = std::string(argument.substr(kSettings.size()));
         return true;
     }
+    if (argument == "--title") {
+        forceTitle_ = true; // test runs skip the title screen otherwise
+        return true;
+    }
+    if (argument == "--menus") {
+        forceMenus_ = true; // the pause menu and the way back to the title, starting in the game
+        return true;
+    }
     if (argument == "--trace" || argument.starts_with("--trace=")) {
         traceEvery_ = argument.size() > 8 ? std::max(1ul, std::strtoul(std::string(argument.substr(8)).c_str(), nullptr, 10)) : 10;
         return true;
@@ -96,6 +105,34 @@ bool SandboxGame::checkExpectations() {
         } else if (name == "grounded") {
             actual = playerState_.grounded ? "true" : "false";
             met = actual == expected;
+        } else if (name == "screen") {
+            actual = screenName();
+            met = actual == expected;
+        } else if (name == "setting") {
+            // setting:NAME:VALUE for masterVolume, effectsVolume, fullscreen, vsync, frameCap, key.ACTION
+            const size_t colon = expected.find(':');
+            const std::string key = expected.substr(0, colon);
+            const std::string want = colon == std::string::npos ? "" : expected.substr(colon + 1);
+            if (key == "masterVolume") {
+                actual = std::format("{:.1f}", settings_.masterVolume);
+            } else if (key == "effectsVolume") {
+                actual = std::format("{:.1f}", settings_.effectsVolume);
+            } else if (key == "fullscreen") {
+                actual = settings_.fullscreen ? "true" : "false";
+            } else if (key == "vsync") {
+                actual = settings_.vsync ? "true" : "false";
+            } else if (key == "frameCap") {
+                actual = std::to_string(settings_.frameCap);
+            } else if (key.starts_with("key.")) {
+                for (const ActionInfo& info : actionInfos()) {
+                    if (key == std::string("key.") + info.name) {
+                        const animal::ActionBinding& b = actions_.binding(info.id);
+                        actual = b.keys.empty() ? "-" : std::string(animal::platform::keyName(b.keys.front()));
+                    }
+                }
+            }
+            met = actual == want;
+            actual = key + ":" + actual;
         } else if (name == "health") {
             actual = std::to_string(health_);
             met = actual == expected;
@@ -112,7 +149,7 @@ bool SandboxGame::checkExpectations() {
             actual = std::to_string(respawns_);
             met = actual == expected;
         } else {
-            animal::log::error("Expectation '{}' is unknown (room, gems, visited, flag, finished, health, grounded, respawns)", name);
+            animal::log::error("Expectation '{}' is unknown (room, gems, visited, flag, finished, health, screen, setting, grounded, respawns)", name);
             ok = false;
             continue;
         }

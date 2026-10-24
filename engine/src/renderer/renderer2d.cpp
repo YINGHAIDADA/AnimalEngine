@@ -462,12 +462,12 @@ float Renderer2D::textLineHeight() const {
     return static_cast<float>(DebugFont::kLineHeight * overlayScale());
 }
 
-float Renderer2D::textWidth(std::string_view text) const {
-    return static_cast<float>(text.size() * DebugFont::kAdvance * overlayScale());
+float Renderer2D::textWidth(std::string_view text, uint32_t size) const {
+    return static_cast<float>(text.size() * DebugFont::kAdvance * overlayScale() * size);
 }
 
-void Renderer2D::drawText(Vec2 position, std::string_view text, Color color) {
-    const auto scale = static_cast<float>(overlayScale());
+void Renderer2D::drawText(Vec2 position, std::string_view text, Color color, uint32_t size) {
+    const auto scale = static_cast<float>(overlayScale() * size);
     const Color shadow = Color::rgba(0, 0, 0, color.a);
     const float glyphW = DebugFont::kGlyphWidth * scale;
     const float glyphH = DebugFont::kGlyphHeight * scale;

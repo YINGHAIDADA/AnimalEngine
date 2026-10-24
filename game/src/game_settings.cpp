@@ -12,6 +12,10 @@ namespace game {
 
 void SandboxGame::loadSettings(animal::EngineContext& context) {
     const bool testRun = context.demo || context.deterministic || context.customData || !startRoomName_.empty();
+    frontEndEnabled_ = forceTitle_ || forceMenus_ || !testRun;
+    if (forceTitle_ || !testRun) {
+        openTitle();
+    }
     if (settingsPath_.empty() && !testRun) {
         if (const std::string dir = animal::platform::userDataDirectory("AnimalEngine", "Sandbox"); !dir.empty()) {
             settingsPath_ = dir + "settings.json";

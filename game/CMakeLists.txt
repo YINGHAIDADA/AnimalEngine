@@ -3,6 +3,7 @@ set(ANIMAL_GAME_SOURCES
     src/controls.cpp
     src/cave_room.h
     src/dev/dev_tools.h
+    src/front_end.cpp
     src/game_settings.cpp
     src/main.cpp
     src/map_screen.cpp
@@ -177,4 +178,17 @@ if(ANIMAL_BUILD_TESTS)
         "--expect=room:test_walk_east")
     animal_add_capability_test(rebound_default_unbound test_walk hold_right ${ANIMAL_REBOUND} --frames=300
         "--expect=room:test_walk")
+    # Front end (ADR-0036): the menus driven like a player would, in memory (no settings file).
+    function(animal_add_menu_test name)
+        add_test(NAME menu_${name} COMMAND ${ANIMAL_TEST_RUN} --title
+                 "--input-script=${PROJECT_SOURCE_DIR}/tests/input/menu_${name}.txt" ${ARGN})
+    endfunction()
+    animal_add_menu_test(new_game --frames=30 "--expect=screen:playing")
+    animal_add_menu_test(pause_to_title --frames=70 "--expect=screen:title")
+    animal_add_menu_test(volume --frames=40 "--expect=screen:audio,setting:masterVolume:0.8")
+    animal_add_menu_test(display --frames=60 "--expect=screen:display,setting:vsync:false,setting:frameCap:30")
+    animal_add_menu_test(rebind --frames=70 "--expect=screen:controls,setting:key.right:L")
+    add_test(NAME menu_ending_returns_to_title COMMAND ${ANIMAL_TEST_RUN} --menus --start-room=test_gate --gems=3
+             "--input-script=${PROJECT_SOURCE_DIR}/tests/input/menu_ending.txt" --frames=240
+             "--expect=finished:true,screen:title")
 endif()

@@ -1,0 +1,4 @@
+# walk right into the goal, then continue from the ending screen
+1 down Right
+200 up Right
+220 key Space

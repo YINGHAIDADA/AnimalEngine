@@ -138,6 +138,7 @@ void SandboxGame::placePlayerFeet(animal::Vec2 feet) {
 bool SandboxGame::onInit(animal::EngineContext& context) {
     loadSettings(context);
     input_ = context.input;
+    context_ = &context;
     const std::string textures = context.dataDirectory + "textures/";
     auto tileset = animal::loadMaterial(*context.device, textures + "tileset");
     auto props = animal::loadMaterial(*context.device, textures + "props");
@@ -582,6 +583,10 @@ void SandboxGame::updateAnimation(float dt) {
 void SandboxGame::onFrame(animal::EngineContext& context) {
     dev_.frame(context);
     applyVolumes();
+    if (frontEndEnabled_) {
+        context.escapeQuits = false; // Escape pauses; the menus quit
+    }
+    updateFrontEnd(context, static_cast<float>(kFixedTimestep));
     const animal::platform::Input& input = *context.input;
     if (input.pressed(Key::F11) || ((input.down(Key::LeftAlt) || input.down(Key::RightAlt)) && input.pressed(Key::Enter))) {
         settings_.fullscreen = !settings_.fullscreen;
@@ -590,7 +595,7 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
     }
     if (context.demo) {
         applyDemoInput();
-    } else if (!dev_.editing()) {
+    } else if (!dev_.editing() && menu_.page == Page::None) {
         actions_.update(input);
     }
     animal::Renderer2D& renderer = *context.renderer;
@@ -621,7 +626,7 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
     if (input.pressed(Key::F8)) {
         resetProgress(renderer);
     }
-    if (actions_.pressedThisFrame(Map, input)) {
+    if (menu_.page == Page::None && actions_.pressedThisFrame(Map, input)) {
         mapOpen_ = !mapOpen_;
     }
 }
@@ -742,9 +747,13 @@ void SandboxGame::handleRoomExit(animal::Renderer2D& renderer) {
 }
 
 void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
-    if (mapOpen_ || endingOpen_) {
+    if (mapOpen_ || endingOpen_ || worldPaused()) {
         if (endingOpen_ && actions_.pressed(Jump)) {
             endingOpen_ = false;
+            if (frontEndEnabled_) {
+                saveProgress();
+                openTitle(); // the run is over: back to the title screen
+            }
         }
         actions_.endFixedStep(); // the world waits; presses made meanwhile do not carry over
         return;
@@ -759,7 +768,8 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
     stunned_ = std::max(0.0f, stunned_ - step);
     messageTime_ = std::max(0.0f, messageTime_ - step);
     animal::Entity* player = entities_.get(player_);
-    const bool editing = dev_.editing(); // the level editor freezes the player; the room keeps moving
+    // The level editor and the title screen freeze the player; the room keeps moving.
+    const bool editing = dev_.editing() || menu_.fromTitle;
     std::optional<animal::profiler::Zone> playerZone(std::in_place, "player");
     if (player && !editing) {
         const bool control = stunned_ <= 0.0f;
@@ -874,8 +884,8 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
         renderer.addLight(glow);
     }
     cave_.drawInFrontOfPlayer(renderer); // grass in front: the player wades through it
-    if (!mapOpen_ && !endingOpen_) {
-        drawHearts(renderer); // the map and the ending screen cover the HUD
+    if (!mapOpen_ && !endingOpen_ && menu_.page == Page::None) {
+        drawHearts(renderer); // the map, the menus and the ending screen cover the HUD
     }
     cave_.addLights(renderer, time_);
     addStressLights(renderer);
@@ -904,6 +914,10 @@ void SandboxGame::onScreen(animal::EngineContext&, animal::Renderer2D& renderer)
     }
     if (mapOpen_) {
         drawMap(renderer);
+        return;
+    }
+    if (menu_.page != Page::None) {
+        drawFrontEnd(renderer);
         return;
     }
     const animal::PresentLayout& layout = renderer.presentLayout();

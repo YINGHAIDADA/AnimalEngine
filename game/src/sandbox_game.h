@@ -22,7 +22,9 @@
 #include <animal/resources/loaders.h>
 
 #include <array>
+#include <functional>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -61,6 +63,15 @@ public:
     };
     static const std::vector<ActionInfo>& actionInfos();
 
+    enum class Page { None, Title, ConfirmNewGame, Pause, Settings, Audio, Display, Controls, Rebind };
+    struct MenuItem {
+        std::string label;
+        std::string value;                 // shown in a column; empty for plain entries
+        std::function<void()> activate;    // confirm
+        std::function<void(int)> adjust;   // left / right (-1 / +1)
+        bool disabled = false;
+    };
+
 protected:
     animal::AppConfig configure() override;
     bool onArgument(std::string_view argument) override;
@@ -76,6 +87,18 @@ protected:
 private:
     friend struct DevPanels; // the developer tools inspect and edit the game state
 
+    // front_end.cpp (ADR-0036)
+    std::vector<MenuItem> menuItems();
+    void updateFrontEnd(animal::EngineContext& context, float dt);
+    void drawFrontEnd(animal::Renderer2D& renderer);
+    void openPage(Page page);
+    void backPage();
+    void closeMenus();
+    void openTitle();
+    bool worldPaused() const; // a menu over the game (not the title screen)
+    std::string screenName() const;
+    void rebind(size_t actionIndex, std::optional<animal::platform::Key> key,
+                std::optional<animal::platform::GamepadButton> button);
     // controls.cpp (ADR-0036)
     void bindActions(); // defaults, with the player's rebinding from the settings
     animal::ActionBinding bindingFor(const ActionInfo& info) const;
@@ -172,6 +195,26 @@ private:
     animal::Settings settings_;  // the player's volumes, display and controls (ADR-0036)
     std::string settingsPath_;   // empty: not persisted (test runs, unless --settings=path)
     animal::Settings savedSettings_; // as last read or written
+    bool settingsChanged_ = false;   // changed in the menus: written when they close
+
+    struct MenuState {
+        struct Entry {
+            Page page;
+            int selected;
+        };
+        Page page = Page::None;
+        std::vector<Entry> stack; // pages to go back to
+        int selected = 0;
+        bool fromTitle = false;   // the menus were opened from the title screen: the world is not paused
+        size_t rebindAction = 0;
+        float rebindWait = 0.0f;
+        float stickX = 0.0f;      // last frame's stick, for menu steps
+        float stickY = 0.0f;
+    } menu_;
+    bool frontEndEnabled_ = false; // title and pause menus (not in test runs unless --title)
+    bool forceTitle_ = false;      // --title
+    bool forceMenus_ = false;      // --menus
+    animal::EngineContext* context_ = nullptr;
     animal::SaveData save_;  // progress: checkpoint and collected gems
     std::string savePath_;   // empty: progress is not persisted (--demo, --deterministic)
     std::set<std::string> gemFlags_; // save flags of every gem in the world
