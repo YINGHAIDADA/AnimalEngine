@@ -13,6 +13,7 @@
 #include <animal/framework/level.h>
 #include <animal/framework/look.h>
 #include <animal/framework/platformer.h>
+#include <animal/framework/projectile.h>
 #include <animal/framework/save.h>
 #include <animal/framework/settings.h>
 #include <animal/framework/sprite_sheet.h>
@@ -48,6 +49,7 @@ enum Action : animal::ActionId {
     Jump,
     Map,   // read every frame (ActionMap::pressedThisFrame)
     Pause,
+    Throw, // dynamite
 };
 
 // M1b sandbox: a Tiled world of single-screen rooms, a platformer-controlled creature, and the
@@ -128,6 +130,16 @@ private:
     void drawHearts(animal::Renderer2D& renderer) const;
     void updateMechanisms(animal::Entity& player, float dt);
     void drawEnding(animal::Renderer2D& renderer);
+    // dynamite.cpp (ADR-0038)
+    void throwDynamite(animal::Entity& player);
+    void stepDynamite(float dt);
+    void explode(animal::Vec2 centre);
+    void addBlastInfluences(std::vector<animal::Influence>& influences) const;
+    void drawDynamite(animal::Renderer2D& renderer) const;
+    void addDynamiteLights(animal::Renderer2D& renderer) const;
+    void addBlastSmoke(animal::Renderer2D& renderer) const;
+    void drawDynamiteHud(animal::Renderer2D& renderer) const;
+    void vineSounds(const animal::Entity& player, bool climbing, float dt); // rustling and swishing
     // game_settings.cpp (ADR-0036)
     void loadSettings(animal::EngineContext& context);
     void applyDisplaySettings(animal::EngineContext& context);
@@ -180,6 +192,27 @@ private:
     animal::DiveParams diveParams_;
     bool diving_ = false;         // under water with the dive ability
     bool respawnPending_ = false; // hurt this step: back to the checkpoint after it
+    // Dynamite (ADR-0038)
+    static constexpr int kMaxDynamite = 9;
+    int dynamite_ = 0; // carried
+    struct Thrown {
+        animal::Projectile projectile;
+        float fuse = 0.0f; // seconds left
+    };
+    std::vector<Thrown> thrown_;
+    struct Blast {
+        animal::Vec2 centre;
+        float age = 0.0f;
+    };
+    std::vector<Blast> blasts_;
+    animal::ProjectileParams throwParams_;
+    int crawlersKilled_ = 0;
+    // Vine sounds
+    float vineClimbDistance_ = 0.0f;
+    float vineSwingCooldown_ = 0.0f;
+    float vineLastSpeed_ = 0.0f;
+    animal::Vec2 vineLastPosition_;
+    bool vineWasClimbing_ = false;
     static constexpr int kQuartersPerHeart = 4;
     static constexpr int kMaxHealth = 3 * kQuartersPerHeart; // three hearts of four quarters
     int health_ = kMaxHealth;     // quarters left; refilled when knocked out
@@ -263,7 +296,8 @@ private:
     // Audio (ADR-0033)
     animal::audio::AudioSystem* audio_ = nullptr;
     struct Sounds {
-        animal::audio::SoundHandle jump, land, gem, hit, splash, grab, ambience, click, door, ability, crumble;
+        animal::audio::SoundHandle jump, land, gem, hit, splash, grab, ambience, click, door, ability, crumble, toss, fuse,
+            explosion, pickup, vineClimb, vineSwing;
     } sounds_{};
     animal::audio::VoiceHandle ambienceVoice_;
     animal::Random soundRandom_{0x50D};           // pitch variation only: never touches the simulation

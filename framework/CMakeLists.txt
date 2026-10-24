@@ -12,8 +12,10 @@ set(ANIMAL_FRAMEWORK_HEADERS
     include/animal/framework/look.h
     include/animal/framework/particles.h
     include/animal/framework/patrol.h
+    include/animal/framework/pendulum.h
     include/animal/framework/physics.h
     include/animal/framework/platforms.h
+    include/animal/framework/projectile.h
     include/animal/framework/platformer.h
     include/animal/framework/save.h
     include/animal/framework/settings.h
@@ -36,8 +38,10 @@ set(ANIMAL_FRAMEWORK_SOURCES
     src/look.cpp
     src/particles.cpp
     src/patrol.cpp
+    src/pendulum.cpp
     src/physics.cpp
     src/platforms.cpp
+    src/projectile.cpp
     src/platformer.cpp
     src/save.cpp
     src/settings.cpp

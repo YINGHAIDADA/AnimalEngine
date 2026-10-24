@@ -134,6 +134,20 @@
    "y": 1584,
    "width": 320,
    "height": 176
+  },
+  {
+   "fileName": "rooms/test_dynamite.tmj",
+   "x": 0,
+   "y": 1936,
+   "width": 320,
+   "height": 176
+  },
+  {
+   "fileName": "rooms/test_lantern.tmj",
+   "x": 640,
+   "y": 1936,
+   "width": 320,
+   "height": 176
   }
  ]
 }

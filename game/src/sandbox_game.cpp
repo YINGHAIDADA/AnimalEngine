@@ -115,6 +115,8 @@ bool SandboxGame::enterRoom(const animal::WorldRoom& worldRoom, animal::Renderer
     checkpointPending_ = true;
     submersion_ = 0.0f;
     diving_ = false;
+    thrown_.clear(); // thrown dynamite and blasts stay in the room they happened in
+    blasts_.clear();
     climb_.climbing = false; // vine indices belong to the previous room
     renderer.resetFluid();
     const animal::Vec2 canvasOrigin = camera_.topLeft(animal::Renderer2D::kCanvasExtent);
@@ -220,7 +222,10 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
                audio_->load(sounds + "splash.wav"), audio_->load(sounds + "grab.wav"),
                audio_->load(sounds + "cave_ambience.wav"), audio_->load(sounds + "click.wav"),
                audio_->load(sounds + "door.wav"),   audio_->load(sounds + "ability.wav"),
-               audio_->load(sounds + "crumble.wav")};
+               audio_->load(sounds + "crumble.wav"), audio_->load(sounds + "toss.wav"),
+               audio_->load(sounds + "fuse.wav"),   audio_->load(sounds + "explosion.wav"),
+               audio_->load(sounds + "pickup.wav"), audio_->load(sounds + "vine_climb.wav"),
+               audio_->load(sounds + "vine_swing.wav")};
     ambienceVoice_ = audio_->play(sounds_.ambience, {1.0f, 0.0f, 1.0f, true, animal::audio::Bus::Ambience, 2.0f});
     creatureSheetPath_ = textures + "creature.json";
     std::optional<animal::SpriteSheet> sheet = animal::loadSpriteSheet(creatureSheetPath_);
@@ -266,6 +271,10 @@ void SandboxGame::registerTuning(animal::Renderer2D& renderer) {
     tuning_.add("swim.fallSpeedScale", &s.fallSpeedScale, 0.05f, 1.0f);
     tuning_.add("swim.drag", &s.drag, 0.0f, 10.0f);
     tuning_.add("swim.jumpDepth", &s.jumpDepth, 0.0f, 1.0f);
+    animal::PendulumParams& l = cave_.lanternParams();
+    tuning_.add("lantern.mass", &l.mass, 0.5f, 20.0f);
+    tuning_.add("lantern.damping", &l.damping, 0.0f, 3.0f);
+    tuning_.add("lantern.contact", &l.contact, 0.0f, 40.0f);
     animal::DiveParams& d = diveParams_;
     tuning_.add("dive.speed", &d.speed, 10.0f, 200.0f);
     tuning_.add("dive.acceleration", &d.acceleration, 50.0f, 2000.0f);
@@ -663,14 +672,6 @@ void SandboxGame::respawn(animal::Renderer2D& renderer) {
     diving_ = false;
 }
 
-void SandboxGame::playSound(animal::audio::SoundHandle sound, float x, float volume) {
-    if (!audio_) {
-        return;
-    }
-    const float pan = std::clamp((x - kCameraCenter.x) / kCameraCenter.x * 0.7f, -0.7f, 0.7f);
-    audio_->play(sound, {volume, pan, soundRandom_.range(0.95f, 1.05f), false, animal::audio::Bus::Effects, 0.0f});
-}
-
 void SandboxGame::showMessage(std::string text) {
     message_ = std::move(text);
     messageTime_ = kMessageSeconds;
@@ -690,6 +691,10 @@ void SandboxGame::updateGameplay(animal::Entity& player) {
     if (!gems.empty()) {
         playSound(sounds_.gem, playerX);
         saveProgress();
+    }
+    if (const int picked = cave_.collectDynamite(collider, kMaxDynamite - dynamite_); picked > 0) {
+        dynamite_ += picked;
+        playSound(sounds_.pickup, playerX, 0.8f);
     }
 
     if (invulnerable_ <= 0.0f) {
@@ -776,6 +781,9 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
         const float moveX = control ? actions_.strength(MoveRight) - actions_.strength(MoveLeft) : 0.0f;
         const float moveY = control ? actions_.strength(MoveDown) - actions_.strength(MoveUp) : 0.0f;
         const bool jumpPressed = control && actions_.pressed(Jump);
+        if (control && actions_.pressed(Throw)) {
+            throwDynamite(*player);
+        }
         stepPlatforms(*player, step);
         const bool wasClimbing = climb_.climbing;
         const bool climbing = animal::stepClimb(player->body, playerState_, climb_, {moveX, moveY, jumpPressed},
@@ -786,6 +794,7 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
         } else if (!climbing && wasClimbing && jumpPressed) {
             playSound(sounds_.jump, playerX, 0.8f);
         }
+        vineSounds(*player, climbing, step);
         const bool wasRising = playerState_.rising;
         if (!climbing && !stepDive(*player, moveX, moveY, step)) {
             animal::PlatformerInput input;
@@ -839,6 +848,8 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
         }
         influences.push_back(influence);
     }
+    stepDynamite(step);
+    addBlastInfluences(influences);
     cave_.step(static_cast<float>(dt), time_, influences);
     if (traceEvery_ > 0 && player && ++traceSteps_ % traceEvery_ == 0) {
         const animal::Vec2 p = player->body.exactPosition();
@@ -859,6 +870,7 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
     renderer.beginWorld(camera_, kBackdrop);
     cave_.drawBehindPlayer(renderer, assets_);
     cave_.drawGems(renderer, assets_, time_);
+    drawDynamite(renderer);
     cave_.addWater(renderer, time_);
 
     const animal::Entity* player = entities_.get(player_);
@@ -886,12 +898,15 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
     cave_.drawInFrontOfPlayer(renderer); // grass in front: the player wades through it
     if (!mapOpen_ && !endingOpen_ && menu_.page == Page::None) {
         drawHearts(renderer); // the map, the menus and the ending screen cover the HUD
+        drawDynamiteHud(renderer);
     }
     cave_.addLights(renderer, time_);
+    addDynamiteLights(renderer);
     addStressLights(renderer);
     renderer.setFluidTimeStep(fluidTime_);
     fluidTime_ = 0.0f;
     cave_.addFluidSources(renderer, time_);
+    addBlastSmoke(renderer);
     renderer.endWorld();
 
     if (showCollision_ && player) {

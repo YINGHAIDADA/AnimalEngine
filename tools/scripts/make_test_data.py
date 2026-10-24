@@ -93,6 +93,26 @@ def test_crawler():
     return r
 
 
+def test_dynamite():
+    """A stick to pick up, and a crawler penned in by two low walls where a throw lands."""
+    r = floored("test_dynamite")
+    r.fill(11, 18, 11, 19, "#")
+    r.fill(17, 18, 17, 19, "#")
+    r.obj("entry", 24, 160)
+    r.obj("dynamite", 40, 160)
+    r.obj("crawler", 116, 160)              # object id 4: walks right, back and forth in the pen
+    return r
+
+
+def test_lantern():
+    """A heavy lantern hanging low enough to brush past."""
+    r = floored("test_lantern")
+    r.fill(10, 1, 14, 12, "#")              # the ceiling it hangs from (bottom at y = 104)
+    r.obj("lantern", 100, 152)
+    r.obj("entry", 24, 160)
+    return r
+
+
 def door_room(name, with_switch):
     """Floor, (a switch,) a door and a gem behind it; the door is roofed so it cannot be jumped."""
     r = floored(name)
@@ -183,6 +203,7 @@ def render_mechanisms():
     r.obj("light", 160, 140, color="#ffc0d8ff", radius=70.0, intensity=1.2, height=16.0)
     r.obj("candle", 140, 160)
     r.obj("candle", 60, 160)
+    r.obj("dynamite", 92, 160)
     r.obj("crawler", 280, 104)
     r.obj("gem", 240, 136)
     r.obj("entry", 24, 160)
@@ -191,7 +212,7 @@ def render_mechanisms():
 
 ROOMS = [test_walk, test_walk_east, test_platform, test_crush, test_falling, test_falling_below, test_spikes,
          test_crawler, lambda: door_room("test_switch", True), lambda: door_room("test_door_locked", False),
-         test_dive, test_current, test_gate, test_rise, test_rise_above, render_mechanisms]
+         test_dive, test_current, test_gate, test_rise, test_rise_above, test_dynamite, test_lantern, render_mechanisms]
 
 # (room, x, y) in 320×176 room units. Test rooms stand apart: only the designed pairs touch.
 WORLD = [
@@ -199,7 +220,8 @@ WORLD = [
     ("test_walk", 0, 3), ("test_walk_east", 1, 3), ("test_platform", 3, 3), ("test_crush", 5, 3),
     ("test_falling", 7, 3), ("test_falling_below", 7, 4), ("test_spikes", 0, 6), ("test_crawler", 2, 6),
     ("test_switch", 4, 6), ("test_door_locked", 6, 6), ("test_dive", 0, 8), ("test_current", 2, 8),
-    ("test_gate", 4, 8), ("test_rise_above", 6, 8), ("test_rise", 6, 9),
+    ("test_gate", 4, 8), ("test_rise_above", 6, 8), ("test_rise", 6, 9), ("test_dynamite", 0, 11),
+    ("test_lantern", 2, 11),
 ]
 
 

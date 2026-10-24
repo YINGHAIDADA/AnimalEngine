@@ -1,9 +1,11 @@
 set(ANIMAL_GAME_SOURCES
     src/cave_room.cpp
     src/controls.cpp
+    src/dynamite.cpp
     src/cave_room.h
     src/dev/dev_tools.h
     src/front_end.cpp
+    src/game_audio.cpp
     src/game_settings.cpp
     src/main.cpp
     src/map_screen.cpp
@@ -226,6 +228,12 @@ if(ANIMAL_BUILD_TESTS)
     animal_add_capability_test(gate_stays_closed test_gate hold_right --gems=2 --frames=300 "--expect=finished:false")
     animal_add_capability_test(swim_up test_rise swim_up --flags=ability:dive --frames=240
         "--expect=room:test_rise_above")
+    # Dynamite and lanterns (ADR-0038).
+    animal_add_capability_test(dynamite_pickup test_dynamite pick_up --frames=60 "--expect=dynamite:1,crawlers:1")
+    animal_add_capability_test(dynamite_kills_crawler test_dynamite throw_dynamite --frames=220
+        "--expect=dynamite:0,crawlers:0,health:12")
+    animal_add_capability_test(lantern_swings test_lantern hold_right --frames=200 "--expect=lanternSwing:true")
+    animal_add_capability_test(lantern_hangs_still test_lantern "" --frames=200 "--expect=lanternSwing:false")
     # Controls (ADR-0036): the player's rebinding from a settings file replaces the default keys.
     set(ANIMAL_REBOUND "--settings=${PROJECT_SOURCE_DIR}/tests/input/rebound_settings.json")
     animal_add_capability_test(rebound_key test_walk hold_l ${ANIMAL_REBOUND} --frames=300

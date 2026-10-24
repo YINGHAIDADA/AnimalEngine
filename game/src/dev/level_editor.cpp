@@ -106,6 +106,8 @@ const std::vector<ObjectTemplate>& objectTemplates() {
         {"goal", false, 16, 24, IM_COL32(255, 230, 90, 255), "Entering it ends the run", {}, {}},
         {"entry", true, 0, 0, IM_COL32(200, 200, 200, 255), "Where --start-room and teleports put the player (feet)",
          {}, {}},
+        {"dynamite", true, 0, 0, IM_COL32(230, 70, 50, 255), "Dynamite to pick up (bottom centre); back on re-entry", {},
+         {}},
     };
     return templates;
 }

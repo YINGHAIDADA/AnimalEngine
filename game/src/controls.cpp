@@ -26,6 +26,7 @@ const std::vector<SandboxGame::ActionInfo>& actionTable() {
         {Jump, "jump", "JUMP", {{Key::Space, Key::Z}, {GamepadButton::South}, {}}},
         {Map, "map", "MAP", {{Key::M}, {GamepadButton::Back}, {}}},
         {Pause, "pause", "PAUSE", {{Key::Escape, Key::P}, {GamepadButton::Start}, {}}},
+        {Throw, "throw", "THROW DYNAMITE", {{Key::X}, {GamepadButton::West}, {}}},
     };
     return table;
 }

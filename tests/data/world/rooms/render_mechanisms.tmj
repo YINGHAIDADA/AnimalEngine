@@ -11,7 +11,7 @@
  "tilewidth": 8,
  "tileheight": 8,
  "nextlayerid": 3,
- "nextobjectid": 17,
+ "nextobjectid": 18,
  "properties": [
   {
    "name": "look",
@@ -1223,6 +1223,18 @@
     {
      "id": 14,
      "name": "",
+     "type": "dynamite",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 92,
+     "y": 160,
+     "width": 0,
+     "height": 0
+    },
+    {
+     "id": 15,
+     "name": "",
      "type": "crawler",
      "point": true,
      "rotation": 0,
@@ -1233,7 +1245,7 @@
      "height": 0
     },
     {
-     "id": 15,
+     "id": 16,
      "name": "",
      "type": "gem",
      "point": true,
@@ -1245,7 +1257,7 @@
      "height": 0
     },
     {
-     "id": 16,
+     "id": 17,
      "name": "",
      "type": "entry",
      "point": true,

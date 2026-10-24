@@ -63,6 +63,9 @@ PALETTE = {
     "j": ((236, 48, 70, 255), 1.0, (220, 34, 56)),      # heart (glows: the HUD hearts are lit like the scene)
     "J": ((255, 200, 210, 255), 1.0, (255, 160, 176)),  # heart shine
     "z": ((74, 30, 44, 255), 0.6, (26, 4, 10)),         # empty heart
+    "t": ((196, 44, 38, 255), 0.8, (120, 22, 16)),      # dynamite (glows a little: readable in the dark and on the HUD)
+    "T": ((240, 112, 92, 255), 1.0, (200, 70, 50)),     # dynamite highlight
+    "W": ((236, 228, 210, 255), 0.9, (110, 104, 92)),   # dynamite label
 }
 
 
@@ -312,6 +315,18 @@ HEART_FULL = [
 ]
 HEART_EMPTY = [row.replace("j", "z").replace("J", "z") for row in HEART_FULL]
 
+# A stick of dynamite standing on its end; the fuse's tip (column 5, row 0) is where the spark glows.
+DYNAMITE = [
+    ".....h..",
+    "....h...",
+    "....h...",
+    "...tTt..",
+    "...tTt..",
+    "...WWW..",
+    "...tTt..",
+    "...ttt..",
+]
+
 CANDLE = [
     "...F....",
     "..fFf...",
@@ -468,7 +483,7 @@ def main():
     write_material("creature", CREATURE_FRAMES, dome_heights, wrap=False)
     write_aseprite_json("creature", len(CREATURE_FRAMES), CREATURE_TAGS)
     write_material("props", [CANDLE, VENT, GEM, LANTERN, PLATFORM, DOOR, SWITCH_OFF, SWITCH_ON, ORB, GATE,
-                             HEART_FULL, HEART_EMPTY],
+                             HEART_FULL, HEART_EMPTY, DYNAMITE],
                    heights_from_palette, wrap=False)
     write_material("crawler", CRAWLER_FRAMES, dome_heights, wrap=False)
     print(f"wrote textures to {OUT_DIR}")

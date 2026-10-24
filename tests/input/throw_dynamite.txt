@@ -1,0 +1,4 @@
+# pick up the stick, stop, throw it forward
+1 down Right
+20 up Right
+30 key X

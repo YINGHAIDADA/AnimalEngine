@@ -108,6 +108,12 @@ def main():
     write("door", mix(noise(0.7, seed=6, cutoff=300, attack=0.05, decay=0.25), sweep(0.7, 70, 50, decay=0.3)))
     write("ability", chime([523.3, 659.3, 784.0, 1046.5, 1318.5], 0.09, 0.25))
     write("crumble", noise(0.35, seed=7, cutoff=1200, attack=0.02, decay=0.1, level=0.8))
+    write("toss", noise(0.18, seed=8, cutoff=2600, attack=0.05, decay=0.05, level=0.7))
+    write("fuse", mix(noise(0.03, seed=9, cutoff=7000, decay=0.008, level=0.6), sweep(0.03, 2400, 2000, decay=0.01)))
+    write("explosion", mix(sweep(0.9, 90, 30, decay=0.35), noise(1.3, seed=10, cutoff=900, attack=0.004, decay=0.4)))
+    write("pickup", chime([880.0, 1318.5], 0.06, 0.1))
+    write("vine_climb", noise(0.07, seed=11, cutoff=1500, attack=0.01, decay=0.02, level=0.6))
+    write("vine_swing", noise(0.4, seed=12, cutoff=900, attack=0.15, decay=0.12, level=0.8))
     print(f"wrote sounds to {OUT}")
 
 

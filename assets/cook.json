@@ -31,7 +31,13 @@
     "sounds/click.wav",
     "sounds/door.wav",
     "sounds/ability.wav",
-    "sounds/crumble.wav"
+    "sounds/crumble.wav",
+    "sounds/toss.wav",
+    "sounds/fuse.wav",
+    "sounds/explosion.wav",
+    "sounds/pickup.wav",
+    "sounds/vine_climb.wav",
+    "sounds/vine_swing.wav"
   ],
   "shaders": [
     "sprite.vert",

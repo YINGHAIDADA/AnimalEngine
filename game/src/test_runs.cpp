@@ -105,6 +105,15 @@ bool SandboxGame::checkExpectations() {
         } else if (name == "grounded") {
             actual = playerState_.grounded ? "true" : "false";
             met = actual == expected;
+        } else if (name == "dynamite") {
+            actual = std::to_string(dynamite_);
+            met = actual == expected;
+        } else if (name == "crawlers") {
+            actual = std::to_string(cave_.aliveCrawlers());
+            met = actual == expected;
+        } else if (name == "lanternSwing") {
+            actual = cave_.largestLanternSwing() > 0.05f ? "true" : "false"; // about 3 degrees
+            met = actual == expected;
         } else if (name == "screen") {
             actual = screenName();
             met = actual == expected;
@@ -149,7 +158,7 @@ bool SandboxGame::checkExpectations() {
             actual = std::to_string(respawns_);
             met = actual == expected;
         } else {
-            animal::log::error("Expectation '{}' is unknown (room, gems, visited, flag, finished, health, screen, setting, grounded, respawns)", name);
+            animal::log::error("Expectation '{}' is unknown (room, gems, visited, flag, finished, health, dynamite, crawlers, lanternSwing, screen, setting, grounded, respawns)", name);
             ok = false;
             continue;
         }

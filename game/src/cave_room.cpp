@@ -45,6 +45,7 @@ constexpr animal::LightAnimation kHazardPulse{animal::LightAnimation::Mode::Puls
 constexpr int kHazardRun = 3; // tiles lit by one hazard light
 constexpr animal::Color kLanternColor = animal::Color::rgba(255, 214, 150);
 constexpr animal::Color kChainColor = animal::Color::rgba(70, 60, 52);
+constexpr animal::IntRect kLanternWeight{-3, -4, 6, 8}; // the lantern's body around its centre
 
 // Light settings of a light tile (properties "lightColor", "lightRadius", ...) or of a light /
 // lantern object ("color", "radius", ...), over the given defaults. Angles are in degrees;
@@ -107,6 +108,8 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
     vents_.clear();
     lights_.clear();
     lanterns_.clear();
+    largestSwing_ = 0.0f;
+    dynamite_.clear();
     pools_.clear();
     gpuEmitters_.clear();
     streams_.clear();
@@ -235,6 +238,8 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
                 continue;
             }
             effects_.addEmitter(*preset, object.position, area, count, rate);
+        } else if (object.type == "dynamite") {
+            dynamite_.push_back({propTopLeft(object), false});
         } else if (object.type == "vent") {
             vents_.push_back({propTopLeft(object), object.properties.getFloat("rate", 6.0f),
                               object.properties.getFloat("force", 420.0f)});
@@ -325,7 +330,11 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
                 while (ty >= 0 && !tiles_.isSolid(tx, ty)) {
                     --ty;
                 }
-                lanterns_.push_back({topLeft, static_cast<float>((ty + 1) * kTileSize)});
+                const float chainTop = static_cast<float>((ty + 1) * kTileSize);
+                animal::Pendulum swing;
+                swing.pivot = {topLeft.x + 4.0f, chainTop};
+                swing.length = topLeft.y + 4.0f - chainTop;
+                lanterns_.push_back({swing, lights_.size()});
             }
             lights_.push_back({readLight(object.properties, false, defaults),
                                readLightAnimation(object.properties, false, animation, where),
@@ -355,6 +364,39 @@ std::optional<animal::EffectSystem::PresetId> CaveRoom::effectPreset(animal::Eff
     presetPaths_.insert(animal::resolvePath(room.path, file));
     const animal::EffectPreset* preset = library.load(animal::resolvePath(room.path, file));
     return preset ? effects_.addPreset(*preset) : std::nullopt;
+}
+
+int CaveRoom::collectDynamite(const animal::IntRect& player, int capacity) {
+    int picked = 0;
+    for (DynamitePickup& stick : dynamite_) {
+        const animal::IntRect area{static_cast<int>(stick.topLeft.x) + 2, static_cast<int>(stick.topLeft.y) + 1, 4, 7};
+        if (picked < capacity && !stick.taken && area.overlaps(player)) {
+            stick.taken = true;
+            ++picked;
+        }
+    }
+    return picked;
+}
+
+int CaveRoom::blast(animal::Vec2 centre, float radius, float strength) {
+    for (Lantern& lantern : lanterns_) {
+        const animal::Vec2 away = lantern.swing.bob() - centre;
+        const float distance = std::hypot(away.x, away.y);
+        if (distance < radius && distance > 0.0f) {
+            lantern.swing.push(away * (strength * (1.0f - distance / radius) / distance), lanternParams_);
+        }
+    }
+    const size_t before = crawlers_.size();
+    std::erase_if(crawlers_, [&](const Crawler& crawler) {
+        const animal::IntRect c = crawler.body.worldCollider();
+        const animal::Vec2 middle{static_cast<float>(c.x) + c.width * 0.5f, static_cast<float>(c.y) + c.height * 0.5f};
+        const bool hit = std::hypot(middle.x - centre.x, middle.y - centre.y) < radius;
+        if (hit && sparkPreset_) {
+            effects_.burst(*sparkPreset_, middle);
+        }
+        return hit;
+    });
+    return static_cast<int>(before - crawlers_.size());
 }
 
 std::vector<std::string> CaveRoom::collectGems(const animal::IntRect& player) {
@@ -450,6 +492,14 @@ void CaveRoom::addWater(animal::Renderer2D& renderer, double time) const {
 void CaveRoom::step(float dt, double time, std::span<const animal::Influence> influences) {
     const auto t = static_cast<float>(time);
     lastTime_ = time;
+    for (Lantern& lantern : lanterns_) {
+        for (const animal::Influence& influence : influences) {
+            lantern.swing.touch(influence.bounds, influence.velocity, kLanternWeight, lanternParams_, dt);
+        }
+        lantern.swing.step(lanternParams_, dt);
+        lights_[lantern.light].light.position = lantern.swing.bob();
+        largestSwing_ = std::max(largestSwing_, std::fabs(lantern.swing.angle));
+    }
     for (size_t i = 0; i < streams_.size(); ++i) {
         // The falling water lands somewhere along its width each step.
         const Stream& s = streams_[i];
@@ -498,14 +548,24 @@ void CaveRoom::drawBehindPlayer(animal::Renderer2D& renderer, const CaveAssets& 
         renderer.drawSprite(assets.props, vent.position, {size, 0.0f, size, size});
     }
     for (const Lantern& lantern : lanterns_) {
-        // Chain links alternate between the two ring columns every 2 px.
-        for (float y = lantern.chainTop; y < lantern.position.y; y += 1.0f) {
-            const float x = lantern.position.x + 3.0f + static_cast<float>(static_cast<int>(y) / 2 % 2);
-            renderer.fillRect({x, y, 1.0f, 1.0f}, kChainColor);
+        // Chain links alternate between the two ring columns every 2 px, along the rope.
+        const animal::Pendulum& s = lantern.swing;
+        const animal::Vec2 direction{std::sin(s.angle), std::cos(s.angle)};
+        for (float t = 0.0f; t < s.length - 4.0f; t += 1.0f) {
+            const animal::Vec2 p = s.pivot + direction * t;
+            const float alternate = static_cast<float>(static_cast<int>(s.pivot.y + t) / 2 % 2);
+            renderer.fillRect({std::floor(p.x - 1.0f + alternate), std::floor(p.y), 1.0f, 1.0f}, kChainColor);
         }
-        renderer.drawSprite(assets.props, lantern.position, {3.0f * size, 0.0f, size, size});
+        const animal::Vec2 bob = s.bob();
+        renderer.drawSprite(assets.props, {std::round(bob.x - 4.0f), std::round(bob.y - 4.0f)},
+                            {3.0f * size, 0.0f, size, size});
     }
     mechanisms_.draw(renderer, assets, lastTime_);
+    for (const DynamitePickup& stick : dynamite_) {
+        if (!stick.taken) {
+            renderer.drawSprite(assets.props, stick.topLeft, {12.0f * size, 0.0f, size, size});
+        }
+    }
     for (const Crawler& crawler : crawlers_) {
         const animal::Vec2i p = crawler.body.position;
         const float frame = static_cast<float>(static_cast<int>(crawler.walkTime * 6.0f) % 2);

@@ -10,6 +10,7 @@
 #include <animal/framework/light_animation.h>
 #include <animal/framework/particles.h>
 #include <animal/framework/patrol.h>
+#include <animal/framework/pendulum.h>
 #include <animal/framework/triggers.h>
 #include <animal/framework/water.h>
 #include <animal/framework/tilemap.h>
@@ -34,7 +35,7 @@ constexpr int kTileSize = 8;
 struct CaveAssets {
     animal::SpriteMaterial tileset; // tile id = horizontal cell index
     // cells: 0 candle, 1 vent grate, 2 gem, 3 lantern, 4 platform, 5 door, 6 / 7 switch off / on,
-    // 8 ability orb, 9 gem gate, 10 / 11 heart full / empty
+    // 8 ability orb, 9 gem gate, 10 / 11 heart full / empty, 12 dynamite
     animal::SpriteMaterial props;
     animal::SpriteMaterial crawler; // two walking frames
 };
@@ -64,6 +65,16 @@ public:
         return mechanisms_.update(dt, flags, gems, tiles_);
     }
     const Mechanisms& mechanisms() const { return mechanisms_; }
+
+    // Blasts (ADR-0038): lanterns within `radius` are pushed away, crawlers within it die (returns
+    // how many).
+    int blast(animal::Vec2 centre, float radius, float strength);
+    animal::PendulumParams& lanternParams() { return lanternParams_; }
+    float largestLanternSwing() const { return largestSwing_; } // radians since the room was built
+    size_t aliveCrawlers() const { return crawlers_.size(); }
+    // Dynamite lying in the room ("dynamite" objects, bottom-centre on the floor): picks up at most
+    // `capacity` the player touches; they lie there again when the room is entered again.
+    int collectDynamite(const animal::IntRect& player, int capacity);
     // The current of the deepest pool the box is in (px/s).
     animal::Vec2 currentAt(const animal::IntRect& box) const;
 
@@ -126,8 +137,8 @@ private:
     };
 
     struct Lantern {
-        animal::Vec2 position;  // top-left of the 8×8 prop
-        float chainTop = 0.0f;  // y where the chain meets the ceiling
+        animal::Pendulum swing; // pivot where the chain meets the ceiling, bob at the lantern's centre
+        size_t light = 0;       // its light in lights_ (follows the lantern)
     };
 
     struct Gem {
@@ -170,6 +181,13 @@ private:
     animal::EffectSystem effects_;
     std::optional<animal::EffectSystem::PresetId> sparkPreset_; // gem pickup burst
     Mechanisms mechanisms_;
+    struct DynamitePickup {
+        animal::Vec2 topLeft; // of the 8×8 prop
+        bool taken = false;
+    };
+    std::vector<DynamitePickup> dynamite_;
+    animal::PendulumParams lanternParams_;
+    float largestSwing_ = 0.0f;
     double lastTime_ = 0.0; // of the last step: drives the shaking of falling platforms
 };
 

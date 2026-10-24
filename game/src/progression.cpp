@@ -90,6 +90,7 @@ void SandboxGame::resetProgress(animal::Renderer2D& renderer) {
             }
         }
     }
+    dynamite_ = 0;
     health_ = kMaxHealth;
     save_.flags.clear();
     save_.visited.clear();
