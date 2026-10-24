@@ -18,4 +18,7 @@ Deleting that folder starts the game afresh.
 
 If the game reports a damaged data.pak, download the package again.
 The files of this package and their SHA-256 hashes are listed in manifest.json.
-Third-party software used by the game and its licences: THIRD_PARTY_NOTICES.txt.
+Animal Engine is free software: you can redistribute it and/or modify it under the terms of
+the GNU General Public License, version 3 or (at your option) any later version (LICENSE.txt).
+It comes with ABSOLUTELY NO WARRANTY. Source code: https://github.com/YINGHAIDADA/AnimalEngine
+Third-party software and fonts used by the game and their licences: THIRD_PARTY_NOTICES.txt.

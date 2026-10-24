@@ -1,6 +1,9 @@
+![Animal Engine](docs/header.PNG)
+
 # Animal Engine
 
 [![CI](https://github.com/YINGHAIDADA/AnimalEngine/actions/workflows/ci.yml/badge.svg)](https://github.com/YINGHAIDADA/AnimalEngine/actions/workflows/ci.yml)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
 
 C++20 专用 2D 像素探索游戏引擎。项目目标、范围与里程碑见 [PROJECT.md](PROJECT.md)，架构与渲染约定见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，关键决策见 [docs/ADR/](docs/ADR/)。
 
@@ -368,3 +371,11 @@ M7 验收条件：两个平台的目标机器上安装包可独立运行；没�
 | 两平台 × 两后端回归 | macOS 上 OpenGL / Vulkan 8 个场景一致（Debug 与 Release）；CI 两平台跑全部 ctest | Windows 渲染回归待你在 Windows 上运行 |
 | Developer ID 签名与公证、Windows 签名 | 需要账号与证书 | 待定 |
 | 目标机器上的安装包验证 | 干净的 macOS / Windows 机器上解压运行、手柄真机、混合 DPI、错误对话框目视确认 | 待你验证 |
+
+## 许可证
+
+Copyright (C) 2026 the Animal Engine authors
+
+Animal Engine 是自由软件：你可以依照自由软件基金会发布的 [GNU 通用公共许可证](LICENSE)第 3 版，或（由你选择）任何更新的版本，再发布和 / 或修改它。发布本程序是希望它有用，但**不提供任何担保**，详见 [LICENSE](LICENSE)。
+
+随项目分发的第三方代码（SDL、zstd、volk、Vulkan Memory Allocator、Vulkan-Headers、nlohmann/json、stb、Khronos 头文件等）与界面字体（Fusion Pixel Font 及其字形来源，SIL OFL 1.1 等）保留各自的许可证，见 [assets/package/THIRD_PARTY_NOTICES.txt](assets/package/THIRD_PARTY_NOTICES.txt)；它们与 GPL-3.0 兼容（字体作为数据随程序分发，仍按其自身许可证使用）。

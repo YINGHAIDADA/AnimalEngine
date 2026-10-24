@@ -3,8 +3,8 @@
 #         -DREADME=<file> -DNOTICES=<file> -DVERSION=<x.y.z> -DSOURCE_DIR=<repo>
 #         [-DPLIST=<Info.plist> -DICNS=<icon> -DCODESIGN_IDENTITY=<identity, "-" = ad hoc>]
 #         -P AssemblePackage.cmake
-# Produces <OUT>/<NAME>/ (the app or the executable, data.pak, README.txt, THIRD_PARTY_NOTICES.txt,
-# manifest.json), <OUT>/<NAME>.zip and a copy of the manifest beside it.
+# Produces <OUT>/<NAME>/ (the app or the executable, data.pak, README.txt, LICENSE.txt,
+# THIRD_PARTY_NOTICES.txt, manifest.json), <OUT>/<NAME>.zip and a copy of the manifest beside it.
 
 foreach(var PLATFORM OUT NAME EXE PACK README NOTICES VERSION SOURCE_DIR)
     if(NOT DEFINED ${var})
@@ -49,6 +49,7 @@ else()
 endif()
 file(COPY_FILE "${README}" "${root}/README.txt")
 file(COPY_FILE "${NOTICES}" "${root}/THIRD_PARTY_NOTICES.txt")
+file(COPY_FILE "${SOURCE_DIR}/LICENSE" "${root}/LICENSE.txt")
 
 # The manifest: every file with its size and SHA-256, so a package can be audited and checked.
 execute_process(COMMAND git rev-parse --short=12 HEAD WORKING_DIRECTORY "${SOURCE_DIR}"
