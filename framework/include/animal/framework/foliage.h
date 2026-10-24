@@ -240,6 +240,7 @@ public:
 
     const std::vector<Vine>& vines() const { return vines_; }
     Params& params() { return params_; }
+    const Params& params() const { return params_; }
 
 private:
     void satisfyConstraint(Vine& vine, size_t i, size_t heldPoint) const;

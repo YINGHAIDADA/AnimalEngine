@@ -59,6 +59,14 @@ public:
     void addLights(animal::Renderer2D& renderer, double time) const;
     void drawCollision(animal::Renderer2D& renderer) const;
 
+    // Moving and falling platforms (not doors). `fn` receives a PlatformSystem::Platform.
+    template <typename F>
+    void forEachMoving(F&& fn) const {
+        for (size_t index : moving_) {
+            fn(platforms_.platforms()[index]);
+        }
+    }
+
 private:
     struct Door {
         size_t platform = 0; // index in platforms_

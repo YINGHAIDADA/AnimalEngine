@@ -279,6 +279,7 @@ private:
     } clips_{};
     double time_ = 0.0;      // simulation time, drives animation
     float fluidTime_ = 0.0f; // simulation time not yet handed to the smoke solver
+    float stirCoupling_ = 3.0f; // 1/s: a body's smoke force is its velocity times this (smoke.stirCoupling)
     float gpuParticleTime_ = 0.0f; // likewise for the GPU particles
 
     animal::ActionMap actions_;

@@ -70,6 +70,8 @@ public:
     void setLayerDepth(float depth) { layerDepth_ = depth; }
     void addLight(const PointLight& light);
     void addFluidSplat(const FluidSplat& splat);
+    // Force splats that can still be added this frame before the solver drops the rest.
+    size_t fluidForceSlotsLeft() const;
     void addWater(const WaterSurface& surface); // ADR-0018
     void endWorld();
 

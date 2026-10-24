@@ -1,13 +1,13 @@
 #version 450
 
-// Adds up to 8 Gaussian splats (forces or dye) to a field.
+// Adds up to 32 Gaussian splats (forces or dye) to a field.
 
 layout(location = 0) in vec2 vUV;
 
 layout(set = 0, binding = 0, std140) uniform Splats {
     vec4 info;     // x: splat count, y: grid aspect (width / height)
-    vec4 shape[8]; // xy: center uv, z: radius in uv-height units
-    vec4 value[8]; // amount added at the center
+    vec4 shape[32]; // xy: center uv, z: radius in uv-height units
+    vec4 value[32]; // amount added at the center
 } s;
 
 layout(set = 1, binding = 0) uniform sampler2D targetField; // nearest
@@ -22,7 +22,7 @@ void main() {
     }
     vec4 v = texture(targetField, vUV);
     int count = int(s.info.x);
-    for (int i = 0; i < 8; ++i) {
+    for (int i = 0; i < 32; ++i) {
         if (i >= count) {
             break;
         }

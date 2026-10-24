@@ -98,6 +98,7 @@ PlatformSystem::StepResult PlatformSystem::step(float dt, TileMap& map, Body* bo
         Platform& p = platforms_[i];
         const bool riding = body && p.solid && p.state != State::Gone && standsOn(body->worldCollider(), p.rect);
         result.riding = result.riding || riding;
+        const Vec2 before = p.exact;
         Vec2 target = p.exact;
         switch (p.state) {
         case State::Resting:
@@ -133,6 +134,7 @@ PlatformSystem::StepResult PlatformSystem::step(float dt, TileMap& map, Body* bo
             target.y += p.fallSpeed * dt;
             break;
         case State::Gone:
+            p.velocity = {};
             p.timer -= dt;
             if (p.timer <= 0.0f) {
                 const IntRect home = p.desc.rect;
@@ -148,6 +150,7 @@ PlatformSystem::StepResult PlatformSystem::step(float dt, TileMap& map, Body* bo
         const Vec2i delta{static_cast<int32_t>(std::lround(target.x)) - p.rect.x,
                           static_cast<int32_t>(std::lround(target.y)) - p.rect.y};
         p.exact = target;
+        p.velocity = dt > 0.0f ? (target - before) * (1.0f / dt) : Vec2{};
         if (delta.x != 0 || delta.y != 0) {
             moveBy(i, delta, map, body, riding, result);
         }

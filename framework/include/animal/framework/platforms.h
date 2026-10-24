@@ -41,6 +41,7 @@ public:
         float progress = 0.0f; // 0..1 along the path
         int direction = 1;     // +1 towards the far end
         float fallSpeed = 0.0f;
+        Vec2 velocity;         // px/s over the last step (0 while resting, pausing or gone)
         bool solid = true;     // doors open by turning this off
     };
 

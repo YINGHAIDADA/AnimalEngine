@@ -500,6 +500,7 @@ void CaveRoom::addWater(animal::Renderer2D& renderer, double time) const {
 void CaveRoom::step(float dt, double time, std::span<const animal::Influence> influences) {
     const auto t = static_cast<float>(time);
     lastTime_ = time;
+    stepDt_ = dt;
     for (Lantern& lantern : lanterns_) {
         for (const animal::Influence& influence : influences) {
             lantern.swing.touch(influence.bounds, influence.velocity, kLanternWeight, lanternParams_, dt);
@@ -676,6 +677,30 @@ void CaveRoom::addFluidSources(animal::Renderer2D& renderer, double time) const 
         renderer.addFluidSplat(splat);
         phase += 2.0f;
     }
+}
+
+void CaveRoom::addStirBodies(std::vector<animal::StirBody>& bodies) const {
+    constexpr float kLanternRadius = 6.0f;
+    constexpr float kCrawlerRadius = 5.0f;
+    for (const Lantern& lantern : lanterns_) {
+        bodies.push_back({lantern.swing.bob(), lantern.swing.bobVelocity(), kLanternRadius});
+    }
+    for (const Crawler& crawler : crawlers_) {
+        const animal::IntRect box = crawler.body.worldCollider();
+        const animal::Vec2 centre{static_cast<float>(box.x) + static_cast<float>(box.width) * 0.5f,
+                                  static_cast<float>(box.y) + static_cast<float>(box.height) * 0.5f};
+        bodies.push_back({centre, {crawler.patrol.direction * patrolParams_.speed, crawler.patrol.fallSpeed},
+                          kCrawlerRadius});
+    }
+    mechanisms_.forEachMoving([&](const animal::PlatformSystem::Platform& platform) {
+        const animal::Vec2 size{static_cast<float>(platform.rect.width), static_cast<float>(platform.rect.height)};
+        bodies.push_back(
+            {platform.exact + size * 0.5f, platform.velocity, std::clamp(std::max(size.x, size.y) * 0.45f, 6.0f, 24.0f)});
+    });
+}
+
+float CaveRoom::vineSubstep() const {
+    return stepDt_ / static_cast<float>(std::max(1, vines_.params().substeps));
 }
 
 std::vector<uint8_t> CaveRoom::fluidObstacles(animal::Vec2 canvasOrigin) const {

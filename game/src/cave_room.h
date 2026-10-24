@@ -4,6 +4,7 @@
 
 #include <animal/core/random.h>
 #include <animal/framework/effects.h>
+#include <animal/framework/fluid_stirs.h>
 #include <animal/framework/foliage.h>
 #include <animal/framework/influence.h>
 #include <animal/framework/level.h>
@@ -97,6 +98,11 @@ public:
     void drawCollision(animal::Renderer2D& renderer) const;
     void addLights(animal::Renderer2D& renderer, double time) const;
     void addFluidSources(animal::Renderer2D& renderer, double time) const;
+    // What stirs the smoke (animal::fluidStirs): lanterns, crawlers and moving or falling platforms;
+    // the vines, with the length of their last substep.
+    void addStirBodies(std::vector<animal::StirBody>& bodies) const;
+    const animal::VineSystem& vineSystem() const { return vines_; }
+    float vineSubstep() const;
     // kFluidGrid mask: cells over solid tiles, plus canvas rows outside the room.
     std::vector<uint8_t> fluidObstacles(animal::Vec2 canvasOrigin) const;
     std::vector<uint8_t> lightOccluders(animal::Vec2 canvasOrigin) const; // one byte per canvas pixel
@@ -192,6 +198,7 @@ private:
     animal::PendulumParams lanternParams_;
     float largestSwing_ = 0.0f;
     double lastTime_ = 0.0; // of the last step: drives the shaking of falling platforms
+    float stepDt_ = 1.0f / 60.0f; // last step, for vine velocities (previous is one substep behind)
 };
 
 } // namespace game

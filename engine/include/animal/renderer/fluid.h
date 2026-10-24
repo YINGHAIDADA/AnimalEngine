@@ -19,6 +19,10 @@ struct FluidSettings {
     float opacity = 1.0f;
 };
 
+// Force splats, and separately smoke splats, one fluid step applies (fluid_splat.frag's arrays);
+// more are dropped (the ones added last).
+inline constexpr uint32_t kMaxFluidSplats = 32;
+
 // A Gaussian source of force and/or smoke, in world pixels; amounts are per second.
 struct FluidSplat {
     Vec2 position;

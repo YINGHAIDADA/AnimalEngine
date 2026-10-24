@@ -76,6 +76,8 @@ TEST(moving_platform_carries_its_rider_and_pushes_what_is_in_the_way) {
     }
     const IntRect& rect = platforms.platforms()[0].rect;
     CHECK(rect.x == 46);
+    const Vec2 velocity = platforms.platforms()[0].velocity; // along its path at its speed
+    CHECK(std::fabs(velocity.x - 60.0f) < 0.01f && velocity.y == 0.0f);
     CHECK(rider.position.x == 50 && rider.worldCollider().bottom() == rect.y); // moved with it
 
     // A body beside the path is pushed along; against a wall it is crushed.
@@ -100,15 +102,21 @@ TEST(falling_platform_shakes_falls_and_comes_back) {
     Body rider = player({44, 33});
     platforms.step(kDt, map, &rider, 96);
     CHECK(platforms.platforms()[0].state == PlatformSystem::State::Shaking);
+    CHECK(platforms.platforms()[0].velocity == Vec2{}); // shaking is drawn, not moved
     for (int i = 0; i < 28; ++i) { // 0.45 s of shaking
         platforms.step(kDt, map, &rider, 96);
     }
     CHECK(platforms.platforms()[0].state == PlatformSystem::State::Falling);
     Body away = player({120, 81});
+    platforms.step(kDt, map, &away, 96);
+    platforms.step(kDt, map, &away, 96);
+    CHECK(platforms.platforms()[0].velocity.y > 0.0f && platforms.platforms()[0].velocity.x == 0.0f);
     for (int i = 0; i < 120 && platforms.platforms()[0].state != PlatformSystem::State::Gone; ++i) {
         platforms.step(kDt, map, &away, 96);
     }
     CHECK(platforms.platforms()[0].state == PlatformSystem::State::Gone);
+    platforms.step(kDt, map, &away, 96);
+    CHECK(platforms.platforms()[0].velocity == Vec2{});
     CHECK(map.dynamicSolids()[0].width == 0); // no longer solid
     for (int i = 0; i < 160; ++i) {
         platforms.step(kDt, map, &away, 96);

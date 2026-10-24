@@ -19,7 +19,8 @@ add_executable(animal_tests
     settings_tests.cpp
     bitmap_font_tests.cpp
     strings_tests.cpp
-    swing_and_throw_tests.cpp)
+    swing_and_throw_tests.cpp
+    fluid_stirs_tests.cpp)
 animal_set_compile_options(animal_tests)
 if(ANIMAL_DEV_TOOLS)
     target_sources(animal_tests PRIVATE devtools_tests.cpp)

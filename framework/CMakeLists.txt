@@ -4,6 +4,7 @@ set(ANIMAL_FRAMEWORK_HEADERS
     include/animal/framework/climbing.h
     include/animal/framework/effects.h
     include/animal/framework/entity.h
+    include/animal/framework/fluid_stirs.h
     include/animal/framework/foliage.h
     include/animal/framework/geometry.h
     include/animal/framework/influence.h
@@ -33,6 +34,7 @@ set(ANIMAL_FRAMEWORK_SOURCES
     src/climbing.cpp
     src/effects.cpp
     src/entity.cpp
+    src/fluid_stirs.cpp
     src/foliage.cpp
     src/level.cpp
     src/light_animation.cpp

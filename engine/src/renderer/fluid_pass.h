@@ -19,7 +19,7 @@ namespace animal {
 // Stable-fluids smoke on the GPU (fragment-shader passes, OpenGL 4.1 compatible), see ADR-0008.
 class FluidPass {
 public:
-    static constexpr uint32_t kMaxSplats = 8;
+    static constexpr uint32_t kMaxSplats = kMaxFluidSplats;
 
     // A splat already converted to grid space: uv position, radius in uv-height units, and the
     // amount to add this step (velocity in cells/s, or premultiplied smoke color + density).

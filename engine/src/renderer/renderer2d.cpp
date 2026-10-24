@@ -327,6 +327,12 @@ void Renderer2D::addFluidSplat(const FluidSplat& splat) {
     fluidSplats_.push_back(splat);
 }
 
+size_t Renderer2D::fluidForceSlotsLeft() const {
+    const auto forces = static_cast<size_t>(std::ranges::count_if(
+        fluidSplats_, [](const FluidSplat& s) { return s.force.x != 0.0f || s.force.y != 0.0f; }));
+    return kMaxFluidSplats > forces ? kMaxFluidSplats - forces : 0;
+}
+
 void Renderer2D::resetFluid() {
     fluidPass_->reset();
     fluidQuietSeconds_ = std::numeric_limits<float>::infinity();

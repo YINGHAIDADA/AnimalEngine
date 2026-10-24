@@ -295,6 +295,7 @@ void SandboxGame::registerTuning(animal::Renderer2D& renderer) {
     tuning_.add("smoke.buoyancy", &f.buoyancy, 0.0f, 150.0f);
     tuning_.add("smoke.vorticity", &f.vorticity, 0.0f, 40.0f);
     tuning_.add("smoke.pressureIterations", &f.pressureIterations, 2, 40);
+    tuning_.add("smoke.stirCoupling", &stirCoupling_, 0.0f, 12.0f);
 }
 
 // world/tuning.json is optional; a broken file is reported and leaves the built-in values.
@@ -932,6 +933,26 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
     fluidTime_ = 0.0f;
     cave_.addFluidSources(renderer, time_);
     addBlastSmoke(renderer);
+    // Moving bodies push the smoke, in the force splats the vents and blasts left. A frozen player
+    // (the level editor, the title screen) keeps its last velocity, which would stir one spot forever.
+    std::vector<animal::StirBody> stirring;
+    const auto centre = [](const animal::IntRect& box) {
+        return animal::Vec2{static_cast<float>(box.x) + static_cast<float>(box.width) * 0.5f,
+                            static_cast<float>(box.y) + static_cast<float>(box.height) * 0.5f};
+    };
+    if (player && !dev_.editing() && !menu_.fromTitle) {
+        stirring.push_back({centre(player->body.worldCollider()), playerState_.velocity, 7.0f});
+    }
+    for (const Thrown& stick : thrown_) {
+        stirring.push_back({centre(stick.projectile.body.worldCollider()), stick.projectile.velocity, 4.0f});
+    }
+    cave_.addStirBodies(stirring);
+    animal::StirParams stir;
+    stir.coupling = stirCoupling_;
+    for (const animal::FluidSplat& splat : animal::fluidStirs(stirring, cave_.vineSystem().vines(), cave_.vineSubstep(),
+                                                              stir, renderer.fluidForceSlotsLeft())) {
+        renderer.addFluidSplat(splat);
+    }
     renderer.endWorld();
 
     if (showCollision_ && player) {
