@@ -11,7 +11,7 @@
  "tilewidth": 8,
  "tileheight": 8,
  "nextlayerid": 3,
- "nextobjectid": 18,
+ "nextobjectid": 19,
  "properties": [
   {
    "name": "look",
@@ -1227,6 +1227,18 @@
        "value": "../plants/moss.plant.json"
       }
      ]
+    },
+    {
+     "id": 18,
+     "name": "",
+     "type": "dynamite",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 284,
+     "y": 160,
+     "width": 0,
+     "height": 0
     }
    ]
   }

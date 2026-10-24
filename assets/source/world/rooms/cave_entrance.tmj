@@ -11,7 +11,7 @@
  "tilewidth": 8,
  "tileheight": 8,
  "nextlayerid": 3,
- "nextobjectid": 30,
+ "nextobjectid": 31,
  "properties": [
   {
    "name": "look",
@@ -1407,6 +1407,18 @@
        "value": 1.0
       }
      ]
+    },
+    {
+     "id": 30,
+     "name": "",
+     "type": "dynamite",
+     "point": true,
+     "rotation": 0,
+     "visible": true,
+     "x": 60,
+     "y": 160,
+     "width": 0,
+     "height": 0
     }
    ]
   }
