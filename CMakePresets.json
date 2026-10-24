@@ -39,6 +39,12 @@
       "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
     },
     {
+      "name": "macos-dist",
+      "displayName": "macOS · Ninja · Release package (no developer tools)",
+      "inherits": "macos-ninja-release",
+      "cacheVariables": { "ANIMAL_DEV_TOOLS": "OFF", "ANIMAL_BUILD_TESTS": "OFF" }
+    },
+    {
       "name": "macos-xcode",
       "displayName": "macOS · Xcode",
       "inherits": "macos-base",
@@ -79,17 +85,25 @@
       "displayName": "Windows · Ninja · Release (VS Developer prompt)",
       "inherits": "windows-ninja-base",
       "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "windows-dist",
+      "displayName": "Windows · Ninja · Release package (no developer tools, VS Developer prompt)",
+      "inherits": "windows-ninja-release",
+      "cacheVariables": { "ANIMAL_DEV_TOOLS": "OFF", "ANIMAL_BUILD_TESTS": "OFF" }
     }
   ],
   "buildPresets": [
     { "name": "macos-ninja-debug", "configurePreset": "macos-ninja-debug" },
     { "name": "macos-ninja-release", "configurePreset": "macos-ninja-release" },
+    { "name": "macos-dist", "configurePreset": "macos-dist", "targets": ["animal_package"] },
     { "name": "macos-xcode-debug", "configurePreset": "macos-xcode", "configuration": "Debug" },
     { "name": "macos-xcode-release", "configurePreset": "macos-xcode", "configuration": "Release" },
     { "name": "windows-vs2022-debug", "configurePreset": "windows-vs2022", "configuration": "Debug" },
     { "name": "windows-vs2022-release", "configurePreset": "windows-vs2022", "configuration": "Release" },
     { "name": "windows-ninja-debug", "configurePreset": "windows-ninja-debug" },
-    { "name": "windows-ninja-release", "configurePreset": "windows-ninja-release" }
+    { "name": "windows-ninja-release", "configurePreset": "windows-ninja-release" },
+    { "name": "windows-dist", "configurePreset": "windows-dist", "targets": ["animal_package"] }
   ],
   "testPresets": [
     { "name": "macos-ninja-debug", "configurePreset": "macos-ninja-debug", "output": { "outputOnFailure": true } },

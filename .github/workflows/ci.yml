@@ -77,8 +77,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { platform: macOS, os: macos-15, preset: macos-ninja-release }
-          - { platform: Windows, os: windows-2022, preset: windows-ninja-release }
+          - { platform: macOS, os: macos-15, preset: macos-dist }
+          - { platform: Windows, os: windows-2022, preset: windows-dist }
 
     steps:
       - uses: actions/checkout@v4
@@ -104,8 +104,7 @@ jobs:
 
       - name: Configure
         run: >
-          cmake --preset ${{ matrix.preset }} -B build/ci
-          -DANIMAL_DEV_TOOLS=OFF -DANIMAL_BUILD_TESTS=OFF -DANIMAL_WARNINGS_AS_ERRORS=ON
+          cmake --preset ${{ matrix.preset }} -B build/ci -DANIMAL_WARNINGS_AS_ERRORS=ON
           -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
 
       - name: Cook and assemble

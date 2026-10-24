@@ -13,8 +13,10 @@ foreach(var PLATFORM OUT NAME EXE PACK README NOTICES VERSION SOURCE_DIR)
 endforeach()
 
 if(DEV_TOOLS)
-    message(WARNING "This build includes the developer tools (and paths of this machine): release packages are "
-                    "built with -DANIMAL_DEV_TOOLS=OFF")
+    message(FATAL_ERROR "This build includes the developer tools (level editor, debug UI, hot reload, and paths of "
+                        "this machine), which a release package must not: package from the macos-dist / windows-dist "
+                        "preset (cmake --preset macos-dist && cmake --build --preset macos-dist), or configure "
+                        "with -DANIMAL_DEV_TOOLS=OFF")
 endif()
 
 set(root "${OUT}/${NAME}")

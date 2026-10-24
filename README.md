@@ -148,10 +148,12 @@ cmake --build --preset windows-ninja-debug
 发行包（ADR-0031、ADR-0037）：macOS 是 `AnimalEngine.app`（资源包在 `Contents/Resources`，ad-hoc 签名），Windows 是带图标与版本信息的 `AnimalGame.exe` 加 `data.pak`；两者都附带 `README.txt`、`THIRD_PARTY_NOTICES.txt` 和列出每个文件大小与 SHA-256 的 `manifest.json`，打成 `AnimalEngine-<版本>-<平台>.zip`。CI 每次推送都为两个平台打包并检查，zip 可在 Actions 的构建产物中下载。
 
 ```bash
-cmake --preset macos-ninja-release -B build/release -DANIMAL_DEV_TOOLS=OFF   # 或 windows-ninja-release；发行包必须关闭开发工具
-cmake --build build/release --target animal_package
-python3 tools/scripts/check_package.py build/release/package/Release/AnimalEngine-0.7.0-macos.zip --forbid "$PWD"
+cmake --preset macos-dist            # Windows（VS 开发者命令提示符）：windows-dist
+cmake --build --preset macos-dist    # 编译、烘焙 data.pak、组装并打成 zip
+python3 tools/scripts/check_package.py build/macos-dist/package/Release/AnimalEngine-0.7.0-macos.zip --forbid "$PWD"
 ```
+
+`*-dist` 预设是 Release 构建并关闭开发工具（关卡编辑器、调试界面、热重载）与测试；平时开发用的 `*-ninja-release` 保留开发工具，在开着开发工具的构建里执行 `animal_package` 会直接报错，避免把编辑器打进发行包。
 
 `check_package.py` 把 zip 解压到临时目录，核对清单、扫描构建机路径，并从那里启动游戏。Developer ID 签名：`-DANIMAL_CODESIGN_IDENTITY="Developer ID Application: …"`（公证尚未接入）。图标与许可证声明分别由 `tools/scripts/make_icons.py`、`make_notices.py` 生成。
 
