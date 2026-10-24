@@ -250,6 +250,7 @@ if(ANIMAL_BUILD_TESTS)
     animal_add_menu_test(volume --frames=40 "--expect=screen:audio,setting:masterVolume:0.8")
     animal_add_menu_test(display --frames=60 "--expect=screen:display,setting:vsync:false,setting:frameCap:30")
     animal_add_menu_test(rebind --frames=70 "--expect=screen:controls,setting:key.right:L")
+    animal_add_menu_test(graphics --frames=80 "--expect=screen:graphics,setting:brightness:1.1,setting:shadows:false,setting:fillLight:true,setting:bloom:true,setting:particles:false,setting:lightBands:false")
     add_test(NAME menu_ending_returns_to_title COMMAND ${ANIMAL_TEST_RUN} --menus --start-room=test_gate --gems=3
              "--input-script=${PROJECT_SOURCE_DIR}/tests/input/menu_ending.txt" --frames=240
              "--expect=finished:true,screen:title")

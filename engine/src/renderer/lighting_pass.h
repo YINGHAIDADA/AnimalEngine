@@ -118,6 +118,7 @@ private:
     rhi::BindGroupHandle downsampleInputs_;
     std::array<rhi::BindGroupHandle, 4> blurSettings_{};
     std::array<rhi::BindGroupHandle, 2> blurInputs_{}; // reading indirect_[0], indirect_[1]
+    bool indirectCleared_ = false; // indirect_[0] is zero (indirect light off)
 
     rhi::ShaderHandle compositeVertex_;
     rhi::ShaderHandle compositeFragment_;

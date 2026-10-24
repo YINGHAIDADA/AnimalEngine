@@ -39,6 +39,7 @@ const char* pageName(SandboxGame::Page page) {
     case SandboxGame::Page::Settings: return "settings";
     case SandboxGame::Page::Audio: return "audio";
     case SandboxGame::Page::Display: return "display";
+    case SandboxGame::Page::Graphics: return "graphics";
     case SandboxGame::Page::Controls: return "controls";
     case SandboxGame::Page::Rebind: return "rebind";
     }
@@ -77,7 +78,8 @@ void SandboxGame::openPage(Page page) {
 }
 
 void SandboxGame::backPage() {
-    if (menu_.page == Page::Audio || menu_.page == Page::Display || menu_.page == Page::Controls) {
+    if (menu_.page == Page::Audio || menu_.page == Page::Display || menu_.page == Page::Graphics ||
+        menu_.page == Page::Controls) {
         settingsChanged_ = true; // written when the menus close (and on exit)
     }
     if (menu_.stack.empty()) {
@@ -152,6 +154,7 @@ std::vector<SandboxGame::MenuItem> SandboxGame::menuItems() {
     case Page::Settings:
         items.push_back(entry("AUDIO", [this] { openPage(Page::Audio); }));
         items.push_back(entry("DISPLAY", [this] { openPage(Page::Display); }));
+        items.push_back(entry("GRAPHICS", [this] { openPage(Page::Graphics); }));
         items.push_back(entry("CONTROLS", [this] { openPage(Page::Controls); }));
         items.push_back(entry("BACK", [this] { backPage(); }));
         break;
@@ -191,6 +194,29 @@ std::vector<SandboxGame::MenuItem> SandboxGame::menuItems() {
                                [cycleCap] { cycleCap(1); }, cycleCap);
         cap.disabled = settings_.vsync; // the display's refresh paces the frames
         items.push_back(cap);
+        items.push_back(entry("BACK", [this] { backPage(); }));
+        break;
+    }
+    case Page::Graphics: {
+        items.push_back(setting("BRIGHTNESS", percent(settings_.brightness), nullptr, [this](int step) {
+            const float next = std::round((settings_.brightness + 0.1f * static_cast<float>(step)) * 10.0f) / 10.0f;
+            settings_.brightness = std::clamp(next, animal::Settings::kMinBrightness, animal::Settings::kMaxBrightness);
+        }));
+        const auto toggle = [&](const char* label, bool& value, std::string on, std::string off,
+                                std::function<void()> changed = nullptr) {
+            const auto flip = [&value, changed](int) {
+                value = !value;
+                if (changed) {
+                    changed();
+                }
+            };
+            items.push_back(setting(label, value ? std::move(on) : std::move(off), [flip] { flip(1); }, flip));
+        };
+        toggle("SHADOWS", settings_.shadows, "ON", "OFF");
+        toggle("INDIRECT + AO", settings_.fillLight, "ON", "OFF");
+        toggle("BLOOM", settings_.bloom, "ON", "OFF");
+        toggle("PARTICLES", settings_.particles, "ON", "OFF", [this, &context] { applyParticles(*context.renderer); });
+        toggle("LIGHT BANDS", settings_.lightBands, "SCENE", "SMOOTH");
         items.push_back(entry("BACK", [this] { backPage(); }));
         break;
     }
@@ -342,7 +368,7 @@ void SandboxGame::drawFrontEnd(animal::Renderer2D& renderer) {
                            canvas.y + canvas.height - line * 2.5f},
                           version, kHint);
     } else {
-        static constexpr const char* kHeadings[] = {"", "", "", "PAUSED", "SETTINGS", "AUDIO", "DISPLAY", "CONTROLS", ""};
+        static constexpr const char* kHeadings[] = {"", "", "", "PAUSED", "SETTINGS", "AUDIO", "DISPLAY", "GRAPHICS", "CONTROLS", ""};
         centred(kHeadings[static_cast<size_t>(menu_.page)], y, kTitleText, 2);
         y += line * 4.0f;
     }

@@ -23,6 +23,12 @@ TEST(settings_round_trip) {
     s.windowPosition = Vec2i{-1200, 40}; // a second display to the left
     s.vsync = false;
     s.frameCap = 144;
+    s.brightness = 1.3f;
+    s.shadows = false;
+    s.fillLight = false;
+    s.bloom = false;
+    s.particles = false;
+    s.lightBands = false;
     s.bindings["jump"] = {{Key::C, Key::Space}, {GamepadButton::East}};
     const auto back = parseSettings(serializeSettings(s));
     CHECK(back.has_value() && *back == s);
@@ -33,11 +39,14 @@ TEST(settings_clamp_and_drop_what_they_cannot_use) {
     const auto s = parseSettings(R"({"format": "animal-settings", "version": 1,
         "audio": {"master": 3.0, "effects": -1, "music": "loud"},
         "display": {"frameCap": 75, "windowSize": [100, 100], "windowPosition": [1, "x"]},
+        "graphics": {"brightness": 9, "shadows": "no", "bloom": false},
         "controls": {"jump": {"keys": ["Space", "NoSuchKey"], "buttons": ["South", 7]}, "empty": {"keys": []}}})");
     CHECK(s.has_value());
     CHECK(s->masterVolume == 1.0f && s->effectsVolume == 0.0f && s->musicVolume == 1.0f);
     CHECK(s->frameCap == 0);                       // not one of the choices
     CHECK(s->windowSize == Vec2i{} && !s->windowPosition);
+    CHECK(s->brightness == Settings::kMaxBrightness);
+    CHECK(s->shadows && !s->bloom && s->fillLight); // a mistyped switch keeps its default
     const InputBinding jump{{Key::Space}, {GamepadButton::South}};
     CHECK(s->bindings.size() == 1 && s->bindings.at("jump") == jump);
 

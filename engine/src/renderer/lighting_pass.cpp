@@ -395,11 +395,20 @@ void LightingPass::render(rhi::CommandList& commands, const Mat4& viewProjection
 
     // Indirect light: always computed (the composite samples it even at strength 0), tiny at a
     // quarter of the resolution.
-    fullscreen(commands, downsamplePipeline_, downsampleSettings_, downsampleInputs_, indirect_[0]);
-    fullscreen(commands, blurPipeline_, blurSettings_[0], blurInputs_[0], indirect_[1]);
-    fullscreen(commands, blurPipeline_, blurSettings_[1], blurInputs_[1], indirect_[0]);
-    fullscreen(commands, blurPipeline_, blurSettings_[2], blurInputs_[0], indirect_[1]);
-    fullscreen(commands, blurPipeline_, blurSettings_[3], blurInputs_[1], indirect_[0]);
+    if (settings.indirect > 0.0f) {
+        fullscreen(commands, downsamplePipeline_, downsampleSettings_, downsampleInputs_, indirect_[0]);
+        fullscreen(commands, blurPipeline_, blurSettings_[0], blurInputs_[0], indirect_[1]);
+        fullscreen(commands, blurPipeline_, blurSettings_[1], blurInputs_[1], indirect_[0]);
+        fullscreen(commands, blurPipeline_, blurSettings_[2], blurInputs_[0], indirect_[1]);
+        fullscreen(commands, blurPipeline_, blurSettings_[3], blurInputs_[1], indirect_[0]);
+        indirectCleared_ = false;
+    } else if (!indirectCleared_) {
+        // The composite still reads it (times 0): it must hold numbers, not stale or undefined texels.
+        commands.beginRenderPass(rhi::RenderPassDesc::single(
+            {indirect_[0], rhi::LoadOp::Clear, rhi::StoreOp::Store, {0.0f, 0.0f, 0.0f, 0.0f}}));
+        commands.endRenderPass();
+        indirectCleared_ = true;
+    }
 
     commands.beginRenderPass(rhi::RenderPassDesc::single({output, rhi::LoadOp::DontCare, rhi::StoreOp::Store, {}}));
     commands.setPipeline(compositePipeline_);

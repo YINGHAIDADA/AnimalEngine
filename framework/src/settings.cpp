@@ -39,6 +39,8 @@ std::string serializeSettings(const Settings& s) {
         display["windowPosition"] = {s.windowPosition->x, s.windowPosition->y};
     }
     json["display"] = display;
+    json["graphics"] = {{"brightness", s.brightness}, {"shadows", s.shadows}, {"fillLight", s.fillLight},
+                        {"bloom", s.bloom}, {"particles", s.particles}, {"lightBands", s.lightBands}};
     Json controls = Json::object();
     for (const auto& [action, binding] : s.bindings) {
         Json keys = Json::array();
@@ -99,6 +101,23 @@ std::optional<Settings> parseSettings(std::string_view text, std::string* error)
             s.windowSize = *size;
         }
         s.windowPosition = pair("windowPosition");
+    }
+    if (const auto graphics = json.find("graphics"); graphics != json.end() && graphics->is_object()) {
+        const auto flag = [&](const char* name, bool fallback) {
+            const auto it = graphics->find(name);
+            return it != graphics->end() && it->is_boolean() ? it->get<bool>() : fallback;
+        };
+        if (const auto it = graphics->find("brightness"); it != graphics->end() && it->is_number()) {
+            const float v = it->get<float>();
+            if (std::isfinite(v)) {
+                s.brightness = std::clamp(v, Settings::kMinBrightness, Settings::kMaxBrightness);
+            }
+        }
+        s.shadows = flag("shadows", s.shadows);
+        s.fillLight = flag("fillLight", s.fillLight);
+        s.bloom = flag("bloom", s.bloom);
+        s.particles = flag("particles", s.particles);
+        s.lightBands = flag("lightBands", s.lightBands);
     }
     if (const auto controls = json.find("controls"); controls != json.end() && controls->is_object()) {
         for (const auto& [action, entry] : controls->items()) {

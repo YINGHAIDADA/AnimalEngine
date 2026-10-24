@@ -342,6 +342,7 @@ ctest --test-dir build/<preset> --output-on-failure
   - ADR-0037 发行包与发行校验：macOS `.app` 与 Windows exe、README / 许可证 / 清单 / zip、启动失败对话框、`check_package.py` 与资源包测试（Accepted；签名公证待接入）。
   - ADR-0038 摆动的吊灯、炸药与藤蔓音效：带质量的单摆、弹跳抛射物、拾取与投掷的炸药（烟雾、闪光、冲击波、炸死甲虫）、藤蔓攀爬与摆荡音效（Accepted）。
   - ADR-0039 纵深层次与补光：后墙层（减弱直接光、压平法线、深度雾）、模糊光照缓冲得到的间接光、Tile 环境光遮蔽与环境光渐变，均为 Look 参数（Accepted）。
+  - ADR-0040 图形设置：亮度、阴影、间接光与环境遮蔽、泛光、粒子效果、光照色阶，保存在设置文件中，叠加在房间观感之上（Accepted）。
 
 ## 13. 当前待确认项（不阻塞 M0）
 

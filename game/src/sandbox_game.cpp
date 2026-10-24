@@ -122,7 +122,7 @@ bool SandboxGame::enterRoom(const animal::WorldRoom& worldRoom, animal::Renderer
     const animal::Vec2 canvasOrigin = camera_.topLeft(animal::Renderer2D::kCanvasExtent);
     renderer.setFluidObstacles(cave_.fluidObstacles(canvasOrigin));
     renderer.setLightOccluders(cave_.lightOccluders(canvasOrigin));
-    renderer.setGpuEmitters(effectsEnabled_ ? std::span(cave_.gpuEmitters()) : std::span<const animal::GpuEmitter>());
+    applyParticles(renderer);
     lookTo_ = roomLook(worldRoom);
     lookFrom_ = firstRoom ? lookTo_ : currentLook(); // fade from whatever is on screen
     lookBlend_ = firstRoom ? 1.0f : 0.0f;
@@ -321,8 +321,7 @@ bool SandboxGame::rebuildRoom(animal::Renderer2D& renderer) {
     const animal::Vec2 canvasOrigin = camera_.topLeft(animal::Renderer2D::kCanvasExtent);
     renderer.setFluidObstacles(cave_.fluidObstacles(canvasOrigin));
     renderer.setLightOccluders(cave_.lightOccluders(canvasOrigin));
-    renderer.setGpuEmitters(effectsEnabled_ ? std::span(cave_.gpuEmitters()) : std::span<const animal::GpuEmitter>());
-    cave_.effects().setEnabled(effectsEnabled_);
+    applyParticles(renderer);
     lookFrom_ = lookTo_ = roomLook(*currentRoom_);
     lookBlend_ = 1.0f;
     return true;
@@ -542,12 +541,29 @@ animal::Look SandboxGame::currentLook() const {
     return animal::mixLooks(lookFrom_, lookTo_, t);
 }
 
+// The room's look, then the player's graphics settings and the developer switches over it.
 void SandboxGame::applyCurrentLook(animal::Renderer2D& renderer) const {
-    animal::applyLook(currentLook(), renderer.lighting(), renderer.post(), renderer.fluid());
+    animal::LightingSettings& lighting = renderer.lighting();
+    animal::PostSettings& post = renderer.post();
+    animal::applyLook(currentLook(), lighting, post, renderer.fluid());
     if (const int bands = kBandOverrides[bandsOverride_]; bands >= 0) {
-        renderer.lighting().bands = bands;
+        lighting.bands = bands;
+    } else if (!settings_.lightBands) {
+        lighting.bands = 0;
     }
-    renderer.lighting().shadows = renderer.lighting().shadows && shadowsEnabled_;
+    lighting.shadows = lighting.shadows && shadowsEnabled_ && settings_.shadows;
+    if (!settings_.fillLight) {
+        lighting.indirect = 0.0f;
+        lighting.ambientOcclusion = 0.0f;
+    }
+    if (!settings_.bloom) {
+        post.bloomIntensity = 0.0f;
+    }
+    post.exposure *= settings_.brightness;
+}
+
+bool SandboxGame::particlesEnabled() const {
+    return effectsEnabled_ && settings_.particles;
 }
 
 bool SandboxGame::setupAnimations() {
@@ -653,8 +669,12 @@ void SandboxGame::reloadLooks() {
 
 void SandboxGame::setEffectsEnabled(bool enabled, animal::Renderer2D& renderer) {
     effectsEnabled_ = enabled;
-    cave_.effects().setEnabled(effectsEnabled_);
-    renderer.setGpuEmitters(effectsEnabled_ ? std::span(cave_.gpuEmitters()) : std::span<const animal::GpuEmitter>());
+    applyParticles(renderer);
+}
+
+void SandboxGame::applyParticles(animal::Renderer2D& renderer) {
+    cave_.effects().setEnabled(particlesEnabled());
+    renderer.setGpuEmitters(particlesEnabled() ? std::span(cave_.gpuEmitters()) : std::span<const animal::GpuEmitter>());
 }
 
 void SandboxGame::respawn(animal::Renderer2D& renderer) {

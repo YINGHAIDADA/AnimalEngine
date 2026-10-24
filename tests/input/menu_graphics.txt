@@ -1,0 +1,15 @@
+# title: settings > graphics > brightness up, shadows off, particles off, smooth light
+10 key Down
+15 key Enter
+20 key Down
+23 key Down
+26 key Enter
+30 key Right
+34 key Down
+38 key Enter
+42 key Down
+46 key Down
+50 key Down
+54 key Right
+58 key Down
+62 key Enter

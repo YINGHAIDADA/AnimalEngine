@@ -41,7 +41,7 @@ Device::beginFrame（窗口最小化时返回 false，跳过渲染）
     game.onRender:  beginWorld(camera) … drawSprite / drawGlow / addLight / addFluidSplat … endWorld
                     → [有 GPU 粒子时] GPU 粒子模拟一步（ADR-0020）
                     → 材质 pass（albedo / normal / emissive / 材质标志；末尾画 lit 样式的 GPU 粒子）→ 流体烟雾一步（ADR-0008）
-                    → 光照 pass（光照 + 边缘光两个 RGBA16F，按遮挡图做硬边阴影）→ 间接光：降采样 + 模糊（ADR-0039）
+                    → 光照 pass（光照 + 边缘光两个 RGBA16F，按遮挡图做硬边阴影）→ [间接光开启时] 降采样 + 模糊（ADR-0039）
                     → 合成到 320×180 画布（含被照亮的烟与边缘光、间接光、环境光遮蔽、后墙深度雾）
                     → [有水时] 合成改写到 lit，水 pass（折射、倒影、水色）读 lit 写画布（ADR-0018）
                     → 发光 pass（drawGlow 收集的像素与 glow 样式的 GPU 粒子，加色混合叠加到画布，不受光照影响）

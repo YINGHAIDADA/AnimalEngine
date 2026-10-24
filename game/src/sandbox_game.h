@@ -65,7 +65,7 @@ public:
     };
     static const std::vector<ActionInfo>& actionInfos();
 
-    enum class Page { None, Title, ConfirmNewGame, Pause, Settings, Audio, Display, Controls, Rebind };
+    enum class Page { None, Title, ConfirmNewGame, Pause, Settings, Audio, Display, Graphics, Controls, Rebind };
     struct MenuItem {
         std::string label;
         std::string value;                 // shown in a column; empty for plain entries
@@ -150,6 +150,8 @@ private:
     animal::Look roomLook(const animal::WorldRoom& worldRoom);
     animal::Look currentLook() const;
     void applyCurrentLook(animal::Renderer2D& renderer) const;
+    bool particlesEnabled() const;                    // the player's setting and F10
+    void applyParticles(animal::Renderer2D& renderer); // after either changes
     void addStressLights(animal::Renderer2D& renderer) const;
     bool setupAnimations(); // from the creature's sprite sheet tags
     void updateAnimation(float dt);
@@ -279,8 +281,8 @@ private:
     bool checkExpectations();
     uint32_t respawns_ = 0;
     size_t bandsOverride_ = 0; // F4: index into kBandOverrides (0 = the room's look)
-    bool shadowsEnabled_ = true; // F7
-    bool effectsEnabled_ = true; // F10
+    bool shadowsEnabled_ = true; // F7, with the player's setting
+    bool effectsEnabled_ = true; // F10, with the player's setting
 
     // Looks (ADR-0015): presets by path, and the blend from the previous room's look.
     std::map<std::string, animal::Look> looks_;
