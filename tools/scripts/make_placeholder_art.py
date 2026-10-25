@@ -66,6 +66,8 @@ PALETTE = {
     "t": ((196, 44, 38, 255), 0.8, (120, 22, 16)),      # dynamite (glows a little: readable in the dark and on the HUD)
     "T": ((240, 112, 92, 255), 1.0, (200, 70, 50)),     # dynamite highlight
     "W": ((236, 228, 210, 255), 0.9, (110, 104, 92)),   # dynamite label
+    "M": ((206, 206, 206, 255), 1.0, None),            # grappling hook metal
+    "A": ((224, 176, 64, 255), 0.4, None),             # grappling hook gold
 }
 
 
@@ -315,16 +317,17 @@ HEART_FULL = [
 ]
 HEART_EMPTY = [row.replace("j", "z").replace("J", "z") for row in HEART_FULL]
 
-# A grappling hook, tip up: the chain is drawn from its top pixel.
+# Grappling hook, chain at the upper left and the hook opening toward the lower right.
+# A is the gold body (height 0.4); M is the raised metal edge (height 1).
 GRAPPLE = [
-    "..kL....",
-    ".kLLk...",
-    "kLLLk...",
-    ".kLLk...",
-    "..kLk...",
-    "...kk...",
-    "....k...",
-    ".....k..",
+    "........",
+    ".AAA....",
+    ".AA.....",
+    ".A.AMM..",
+    "...MAMM.",
+    "...MMAM.",
+    "....MMA.",
+    "........",
 ]
 
 # A stick of dynamite standing on its end; the fuse's tip (column 5, row 0) is where the spark glows.
