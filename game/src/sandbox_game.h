@@ -130,6 +130,7 @@ private:
     void applyCurrents(animal::Entity& player, float dt);
     void hurt(animal::Entity& player); // spikes or crushed: a quarter heart and back to the checkpoint
     void takeDamage();                 // a quarter heart; with none left, back to the checkpoint
+    void addHeartLight(animal::Renderer2D& renderer) const;
     void drawHearts(animal::Renderer2D& renderer) const;
     void updateMechanisms(animal::Entity& player, float dt);
     void drawEnding(animal::Renderer2D& renderer);

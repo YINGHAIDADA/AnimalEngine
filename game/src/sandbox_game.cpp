@@ -922,9 +922,9 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
         renderer.addLight(glow);
     }
     cave_.drawInFrontOfPlayer(renderer); // grass in front: the player wades through it
-    if (!mapOpen_ && !endingOpen_ && menu_.page == Page::None) {
-        drawHearts(renderer); // the map, the menus and the ending screen cover the HUD
-        drawDynamiteHud(renderer);
+    const bool hud = !mapOpen_ && !endingOpen_ && menu_.page == Page::None;
+    if (hud) {
+        addHeartLight(renderer); // the sprites follow in the interface pass, above the smoke
     }
     cave_.addLights(renderer, time_);
     addDynamiteLights(renderer);
@@ -954,6 +954,14 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
         renderer.addFluidSplat(splat);
     }
     renderer.endWorld();
+
+    if (hud) {
+        // After glow, before bloom and grading: smoke stays behind the hearts and dynamite.
+        renderer.beginInterface(camera_);
+        drawHearts(renderer);
+        drawDynamiteHud(renderer);
+        renderer.endInterface();
+    }
 
     if (showCollision_ && player) {
         renderer.beginWorldOverlay(camera_);

@@ -33,8 +33,10 @@ struct WaterFrame;
 // Frame structure (ADR-0007):
 //   beginFrame
 //   beginWorld .. drawSprite / drawGlow / addLight / addFluidSplat .. endWorld
-//                material pass -> fluid step -> lights -> composite (+ smoke) -> glow -> bloom + grade
-//   [beginWorldOverlay .. fillRect / strokeRect .. endWorldOverlay]   unlit, over the lit canvas
+//                material pass -> fluid step -> lights -> composite (+ smoke) -> glow
+//   [beginInterface .. drawSprite .. endInterface]      unlit, on the canvas, after glow
+//   bloom + grade, at the start of beginWorldOverlay or beginScreen
+//   [beginWorldOverlay .. fillRect / strokeRect .. endWorldOverlay]   unlit, over the graded canvas
 //   beginScreen .. drawText / fillRect .. endScreen     canvas scaled into the window + overlays
 //   endFrame                                            uploads batched data; call before Device::submit
 class Renderer2D {
@@ -74,6 +76,11 @@ public:
     size_t fluidForceSlotsLeft() const;
     void addWater(const WaterSurface& surface); // ADR-0018
     void endWorld();
+
+    // Unlit sprites in world pixels, drawn on the canvas after glow and before bloom and grading.
+    // Call after endWorld, before beginWorldOverlay or beginScreen.
+    void beginInterface(const Camera2D& camera);
+    void endInterface();
 
     // Smoke simulation (ADR-0008). Obstacles: kFluidGrid bytes, row 0 at the top, non-zero =
     // solid. The time step is the simulation time to advance this frame (0 = paused).
@@ -135,11 +142,13 @@ private:
     enum class Phase {
         Idle,
         World,
+        Interface,
         WorldOverlay,
         Screen,
     };
 
     SpriteBatch& activeBatch() { return phase_ == Phase::World ? litBatch_ : batch_; }
+    void compositePost(); // bloom and grade, once, after the interface pass
     rhi::TextureHandle createTarget(rhi::Format format, const char* name);
     rhi::TextureHandle createSolidTexture(Color color, const char* name);
 
@@ -149,6 +158,7 @@ private:
     std::string dataDirectory_;
     rhi::CommandList* commands_ = nullptr;
     Phase phase_ = Phase::Idle;
+    bool postPending_ = false; // endWorld finished; bloom and grade still to run
 
     SpriteBatch batch_;    // unlit: overlays and the screen pass
     SpriteBatch litBatch_; // material pass into the G-buffer
@@ -180,7 +190,7 @@ private:
     std::vector<PointLight> lights_;
     Mat4 worldViewProjection_;
 
-    rhi::TextureHandle canvas_; // lit scene (lighting, smoke, glow)
+    rhi::TextureHandle canvas_; // lit scene (lighting, smoke, glow, interface)
     rhi::TextureHandle final_;  // after bloom and grading; shown on screen, overlays draw here
     rhi::TextureHandle albedo_;
     rhi::TextureHandle normal_;

@@ -163,9 +163,23 @@ void SandboxGame::takeDamage() {
     }
 }
 
-// Hearts in the top-left corner of the canvas, drawn into the world like the props: lit, glowing
-// (emissive) and graded with the scene, and lighting the corner a little themselves. A heart loses
-// its quarters top-left, top-right, bottom-right, bottom-left.
+// A small light in the corner, added with the world lights. The hearts themselves are drawn later,
+// in the interface pass, so smoke cannot cover them.
+void SandboxGame::addHeartLight(animal::Renderer2D& renderer) const {
+    const animal::Vec2 corner = camera_.topLeft(animal::Renderer2D::kCanvasExtent) + kHeartsOffset;
+    const int hearts = kMaxHealth / kQuartersPerHeart;
+    animal::PointLight glow;
+    glow.position = corner + animal::Vec2{static_cast<float>(hearts) * kHeartSpacing * 0.5f, 3.0f};
+    glow.radius = 30.0f;
+    glow.color = kHeartGlow;
+    glow.intensity = 0.15f + 0.35f * static_cast<float>(health_) / static_cast<float>(kMaxHealth);
+    glow.height = 6.0f;
+    glow.castsShadows = false;
+    renderer.addLight(glow);
+}
+
+// Hearts in the top-left corner of the canvas. A heart loses its quarters top-left, top-right,
+// bottom-right, bottom-left. Drawn unlit in the interface pass, then graded with the scene.
 void SandboxGame::drawHearts(animal::Renderer2D& renderer) const {
     const animal::Vec2 corner = camera_.topLeft(animal::Renderer2D::kCanvasExtent) + kHeartsOffset;
     const float size = static_cast<float>(kTileSize);
@@ -179,14 +193,6 @@ void SandboxGame::drawHearts(animal::Renderer2D& renderer) const {
             renderer.drawSprite(assets_.props, {at.x + q.x, at.y + q.y}, {kHeartFullCell * size + q.x, q.y, q.width, q.height});
         }
     }
-    animal::PointLight glow;
-    glow.position = corner + animal::Vec2{static_cast<float>(hearts) * kHeartSpacing * 0.5f, 3.0f};
-    glow.radius = 30.0f;
-    glow.color = kHeartGlow;
-    glow.intensity = 0.15f + 0.35f * static_cast<float>(health_) / static_cast<float>(kMaxHealth);
-    glow.height = 6.0f;
-    glow.castsShadows = false;
-    renderer.addLight(glow);
 }
 
 // After the player moved: spikes, switches, abilities, gates, doors and the goal.

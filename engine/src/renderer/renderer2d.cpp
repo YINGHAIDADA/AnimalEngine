@@ -195,6 +195,7 @@ void Renderer2D::swapResources(Renderer2D& other) {
 
 void Renderer2D::beginFrame(rhi::CommandList& commands) {
     commands_ = &commands;
+    postPending_ = false;
     commands_->beginTimer("frame");
     batch_.beginFrame();
     litBatch_.beginFrame();
@@ -423,14 +424,40 @@ void Renderer2D::endWorld() {
         commands_->endRenderPass();
         commands_->endTimer();
     }
+    postPending_ = true;
+    phase_ = Phase::Idle;
+}
+
+void Renderer2D::compositePost() {
+    if (!postPending_) {
+        return;
+    }
+    ANIMAL_ASSERT(commands_ != nullptr && phase_ == Phase::Idle);
     commands_->beginTimer("post");
     postPass_->render(*commands_, postSettings_);
+    commands_->endTimer();
+    postPending_ = false;
+}
+
+void Renderer2D::beginInterface(const Camera2D& camera) {
+    ANIMAL_ASSERT(commands_ != nullptr && phase_ == Phase::Idle && postPending_);
+    phase_ = Phase::Interface;
+    commands_->beginTimer("interface");
+    commands_->beginRenderPass(rhi::RenderPassDesc::single({canvas_, rhi::LoadOp::Load, rhi::StoreOp::Store, {}}));
+    batch_.begin(*commands_, camera.viewProjection(kCanvasExtent));
+}
+
+void Renderer2D::endInterface() {
+    ANIMAL_ASSERT(phase_ == Phase::Interface);
+    batch_.end();
+    commands_->endRenderPass();
     commands_->endTimer();
     phase_ = Phase::Idle;
 }
 
 void Renderer2D::beginWorldOverlay(const Camera2D& camera) {
     ANIMAL_ASSERT(commands_ != nullptr && phase_ == Phase::Idle);
+    compositePost();
     phase_ = Phase::WorldOverlay;
     commands_->beginTimer("world overlay");
     commands_->beginRenderPass(rhi::RenderPassDesc::single({final_, rhi::LoadOp::Load, rhi::StoreOp::Store, {}}));
@@ -447,6 +474,7 @@ void Renderer2D::endWorldOverlay() {
 
 void Renderer2D::beginScreen(Color letterboxColor) {
     ANIMAL_ASSERT(commands_ != nullptr && phase_ == Phase::Idle);
+    compositePost();
     phase_ = Phase::Screen;
     const rhi::Extent2D window = device_->swapchainExtent();
     presentLayout_ = computePresentLayout(kCanvasExtent, window);

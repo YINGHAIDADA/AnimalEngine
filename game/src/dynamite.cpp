@@ -157,7 +157,7 @@ void SandboxGame::addBlastSmoke(animal::Renderer2D& renderer) const {
     }
 }
 
-// Under the hearts: one stick per piece carried.
+// Under the hearts, in the interface pass: one stick per piece carried.
 void SandboxGame::drawDynamiteHud(animal::Renderer2D& renderer) const {
     const animal::Vec2 corner = camera_.topLeft(animal::Renderer2D::kCanvasExtent) + kHudOffset;
     const float size = static_cast<float>(kTileSize);

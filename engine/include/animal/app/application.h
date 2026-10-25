@@ -80,6 +80,7 @@ protected:
     virtual void onFrame(EngineContext& context);
     virtual void onFixedUpdate(EngineContext& context, double dt) = 0;
     // Render the world into the canvas: renderer.beginWorld() .. renderer.endWorld().
+    // beginInterface() .. endInterface() may follow, before bloom and grading.
     virtual void onRender(EngineContext& context, Renderer2D& renderer) = 0;
     // Screen-space HUD in window pixels, drawn over the presented canvas (before the debug overlay).
     virtual void onScreen(EngineContext& context, Renderer2D& renderer);
