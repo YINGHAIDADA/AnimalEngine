@@ -23,7 +23,7 @@ constexpr float kPlayerPushRadius = 40.0f;
 constexpr float kPlayerPush = 240.0f;
 constexpr float kBlastSeconds = 0.5f;     // smoke and flash
 constexpr float kShockSeconds = 0.15f;    // the shock wave pushing grass and vines
-constexpr animal::Vec2 kThrowVelocity{115.0f, -150.0f};
+constexpr animal::Vec2 kThrowVelocity{65.0f, -100.0f};
 constexpr animal::Vec3 kSmokeColor{0.62f, 0.58f, 0.54f};
 constexpr animal::Vec3 kFlashColor{1.0f, 0.62f, 0.3f};
 constexpr animal::Vec3 kFuseColor{1.0f, 0.75f, 0.35f};
