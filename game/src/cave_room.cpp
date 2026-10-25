@@ -194,9 +194,17 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
             look.reflection = object.properties.getFloat("reflection", look.reflection);
             look.refraction = object.properties.getInt("refraction", look.refraction);
             look.opacityPerPixel = object.properties.getFloat("deepening", look.opacityPerPixel);
-            pools_.push_back({animal::WaterBody(area), look,
-                              effectPreset(effects, room, object.properties.getString("effect", kSplashEffect)),
-                              {object.properties.getFloat("currentX"), object.properties.getFloat("currentY")}});
+            const auto splash = effectPreset(effects, room, object.properties.getString("effect", kSplashEffect));
+            const animal::Vec2 current{object.properties.getFloat("currentX"), object.properties.getFloat("currentY")};
+            // The rectangle's top is the waterline. Solid tiles set the width and each column's floor.
+            std::vector<animal::WaterBody> bodies = animal::WaterBody::fit(area, tiles_);
+            if (bodies.empty()) {
+                animal::log::warn("{}: water {} covers no open tiles", room.path, object.id);
+                continue;
+            }
+            for (animal::WaterBody& body : bodies) {
+                pools_.push_back({std::move(body), look, splash, current});
+            }
         } else if (object.type == "emitter") {
             // A point emitter, or an area emitter for rectangles; "effect" names the preset file.
             const std::string file = object.properties.getString("effect");
@@ -492,8 +500,13 @@ void CaveRoom::addWater(animal::Renderer2D& renderer, double time) const {
         surface.width = area.width;
         surface.depth = area.height;
         surface.offsets = pool.body.offsets();
+        surface.tops = pool.body.tops();
+        surface.floors = pool.body.floors();
         surface.time = static_cast<float>(time);
         renderer.addWater(surface);
+        for (const animal::WaterBody::Fall& fall : pool.body.falls()) {
+            renderer.addWaterFall(fall.x0, fall.x1, fall.top, fall.bottom);
+        }
     }
 }
 
@@ -517,8 +530,17 @@ void CaveRoom::step(float dt, double time, std::span<const animal::Influence> in
     }
     {
         ANIMAL_PROFILE_ZONE("water");
+        const double splashPeriod = 0.45;
+        const bool splashNow = std::floor(time / splashPeriod) != std::floor((time - static_cast<double>(dt)) / splashPeriod);
         for (Pool& pool : pools_) {
             pool.body.step(dt);
+            if (!splashNow || !pool.splash) {
+                continue;
+            }
+            for (const animal::WaterBody::Fall& fall : pool.body.falls()) {
+                const float x = static_cast<float>(fall.x0 + fall.x1) * 0.5f;
+                effects_.burst(*pool.splash, {x, static_cast<float>(fall.bottom) - 1.0f});
+            }
         }
     }
     {

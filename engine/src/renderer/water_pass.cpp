@@ -30,7 +30,7 @@ bool WaterPass::init(rhi::Device& device, const std::string& shaderDirectory, co
 
     rhi::TextureDesc columnDesc;
     columnDesc.width = targets.extent.width;
-    columnDesc.height = 1;
+    columnDesc.height = 2; // row 0: still water, row 1: a fall in the same column
     columnDesc.format = rhi::Format::RGBA8_UNorm;
     columnDesc.debugName = "water columns";
     columns_ = device.createTexture(columnDesc);
@@ -75,7 +75,7 @@ void WaterPass::shutdown() {
 }
 
 void WaterPass::render(rhi::CommandList& commands, const Frame& frame) {
-    device_->writeTexture(columns_, {0, 0, targets_.extent.width, 1}, frame.columns.data(), targets_.extent.width * 4);
+    device_->writeTexture(columns_, {0, 0, targets_.extent.width, 2}, frame.columns.data(), targets_.extent.width * 4);
     Uniforms u{};
     u.canvas[0] = static_cast<float>(targets_.extent.width);
     u.canvas[1] = static_cast<float>(targets_.extent.height);

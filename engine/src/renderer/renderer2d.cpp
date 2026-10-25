@@ -213,7 +213,7 @@ void Renderer2D::beginWorld(const Camera2D& camera, Color clearColor) {
     lights_.clear();
     glow_.clear();
     fluidSplats_.clear();
-    water_->columns.assign(size_t{kCanvasExtent.width} * 4, 0);
+    water_->columns.assign(size_t{kCanvasExtent.width} * 8, 0); // two rows: still water, then falls
     water_->styleCount = 0;
 
     rhi::RenderPassDesc pass;
@@ -287,6 +287,8 @@ void Renderer2D::addWater(const WaterSurface& surface) {
     WaterSurface& stored = water_->styles[style];
     stored = surface;
     stored.offsets = {};
+    stored.tops = {};
+    stored.floors = {};
     if (style == 0) {
         water_->phase = static_cast<int>(std::floor(surface.time * 8.0f));
     }
@@ -295,15 +297,27 @@ void Renderer2D::addWater(const WaterSurface& surface) {
     // Whole canvas rows, so the shader's decisions are exact integers.
     const int left = static_cast<int>(std::lround(surface.topLeft.x - worldOrigin_.x));
     const int height = static_cast<int>(kCanvasExtent.height);
-    const int bottom = std::clamp(static_cast<int>(std::lround(surface.topLeft.y + surface.depth - worldOrigin_.y)), 0,
-                                  height);
+    const bool shaped = surface.tops.size() == static_cast<size_t>(surface.width) &&
+                        surface.floors.size() == static_cast<size_t>(surface.width);
+    const int flatBottom =
+        std::clamp(static_cast<int>(std::lround(surface.topLeft.y + surface.depth - worldOrigin_.y)), 0, height);
+    const int restTop = static_cast<int>(surface.topLeft.y);
     for (int i = 0; i < surface.width; ++i) {
         const int x = left + i;
         if (x < 0 || x >= static_cast<int>(kCanvasExtent.width)) {
             continue;
         }
         const float offset = static_cast<size_t>(i) < surface.offsets.size() ? surface.offsets[static_cast<size_t>(i)] : 0.0f;
-        const int top = std::clamp(static_cast<int>(std::lround(surface.topLeft.y + offset - worldOrigin_.y)), 0, height);
+        // A column whose top is the waterline rides the wave. A lower top is a ceiling's underside.
+        const float topWorld = !shaped ? surface.topLeft.y + offset
+                                       : (surface.tops[static_cast<size_t>(i)] == restTop
+                                              ? surface.topLeft.y + offset
+                                              : static_cast<float>(surface.tops[static_cast<size_t>(i)]));
+        const float floorWorld = shaped ? static_cast<float>(surface.floors[static_cast<size_t>(i)])
+                                        : surface.topLeft.y + static_cast<float>(surface.depth);
+        const int top = std::clamp(static_cast<int>(std::lround(topWorld - worldOrigin_.y)), 0, height);
+        const int bottom = shaped ? std::clamp(static_cast<int>(std::lround(floorWorld - worldOrigin_.y)), 0, height)
+                                  : flatBottom;
         if (top >= bottom) {
             continue;
         }
@@ -312,6 +326,34 @@ void Renderer2D::addWater(const WaterSurface& surface) {
         c[1] = static_cast<uint8_t>(bottom);
         c[2] = style;
         c[3] = 255;
+    }
+}
+
+void Renderer2D::addWaterFall(int x0, int x1, int top, int bottom) {
+    ANIMAL_ASSERT(phase_ == Phase::World);
+    if (water_->styleCount == 0 || x1 <= x0 || bottom <= top) {
+        return;
+    }
+    const auto style = static_cast<uint8_t>(water_->styleCount - 1);
+    const int height = static_cast<int>(kCanvasExtent.height);
+    const int width = static_cast<int>(kCanvasExtent.width);
+    const int rowTop = std::clamp(static_cast<int>(std::lround(static_cast<float>(top) - worldOrigin_.y)), 0, height);
+    const int rowBottom =
+        std::clamp(static_cast<int>(std::lround(static_cast<float>(bottom) - worldOrigin_.y)), 0, height);
+    if (rowTop >= rowBottom) {
+        return;
+    }
+    for (int x = x0; x < x1; ++x) {
+        const int column = static_cast<int>(std::lround(static_cast<float>(x) - worldOrigin_.x));
+        if (column < 0 || column >= width) {
+            continue;
+        }
+        // Row 1, so a column can keep its still water and also pour into a hollow below it.
+        uint8_t* c = &water_->columns[(size_t{kCanvasExtent.width} + static_cast<size_t>(column)) * 4];
+        c[0] = static_cast<uint8_t>(rowTop);
+        c[1] = static_cast<uint8_t>(rowBottom);
+        c[2] = style;
+        c[3] = 200; // a fall: the shader scrolls bands down it
     }
 }
 

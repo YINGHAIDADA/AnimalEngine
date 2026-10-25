@@ -75,6 +75,8 @@ public:
     // Force splats that can still be added this frame before the solver drops the rest.
     size_t fluidForceSlotsLeft() const;
     void addWater(const WaterSurface& surface); // ADR-0018
+    // A falling sheet just added with the latest addWater: world pixels, drawn with that style.
+    void addWaterFall(int x0, int x1, int top, int bottom);
     void endWorld();
 
     // Unlit sprites in world pixels, drawn on the canvas after glow and before bloom and grading.

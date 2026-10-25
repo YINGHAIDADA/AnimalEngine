@@ -12,8 +12,12 @@ namespace animal {
 struct WaterSurface {
     Vec2 topLeft;                   // world px: left end of the surface at rest
     int width = 0;                  // px
-    int depth = 0;                  // px from the surface at rest to the bottom
+    int depth = 0;                  // px from the surface at rest to the bottom, when floors is empty
     std::span<const float> offsets; // per pixel column, + = down; empty = flat
+    // Per column, world y. Empty: every column runs from the surface down by `depth`.
+    // A top equal to topLeft.y takes the wave offset; a lower top is the underside of a ceiling.
+    std::span<const int> tops;
+    std::span<const int> floors;
     Color color = Color::rgba(40, 90, 120); // tint, lit by the scene's lights
     float opacity = 0.45f;          // at the surface; grows with depth
     float opacityPerPixel = 0.015f; // added per px below the surface (small for flooded rooms)

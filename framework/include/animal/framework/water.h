@@ -1,7 +1,8 @@
 #pragma once
 
 // Water bodies (ADR-0018): a rectangle of water whose surface carries 1D waves, and the
-// floating rules for platformer bodies in it.
+// floating rules for platformer bodies in it. fit() trims that rectangle to the solid tiles
+// around it: one waterline, each column ending on the first solid tile below.
 
 #include <animal/framework/geometry.h>
 #include <animal/framework/physics.h>
@@ -12,6 +13,8 @@
 
 namespace animal {
 
+class TileMap;
+
 struct WaterParams {
     float waveSpeed = 90.0f; // px/s along the surface
     float stiffness = 40.0f; // pull back to rest, 1/s²
@@ -21,8 +24,15 @@ struct WaterParams {
 
 class WaterBody {
 public:
-    // `area` in world pixels; its top edge is the surface at rest.
+    // `area` in world pixels; its top edge is the surface at rest. A flat rectangle: every column
+    // ends at the bottom edge. fit() is what a room uses.
     explicit WaterBody(const IntRect& area, const WaterParams& params = {});
+
+    // One body per contiguous run of columns the rectangle touches. Along an open waterline the
+    // run grows out to the solid tiles on either side. Each column is filled from the waterline
+    // (or from the underside of a solid ceiling) down to the first solid tile. A solid column
+    // splits the run, so a wave does not cross a wall. Empty when the rectangle holds no air.
+    static std::vector<WaterBody> fit(const IntRect& area, const TileMap& map, const WaterParams& params = {});
 
     const IntRect& area() const { return area_; }
     void step(float dt);
@@ -31,8 +41,22 @@ public:
 
     // One entry per pixel column of the area: surface displacement, + = down.
     std::span<const float> offsets() const { return height_; }
+    // World y where this column starts drawing, and where it stops (the top of the solid tile).
+    // Empty on a flat rectangle: the top is area().y and the floor is its bottom edge.
+    std::span<const int> tops() const { return tops_; }
+    std::span<const int> floors() const { return floors_; }
+    // A pour beside an open edge: back-wall air (not solid, not a hazard) next to the water.
+    // [x0, x1) is one pixel wide, top is the opening, bottom is the solid ground it lands on.
+    struct Fall {
+        int x0 = 0;
+        int x1 = 0;
+        int top = 0;
+        int bottom = 0;
+    };
+    std::span<const Fall> falls() const { return falls_; }
     float surfaceY(float x) const; // world y of the surface at x (columns outside clamp to the edge)
-    // Share of the box's height below the surface at its centre column (0 outside the area).
+    // Share of the box's height below the surface at its centre column (0 outside the area,
+    // or when the box sits on or below that column's floor).
     float submersion(const IntRect& box) const;
 
 private:
@@ -40,6 +64,9 @@ private:
     WaterParams params_;
     std::vector<float> height_;
     std::vector<float> velocity_;
+    std::vector<int> tops_;
+    std::vector<int> floors_;
+    std::vector<Fall> falls_;
 };
 
 struct SwimParams {

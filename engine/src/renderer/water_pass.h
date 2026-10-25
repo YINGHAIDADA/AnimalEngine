@@ -27,7 +27,9 @@ public:
     };
 
     struct Frame {
-        std::vector<uint8_t> columns; // RGBA8 per canvas column: surface row, bottom row, style, present
+        // Two rows of RGBA8 per canvas column (surface row, bottom row, style, present).
+        // Row 0 is still water. Row 1 is a fall in that same column (a hollow under a floor).
+        std::vector<uint8_t> columns;
         std::array<WaterSurface, kMaxWaterStyles> styles{};
         Vec3 ambient;
         int bands = 0;

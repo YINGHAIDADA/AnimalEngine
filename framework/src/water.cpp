@@ -3,14 +3,191 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 namespace animal {
+
+namespace {
+
+// A pixel column of the pool: where the water starts and the first solid pixel below it.
+struct Column {
+    int top = 0;
+    int bottom = 0;
+};
+
+bool solidAt(const TileMap& map, int x, int y) {
+    const int tile = map.tileSize();
+    if (tile <= 0 || x < 0 || y < 0 || x >= map.width() * tile || y >= map.height() * tile) {
+        return true; // the map edge holds the water in
+    }
+    return map.isSolid(x / tile, y / tile);
+}
+
+// Next tile boundary strictly below y.
+int nextTileRow(const TileMap& map, int y) {
+    const int tile = map.tileSize();
+    const int row = y >= 0 ? y / tile : -1;
+    return (row + 1) * tile;
+}
+
+// Air under the waterline, down to the first solid tile. A ceiling on the waterline is skipped,
+// so the column starts at its underside. No air: nullopt.
+std::optional<Column> columnUnder(const TileMap& map, int x, int surface) {
+    const int tile = map.tileSize();
+    if (tile <= 0) {
+        return std::nullopt;
+    }
+    const int limit = map.height() * tile;
+    int y = surface;
+    if (solidAt(map, x, y)) {
+        while (y < limit && solidAt(map, x, y)) {
+            y = nextTileRow(map, y);
+        }
+        if (y >= limit) {
+            return std::nullopt;
+        }
+    }
+    const int top = y;
+    while (y < limit && !solidAt(map, x, y)) {
+        y = nextTileRow(map, y);
+    }
+    if (y <= top) {
+        return std::nullopt;
+    }
+    return Column{top, y};
+}
+
+bool surfaceOpen(const TileMap& map, int x, int surface) {
+    const int tile = map.tileSize();
+    return tile > 0 && x >= 0 && x < map.width() * tile && surface >= 0 && surface < map.height() * tile &&
+           !solidAt(map, x, surface);
+}
+
+// The back wall: open air drawn behind the playfield. Hazards and the void outside the map are not.
+bool backWall(const TileMap& map, int x, int y) {
+    const int tile = map.tileSize();
+    if (tile <= 0 || x < 0 || y < 0 || x >= map.width() * tile || y >= map.height() * tile) {
+        return false;
+    }
+    const int tx = x / tile;
+    const int ty = y / tile;
+    return !map.isSolid(tx, ty) && map.hazardOf(map.tile(tx, ty)) == Hazard::None;
+}
+
+bool alreadyFalling(const std::vector<WaterBody::Fall>& falls, int x0, int top) {
+    for (const WaterBody::Fall& fall : falls) {
+        if (fall.x0 == x0 && fall.top == top) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Still water in this pool covers the pixel. A hollow under a floor is the same column but a
+// lower span, so it is not covered.
+bool covered(int left, int width, const std::vector<int>& tops, const std::vector<int>& floors, int x, int y) {
+    if (x < left || x >= left + width) {
+        return false;
+    }
+    const size_t i = static_cast<size_t>(x - left);
+    return y >= tops[i] && y < floors[i];
+}
+
+// Every place still water touches back-wall air, including a hollow cut out of the pool, pours
+// down that tile column to the first solid tile.
+void addFalls(std::vector<WaterBody::Fall>& falls, int left, int width, const std::vector<int>& tops,
+              const std::vector<int>& floors, const TileMap& map) {
+    const int tile = map.tileSize();
+    if (tile <= 0 || width <= 0 || tops.empty()) {
+        return;
+    }
+    const int limit = map.height() * tile;
+    const int mapWidth = map.width() * tile;
+    for (int i = 0; i < width; ++i) {
+        const int top = tops[static_cast<size_t>(i)];
+        const int floor = floors[static_cast<size_t>(i)];
+        for (const int direction : {-1, 1}) {
+            const int beside = left + i + direction;
+            if (beside < 0 || beside >= mapWidth) {
+                continue;
+            }
+            int opening = -1;
+            for (int y = top; y < floor; y = nextTileRow(map, y)) {
+                if (!covered(left, width, tops, floors, beside, y) && backWall(map, beside, y)) {
+                    opening = std::max(y, (y / tile) * tile);
+                    break;
+                }
+            }
+            if (opening < 0) {
+                continue;
+            }
+            int ground = opening;
+            while (ground < limit && backWall(map, beside, ground) &&
+                   !covered(left, width, tops, floors, beside, ground)) {
+                ground = nextTileRow(map, ground);
+            }
+            if (ground - opening < tile) {
+                continue;
+            }
+            if (!alreadyFalling(falls, beside, opening)) {
+                falls.push_back({beside, beside + 1, opening, ground});
+            }
+        }
+    }
+}
+
+} // namespace
 
 WaterBody::WaterBody(const IntRect& area, const WaterParams& params)
     : area_(area),
       params_(params),
       height_(static_cast<size_t>(std::max(area.width, 1)), 0.0f),
       velocity_(height_.size(), 0.0f) {}
+
+std::vector<WaterBody> WaterBody::fit(const IntRect& area, const TileMap& map, const WaterParams& params) {
+    std::vector<WaterBody> pools;
+    const int tile = map.tileSize();
+    if (tile <= 0 || area.width <= 0 || area.height <= 0 || map.width() <= 0 || map.height() <= 0) {
+        return pools;
+    }
+    const int mapWidth = map.width() * tile;
+    int left = std::clamp(area.x, 0, mapWidth);
+    int right = std::clamp(area.right(), 0, mapWidth);
+    // An open waterline grows out to the walls. A solid waterline (a ceiling) stays put.
+    while (left > 0 && surfaceOpen(map, left - 1, area.y)) {
+        --left;
+    }
+    while (right < mapWidth && surfaceOpen(map, right, area.y)) {
+        ++right;
+    }
+    for (int x = left; x < right;) {
+        while (x < right && !columnUnder(map, x, area.y)) {
+            ++x;
+        }
+        const int start = x;
+        while (x < right && columnUnder(map, x, area.y)) {
+            ++x;
+        }
+        if (start == x || x <= area.x || start >= area.right()) {
+            continue; // a gap, or a run that does not meet the rectangle
+        }
+        const int width = x - start;
+        WaterBody body({start, area.y, width, 1}, params);
+        body.tops_.assign(static_cast<size_t>(width), area.y);
+        body.floors_.assign(static_cast<size_t>(width), area.y);
+        int deepest = area.y;
+        for (int i = 0; i < width; ++i) {
+            const Column column = *columnUnder(map, start + i, area.y);
+            body.tops_[static_cast<size_t>(i)] = column.top;
+            body.floors_[static_cast<size_t>(i)] = column.bottom;
+            deepest = std::max(deepest, column.bottom);
+        }
+        body.area_.height = std::max(1, deepest - area.y);
+        addFalls(body.falls_, body.area_.x, body.area_.width, body.tops_, body.floors_, map);
+        pools.push_back(std::move(body));
+    }
+    return pools;
+}
 
 void WaterBody::step(float dt) {
     // Semi-implicit wave equation; substeps keep waveSpeed · dt below one column (stability).
@@ -50,9 +227,14 @@ float WaterBody::surfaceY(float x) const {
 
 float WaterBody::submersion(const IntRect& box) const {
     const float centerX = static_cast<float>(box.x) + static_cast<float>(box.width) * 0.5f;
-    if (centerX < static_cast<float>(area_.x) || centerX >= static_cast<float>(area_.right()) ||
-        box.bottom() <= area_.y - static_cast<int>(params_.maxOffset) || box.y >= area_.bottom() || box.height <= 0) {
+    if (centerX < static_cast<float>(area_.x) || centerX >= static_cast<float>(area_.right()) || box.height <= 0 ||
+        box.bottom() <= area_.y - static_cast<int>(params_.maxOffset)) {
         return 0.0f;
+    }
+    const int column = std::clamp(static_cast<int>(std::floor(centerX)) - area_.x, 0, area_.width - 1);
+    const int floorY = floors_.empty() ? area_.bottom() : floors_[static_cast<size_t>(column)];
+    if (box.y >= floorY) {
+        return 0.0f; // on or below this column's floor
     }
     const float below = static_cast<float>(box.bottom()) - surfaceY(centerX);
     return std::clamp(below / static_cast<float>(box.height), 0.0f, 1.0f);

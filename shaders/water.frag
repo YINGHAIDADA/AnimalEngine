@@ -16,7 +16,7 @@ layout(set = 0, binding = 0, std140) uniform Water {
 
 layout(set = 1, binding = 0) uniform sampler2D scene;   // lit canvas
 layout(set = 1, binding = 1) uniform sampler2D light;   // light accumulation
-layout(set = 1, binding = 2) uniform sampler2D columns; // per column: surface row, bottom row, style, present
+layout(set = 1, binding = 2) uniform sampler2D columns; // row 0 still water, row 1 a fall; surface, bottom, style, present
 
 layout(location = 0) out vec4 outColor;
 
@@ -44,17 +44,42 @@ float quantize(float value, ivec2 p) {
 void main() {
     ivec2 size = ivec2(water.canvas.xy);
     ivec2 p = ivec2(vUV * water.canvas.xy);
+    int phase = int(water.canvas.z);
+    vec4 fall = texelFetch(columns, ivec2(p.x, 1), 0);
+    int fallTop = int(fall.r * 255.0 + 0.5);
+    int fallBottom = int(fall.g * 255.0 + 0.5);
+    int fallMark = int(fall.a * 255.0 + 0.5);
+    if (fallMark >= 128 && p.y >= fallTop && p.y < fallBottom) {
+        int style = min(int(fall.b * 255.0 + 0.5), 3);
+        int band = (p.y - phase * 2) & 7;
+        vec3 lightHere = water.ambient.rgb + texelFetch(light, p, 0).rgb;
+        vec3 tint = water.color[style].rgb * (lightHere * 1.4 + 0.08);
+        float opacity = band < 3 ? 0.78 : 0.42;
+        outColor = vec4(mix(sceneAt(p, size), tint, opacity), 1.0);
+        return;
+    }
+
     vec4 column = texelFetch(columns, ivec2(p.x, 0), 0);
     int surface = int(column.r * 255.0 + 0.5);
     int bottom = int(column.g * 255.0 + 0.5);
     int style = min(int(column.b * 255.0 + 0.5), 3);
-    if (column.a < 0.5 || p.y < surface || p.y >= bottom) {
+    int mark = int(column.a * 255.0 + 0.5);
+    if (mark < 128 || p.y < surface || p.y >= bottom) {
         outColor = vec4(sceneAt(p, size), 1.0);
         return;
     }
 
     int depth = p.y - surface;
-    int phase = int(water.canvas.z);
+    if (mark != 255) {
+        // Bands travel down the sheet. The phase steps by whole pixels with time.
+        int band = (p.y - phase * 2) & 7;
+        vec3 lightHere = water.ambient.rgb + texelFetch(light, p, 0).rgb;
+        vec3 tint = water.color[style].rgb * (lightHere * 1.4 + 0.08);
+        float opacity = band < 3 ? 0.78 : 0.42;
+        outColor = vec4(mix(sceneAt(p, size), tint, opacity), 1.0);
+        return;
+    }
+
     int wobble = kWobble[(p.y + phase) & 7] * int(water.params[style].y);
     vec3 under = sceneAt(ivec2(p.x + wobble, p.y), size);
 
