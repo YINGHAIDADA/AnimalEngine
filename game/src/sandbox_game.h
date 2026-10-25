@@ -139,6 +139,12 @@ private:
     void stepDynamite(float dt);
     void explode(animal::Vec2 centre);
     void addBlastInfluences(std::vector<animal::Influence>& influences) const;
+    // A press on the canvas (mouse, or a touch the system reports as one): shoves foliage and
+    // lanterns, and puffs smoke into the fluid. Not gameplay.
+    void updatePoke(const animal::EngineContext& context);
+    std::optional<animal::Vec2> pointerWorld(const animal::EngineContext& context) const;
+    void addPokeInfluences(std::vector<animal::Influence>& influences);
+    void addPokeSmoke(animal::Renderer2D& renderer);
     void drawDynamite(animal::Renderer2D& renderer) const;
     void addDynamiteLights(animal::Renderer2D& renderer) const;
     void addBlastSmoke(animal::Renderer2D& renderer) const;
@@ -287,6 +293,32 @@ private:
     bool showCollision_ = false;
     bool mapOpen_ = false; // M / Back: the map of the rooms seen so far; the world pauses
     const animal::platform::Input* input_ = nullptr;
+    // Pointer poke: a finger on the canvas this frame, plus a one-step shove from the press itself.
+    // Feel lives in pokeParams_ (the poke.* tuning group).
+    struct PokeParams {
+        int half = 4;            // held body, px from the pointer to each edge
+        int reach = 11;           // press shove, px out from the pointer
+        int span = 14;            // press shove, px across the pointer
+        float shove = 90.0f;     // press shove speed, px/s
+        float shoveLift = 50.0f;  // upward part of the sideways shove, px/s
+        float maxSpeed = 420.0f;  // cap on the pointer's drag speed, px/s
+        float smoke = 45.0f;      // density per second while held
+        float smokeRadius = 4.0f; // px
+        float dragForce = 5.0f;   // fluid force per px/s of pointer speed
+        float burstSmoke = 18.0f; // each of the four puffs on the press
+        float burstRadius = 7.0f; // px
+        float burstForce = 640.0f; // px/s²
+        float burstOffset = 6.0f; // px from the pointer
+        animal::Vec3 smokeColor{0.75f, 0.72f, 0.66f};
+    } pokeParams_;
+    struct Poke {
+        bool down = false;
+        bool impulse = false; // radial shove, consumed by the next fixed step
+        bool burst = false;   // smoke and force, consumed by the next render
+        animal::Vec2 position;
+        animal::Vec2 velocity; // px/s, from how the pointer moved
+        std::optional<animal::Vec2> previous;
+    } poke_;
     uint32_t stressLights_ = 0; // --stress-lights=N: extra moving shadow-casting lights
     std::string startRoomName_; // --start-room=NAME: begin there (testing; progress is not saved)
     std::set<std::string> testFlags_; // --flags=a,b: save flags to begin with (testing)

@@ -6,6 +6,7 @@
 #include <animal/core/random.h>
 #include <animal/platform/input.h>
 #include <animal/platform/platform.h>
+#include <animal/platform/window.h>
 #include <animal/renderer/renderer2d.h>
 #include <animal/rhi/rhi.h>
 
@@ -296,6 +297,20 @@ void SandboxGame::registerTuning(animal::Renderer2D& renderer) {
     tuning_.add("smoke.vorticity", &f.vorticity, 0.0f, 40.0f);
     tuning_.add("smoke.pressureIterations", &f.pressureIterations, 2, 40);
     tuning_.add("smoke.stirCoupling", &stirCoupling_, 0.0f, 12.0f);
+    PokeParams& poke = pokeParams_;
+    tuning_.add("poke.half", &poke.half, 2, 40);
+    tuning_.add("poke.reach", &poke.reach, 0, 64);
+    tuning_.add("poke.span", &poke.span, 0, 64);
+    tuning_.add("poke.shove", &poke.shove, 0.0f, 400.0f);
+    tuning_.add("poke.shoveLift", &poke.shoveLift, 0.0f, 200.0f);
+    tuning_.add("poke.maxSpeed", &poke.maxSpeed, 0.0f, 800.0f);
+    tuning_.add("poke.smoke", &poke.smoke, 0.0f, 200.0f);
+    tuning_.add("poke.smokeRadius", &poke.smokeRadius, 1.0f, 30.0f);
+    tuning_.add("poke.dragForce", &poke.dragForce, 0.0f, 20.0f);
+    tuning_.add("poke.burstSmoke", &poke.burstSmoke, 0.0f, 120.0f);
+    tuning_.add("poke.burstRadius", &poke.burstRadius, 1.0f, 24.0f);
+    tuning_.add("poke.burstForce", &poke.burstForce, 0.0f, 1200.0f);
+    tuning_.add("poke.burstOffset", &poke.burstOffset, 0.0f, 24.0f);
 }
 
 // world/tuning.json is optional; a broken file is reported and leaves the built-in values.
@@ -660,6 +675,103 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
     if (menu_.page == Page::None && actions_.pressedThisFrame(Map, input)) {
         mapOpen_ = !mapOpen_;
     }
+    updatePoke(context);
+}
+
+std::optional<animal::Vec2> SandboxGame::pointerWorld(const animal::EngineContext& context) const {
+    const animal::platform::PixelSize pixels = context.window->pixelSize();
+    const animal::platform::PixelSize points = context.window->sizeInPoints();
+    if (pixels.width == 0 || points.width == 0) {
+        return std::nullopt;
+    }
+    const float density = static_cast<float>(pixels.width) / static_cast<float>(points.width);
+    const animal::platform::MousePosition mouse = context.input->mousePosition();
+    const animal::PresentLayout layout =
+        animal::computePresentLayout(animal::Renderer2D::kCanvasExtent, {pixels.width, pixels.height});
+    const std::optional<animal::Vec2> canvas = animal::windowToCanvas(
+        layout, animal::Renderer2D::kCanvasExtent, {mouse.x * density, mouse.y * density});
+    if (!canvas) {
+        return std::nullopt;
+    }
+    return camera_.topLeft(animal::Renderer2D::kCanvasExtent) + *canvas;
+}
+
+void SandboxGame::updatePoke(const animal::EngineContext& context) {
+    const bool pendingImpulse = poke_.impulse;
+    poke_.down = false;
+    poke_.impulse = false;
+    poke_.burst = false;
+    if (dev_.editing() || mapOpen_ || endingOpen_ || menu_.page != Page::None) {
+        poke_.previous.reset();
+        return;
+    }
+    const animal::platform::Input& input = *context.input;
+    using animal::platform::MouseButton;
+    if (!input.down(MouseButton::Left)) {
+        poke_.previous.reset();
+        poke_.impulse = pendingImpulse; // a tap still shoves on the next step
+        return;
+    }
+    const std::optional<animal::Vec2> world = pointerWorld(context);
+    if (!world) {
+        poke_.previous.reset();
+        poke_.impulse = pendingImpulse;
+        return;
+    }
+    animal::Vec2 velocity;
+    const float frameSeconds = static_cast<float>(std::max(context.stats.frameMilliseconds, 1.0) / 1000.0);
+    if (poke_.previous) {
+        velocity = (*world - *poke_.previous) * (1.0f / frameSeconds);
+        const float speed = std::hypot(velocity.x, velocity.y);
+        if (speed > pokeParams_.maxSpeed) {
+            velocity = velocity * (pokeParams_.maxSpeed / speed);
+        }
+    }
+    poke_.position = *world;
+    poke_.velocity = velocity;
+    poke_.down = true;
+    poke_.previous = world;
+    if (input.pressed(MouseButton::Left) || pendingImpulse) {
+        poke_.impulse = true;
+        poke_.burst = input.pressed(MouseButton::Left);
+    }
+}
+
+void SandboxGame::addPokeInfluences(std::vector<animal::Influence>& influences) {
+    const PokeParams& poke = pokeParams_;
+    if (poke_.impulse) {
+        const int x = static_cast<int>(std::lround(poke_.position.x));
+        const int y = static_cast<int>(std::lround(poke_.position.y));
+        const int reach = std::max(0, poke.reach);
+        const int span = std::max(0, poke.span);
+        const int half = span / 2;
+        influences.push_back({{x - reach, y - half, reach, span}, {-poke.shove, -poke.shoveLift}, false, true});
+        influences.push_back({{x, y - half, reach, span}, {poke.shove, -poke.shoveLift}, false, true});
+        influences.push_back({{x - half, y - reach, span, reach}, {0.0f, -poke.shove}, false, true});
+        poke_.impulse = false;
+    }
+    if (poke_.down) {
+        const int half = std::max(0, poke.half);
+        const int x = static_cast<int>(std::lround(poke_.position.x)) - half;
+        const int y = static_cast<int>(std::lround(poke_.position.y)) - half;
+        influences.push_back({{x, y, half * 2, half * 2}, poke_.velocity, false, true});
+    }
+}
+
+void SandboxGame::addPokeSmoke(animal::Renderer2D& renderer) {
+    const PokeParams& poke = pokeParams_;
+    if (poke_.down) {
+        renderer.addFluidSplat(
+            {poke_.position, poke.smokeRadius, poke_.velocity * poke.dragForce, poke.smokeColor, poke.smoke});
+    }
+    if (poke_.burst) {
+        for (const animal::Vec2 direction : {animal::Vec2{1.0f, 0.0f}, animal::Vec2{-1.0f, 0.0f},
+                                             animal::Vec2{0.0f, -1.0f}, animal::Vec2{0.0f, 1.0f}}) {
+            renderer.addFluidSplat({poke_.position + direction * poke.burstOffset, poke.burstRadius,
+                                    direction * poke.burstForce, poke.smokeColor, poke.burstSmoke});
+        }
+        poke_.burst = false;
+    }
 }
 
 // F9: re-read the look presets (edit data/world/looks/*.json, or let the developer tools reload them).
@@ -876,6 +988,7 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
     }
     stepDynamite(step);
     addBlastInfluences(influences);
+    addPokeInfluences(influences);
     cave_.step(static_cast<float>(dt), time_, influences);
     if (traceEvery_ > 0 && player && ++traceSteps_ % traceEvery_ == 0) {
         const animal::Vec2 p = player->body.exactPosition();
@@ -933,6 +1046,7 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
     fluidTime_ = 0.0f;
     cave_.addFluidSources(renderer, time_);
     addBlastSmoke(renderer);
+    addPokeSmoke(renderer);
     // Moving bodies push the smoke, in the force splats the vents and blasts left. A frozen player
     // (the level editor, the title screen) keeps its last velocity, which would stir one spot forever.
     std::vector<animal::StirBody> stirring;
