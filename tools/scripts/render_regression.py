@@ -38,6 +38,8 @@ SCENES = [
     ("gallery_idle", 120, ["--start-room=render_gallery"]),
     ("stress_lights", 200, ["--demo", "--stress-lights=256"]),
     ("mechanisms", 90, ["--start-room=render_mechanisms"]),  # platforms, doors, gate, switch, orb, spikes, flooded water, hearts
+    ("gear_menu", 90, ["--start-room=test_dynamite", "--flags=ability:dive",
+                       f"--input-script={ROOT / 'tests' / 'input' / 'gear_menu.txt'}"]),  # item grid and ability row
     ("rhi_conformance", 0, []),                      # every RHI feature, incl. ones the game never uses
 ]
 CONFORMANCE = "rhi_conformance"

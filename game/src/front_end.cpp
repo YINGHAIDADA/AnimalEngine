@@ -63,6 +63,9 @@ std::string percent(float v) {
 } // namespace
 
 std::string SandboxGame::screenName() const {
+    if (gearOpen_) {
+        return "gear";
+    }
     return pageName(menu_.page);
 }
 
@@ -281,7 +284,7 @@ void SandboxGame::rebind(size_t actionIndex, std::optional<Key> key, std::option
 void SandboxGame::updateFrontEnd(animal::EngineContext& context, float dt) {
     const animal::platform::Input& input = *context.input;
     if (menu_.page == Page::None) {
-        if (frontEndEnabled_ && !mapOpen_ && !endingOpen_ && actions_.pressedThisFrame(Pause, input)) {
+        if (frontEndEnabled_ && !mapOpen_ && !endingOpen_ && !gearOpen_ && actions_.pressedThisFrame(Pause, input)) {
             openPage(Page::Pause);
         }
         return;

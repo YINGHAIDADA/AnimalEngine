@@ -204,6 +204,7 @@ bool SandboxGame::onInit(animal::EngineContext& context) {
     for (auto gem = gemFlags_.begin(); gem != gemFlags_.end() && collectedGems() < testGems_; ++gem) {
         save_.flags.insert(*gem);
     }
+    syncAbilities();
 
     animal::FluidSettings& fluid = context.renderer->fluid();
     fluid.smokeKeepPerSecond = 0.8f;
@@ -672,7 +673,8 @@ void SandboxGame::onFrame(animal::EngineContext& context) {
     if (input.pressed(Key::F8)) {
         resetProgress(renderer);
     }
-    if (menu_.page == Page::None && actions_.pressedThisFrame(Map, input)) {
+    updateGearMenu(input);
+    if (menu_.page == Page::None && !gearOpen_ && actions_.pressedThisFrame(Map, input)) {
         mapOpen_ = !mapOpen_;
     }
     updatePoke(context);
@@ -701,7 +703,7 @@ void SandboxGame::updatePoke(const animal::EngineContext& context) {
     poke_.down = false;
     poke_.impulse = false;
     poke_.burst = false;
-    if (dev_.editing() || mapOpen_ || endingOpen_ || menu_.page != Page::None) {
+    if (dev_.editing() || mapOpen_ || endingOpen_ || menu_.page != Page::None || gearOpen_) {
         poke_.previous.reset();
         return;
     }
@@ -830,10 +832,7 @@ void SandboxGame::updateGameplay(animal::Entity& player) {
         playSound(sounds_.gem, playerX);
         saveProgress();
     }
-    if (const int picked = cave_.collectDynamite(collider, kMaxDynamite - dynamite_); picked > 0) {
-        dynamite_ += picked;
-        playSound(sounds_.pickup, playerX, 0.8f);
-    }
+    collectCarriedItems(collider);
 
     if (invulnerable_ <= 0.0f) {
         if (const std::optional<animal::Vec2> crawler = cave_.touchingCrawler(collider)) {
@@ -890,7 +889,7 @@ void SandboxGame::handleRoomExit(animal::Renderer2D& renderer) {
 }
 
 void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
-    if (mapOpen_ || endingOpen_ || worldPaused()) {
+    if (mapOpen_ || endingOpen_ || worldPaused() || gearOpen_) {
         if (endingOpen_ && actions_.pressed(Jump)) {
             endingOpen_ = false;
             if (frontEndEnabled_) {
@@ -920,7 +919,7 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
         const float moveY = control ? actions_.strength(MoveDown) - actions_.strength(MoveUp) : 0.0f;
         const bool jumpPressed = control && actions_.pressed(Jump);
         if (control && actions_.pressed(Throw)) {
-            throwDynamite(*player);
+            useHeldItem(*player);
         }
         stepPlatforms(*player, step);
         const bool wasClimbing = climb_.climbing;
@@ -1035,7 +1034,7 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
         renderer.addLight(glow);
     }
     cave_.drawInFrontOfPlayer(renderer); // grass in front: the player wades through it
-    const bool hud = !mapOpen_ && !endingOpen_ && menu_.page == Page::None;
+    const bool hud = !mapOpen_ && !endingOpen_ && menu_.page == Page::None && !gearOpen_;
     if (hud) {
         addHeartLight(renderer); // the sprites follow in the interface pass, above the smoke
     }
@@ -1070,10 +1069,10 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
     renderer.endWorld();
 
     if (hud) {
-        // After glow, before bloom and grading: smoke stays behind the hearts and dynamite.
+        // After glow, before bloom and grading: smoke stays behind the hearts and the held item.
         renderer.beginInterface(camera_);
         drawHearts(renderer);
-        drawDynamiteHud(renderer);
+        drawHeldItem(renderer);
         renderer.endInterface();
     }
 
@@ -1085,6 +1084,11 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
                              static_cast<float>(c.height)},
                             playerState_.grounded ? animal::Color::rgba(80, 255, 120)
                                                   : animal::Color::rgba(255, 220, 60));
+        renderer.endWorldOverlay();
+    }
+    if (gearOpen_) {
+        renderer.beginWorldOverlay(camera_);
+        drawGearMenuWorld(renderer);
         renderer.endWorldOverlay();
     }
 }
@@ -1099,6 +1103,10 @@ void SandboxGame::onScreen(animal::EngineContext&, animal::Renderer2D& renderer)
         drawMap(renderer);
         return;
     }
+    if (gearOpen_) {
+        drawGearMenu(renderer);
+        return;
+    }
     if (menu_.page != Page::None) {
         drawFrontEnd(renderer);
         return;
@@ -1109,6 +1117,7 @@ void SandboxGame::onScreen(animal::EngineContext&, animal::Renderer2D& renderer)
     renderer.drawText(font_, {static_cast<float>(layout.x + layout.width) - margin - renderer.textWidth(font_, gems),
                               static_cast<float>(layout.y) + margin},
                       gems, kHudColor);
+    drawHeldItemCount(renderer);
 
     if (messageTime_ > 0.0f && !message_.empty()) {
         const float fade = std::min({1.0f, messageTime_ / 0.6f, (kMessageSeconds - messageTime_) / 0.3f});

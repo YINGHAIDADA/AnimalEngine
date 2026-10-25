@@ -55,6 +55,7 @@ public:
     int width(std::string_view text) const; // in font pixels
     int lineHeight() const { return desc_.cellHeight; }
     int cellWidth() const { return desc_.cellWidth; }
+    int baseline() const { return desc_.baseline; } // font pixels from the top of the cell to the baseline
     // The cell's rectangle in normalized texture coordinates.
     RectF cellUV(int cell) const;
     rhi::TextureHandle texture() const { return texture_.handle; }

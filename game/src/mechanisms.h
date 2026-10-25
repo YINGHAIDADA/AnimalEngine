@@ -23,7 +23,8 @@ struct CaveAssets;
 //   door      rectangle; opens for good when the switch named by "flag" is pressed, or once
 //             "gems" gems are collected (a gate)
 //   switch    point (bottom-centre, on the floor); pressed by walking into it; "flag" names it
-//   ability   point (centre); picking it up grants "name" (dive); "message" is shown
+//   ability   point (centre); picking it up grants "name" (any id; dive is one). Several can be
+//             held at once, and all of them stay active. "message" is shown
 //   goal      rectangle; entering it ends the run
 // Switches and abilities are save flags ("switch:NAME", "ability:NAME"), so they hold in every room.
 class Mechanisms {
@@ -45,6 +46,7 @@ public:
         std::vector<std::string> messages; // to show
         bool pressed = false;              // a switch went down
         bool ability = false;              // an ability was picked up
+        std::vector<std::string> abilities; // names granted now
         bool goal = false;                 // the player is in a goal area
         std::optional<int> gateNeeds;      // walked into a closed gate: gems it needs
     };
@@ -85,6 +87,7 @@ private:
     };
     struct Pickup {
         animal::Vec2 center;
+        std::string name;
         std::string flag;
         std::string message;
         bool taken = false;

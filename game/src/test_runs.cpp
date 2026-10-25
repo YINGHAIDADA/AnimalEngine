@@ -106,7 +106,7 @@ bool SandboxGame::checkExpectations() {
             actual = playerState_.grounded ? "true" : "false";
             met = actual == expected;
         } else if (name == "dynamite") {
-            actual = std::to_string(dynamite_);
+            actual = std::to_string(loadout_.count("dynamite"));
             met = actual == expected;
         } else if (name == "crawlers") {
             actual = std::to_string(cave_.aliveCrawlers());

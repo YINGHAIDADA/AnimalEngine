@@ -5,6 +5,7 @@
 #include <animal/framework/animation.h>
 #include <animal/framework/climbing.h>
 #include <animal/framework/entity.h>
+#include <animal/framework/loadout.h>
 #include <animal/framework/foliage.h>
 #include <animal/framework/particles.h>
 #include <animal/framework/physics.h>
@@ -726,6 +727,42 @@ TEST(action_press_is_latched_until_fixed_step) {
     actions.applyStrength(kJump, 0.3f); // analog below threshold: not a press
     CHECK(!actions.down(kJump) && !actions.pressed(kJump));
     CHECK(test::near(actions.strength(kJump), 0.3f));
+}
+
+TEST(loadout_keeps_every_ability_and_one_item_in_hand) {
+    Loadout loadout;
+    CHECK(loadout.grantAbility("dive"));
+    CHECK(!loadout.grantAbility("dive"));
+    CHECK(!loadout.grantAbility(""));
+    CHECK(loadout.grantAbility("glide"));
+    CHECK(loadout.hasAbility("dive") && loadout.hasAbility("glide"));
+    CHECK(loadout.abilities().size() == 2);
+
+    CHECK(loadout.gainItem("dynamite", ItemUse::Consumable, 2, 9) == 2);
+    CHECK(loadout.equipped() && loadout.equipped()->id == "dynamite");
+    CHECK(loadout.equippedIndex() == 0);
+    CHECK(loadout.gainItem("dynamite", ItemUse::Consumable, 20, 9) == 7); // capped at 9
+    CHECK(loadout.count("dynamite") == 9);
+    CHECK(loadout.gainItem("lamp", ItemUse::Reusable, 3, 1) == 1);
+    CHECK(loadout.gainItem("lamp", ItemUse::Reusable, 1, 1) == 0); // already owned
+    CHECK(loadout.equipped()->id == "dynamite");                    // the hand stays
+    CHECK(loadout.items().size() == 2);
+    CHECK(loadout.equip("lamp"));
+    CHECK(loadout.equipped()->use == ItemUse::Reusable);
+    CHECK(!loadout.consumeEquipped()); // a reusable item is not spent
+    CHECK(!loadout.equip("missing"));
+    CHECK(loadout.equip("dynamite"));
+    CHECK(loadout.consumeEquipped());
+    CHECK(loadout.count("dynamite") == 8);
+    while (loadout.count("dynamite") > 1) {
+        CHECK(loadout.consumeEquipped());
+    }
+    CHECK(loadout.consumeEquipped()); // the last stick stays, empty
+    CHECK(loadout.findItem("dynamite") && loadout.count("dynamite") == 0);
+    CHECK(loadout.equipped() && loadout.equipped()->id == "dynamite");
+    CHECK(!loadout.consumeEquipped());
+    loadout.clear();
+    CHECK(!loadout.hasAbility("dive") && loadout.items().empty() && loadout.equipped() == nullptr);
 }
 
 } // namespace

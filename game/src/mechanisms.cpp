@@ -99,11 +99,11 @@ bool Mechanisms::add(const animal::LevelObject& object, const std::string& roomP
     } else if (object.type == "ability") {
         Pickup pickup;
         pickup.center = object.position;
-        const std::string name = p.getString("name");
-        if (name != "dive") {
-            animal::log::warn("{}: ability {} grants \"{}\" (known: dive)", roomPath, object.id, name);
+        pickup.name = p.getString("name");
+        if (pickup.name.empty()) {
+            animal::log::warn("{}: ability {} has no \"name\"", roomPath, object.id);
         }
-        pickup.flag = abilityFlag(name);
+        pickup.flag = abilityFlag(pickup.name);
         pickup.message = p.getString("message");
         pickup.taken = flags.contains(pickup.flag);
         pickups_.push_back(pickup);
@@ -165,6 +165,9 @@ Mechanisms::Touch Mechanisms::touch(const animal::IntRect& player) {
             pickup.taken = true;
             touch.ability = true;
             touch.flags.push_back(pickup.flag);
+            if (!pickup.name.empty()) {
+                touch.abilities.push_back(pickup.name);
+            }
             if (!pickup.message.empty()) {
                 touch.messages.push_back(pickup.message);
             }

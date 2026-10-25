@@ -5,6 +5,7 @@ set(ANIMAL_GAME_SOURCES
     src/cave_room.h
     src/dev/dev_tools.h
     src/front_end.cpp
+    src/gear.cpp
     src/game_audio.cpp
     src/game_settings.cpp
     src/main.cpp
@@ -254,6 +255,8 @@ if(ANIMAL_BUILD_TESTS)
     animal_add_capability_test(dynamite_pickup test_dynamite pick_up --frames=60 "--expect=dynamite:1,crawlers:1")
     animal_add_capability_test(dynamite_kills_crawler test_dynamite throw_dynamite --frames=220
         "--expect=dynamite:0,crawlers:0,health:12")
+    animal_add_capability_test(gear_menu test_dynamite gear_menu --flags=ability:dive --frames=90
+        "--expect=screen:gear,dynamite:1")
     animal_add_capability_test(lantern_swings test_lantern hold_right --frames=200 "--expect=lanternSwing:true")
     animal_add_capability_test(lantern_hangs_still test_lantern "" --frames=200 "--expect=lanternSwing:false")
     # Controls (ADR-0036): the player's rebinding from a settings file replaces the default keys.

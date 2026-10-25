@@ -27,9 +27,6 @@ constexpr animal::Vec2 kThrowVelocity{65.0f, -100.0f};
 constexpr animal::Vec3 kSmokeColor{0.62f, 0.58f, 0.54f};
 constexpr animal::Vec3 kFlashColor{1.0f, 0.62f, 0.3f};
 constexpr animal::Vec3 kFuseColor{1.0f, 0.75f, 0.35f};
-constexpr animal::Vec2 kHudOffset{3.0f, 12.0f}; // canvas pixels: under the hearts
-constexpr float kHudSpacing = 6.0f;
-
 // The fuse blinks ever faster: lit for the first half of each period.
 bool fuseLit(float fuseLeft) {
     const float period = 0.08f + 0.22f * std::clamp(fuseLeft / kFuseSeconds, 0.0f, 1.0f);
@@ -39,10 +36,13 @@ bool fuseLit(float fuseLeft) {
 } // namespace
 
 void SandboxGame::throwDynamite(animal::Entity& player) {
-    if (dynamite_ <= 0) {
+    const animal::CarriedItem* held = loadout_.equipped();
+    if (!held || held->id != "dynamite") {
         return;
     }
-    --dynamite_;
+    if (!loadout_.consumeEquipped()) {
+        return;
+    }
     const float facing = facingLeft_ ? -1.0f : 1.0f;
     Thrown t;
     t.projectile.body.collider = kStickCollider;
@@ -154,16 +154,6 @@ void SandboxGame::addBlastSmoke(animal::Renderer2D& renderer) const {
             renderer.addFluidSplat({b.centre + direction * (radius * 0.6f), radius * 0.6f, direction * (900.0f * fade),
                                     kSmokeColor, 40.0f * fade});
         }
-    }
-}
-
-// Under the hearts, in the interface pass: one stick per piece carried.
-void SandboxGame::drawDynamiteHud(animal::Renderer2D& renderer) const {
-    const animal::Vec2 corner = camera_.topLeft(animal::Renderer2D::kCanvasExtent) + kHudOffset;
-    const float size = static_cast<float>(kTileSize);
-    for (int i = 0; i < dynamite_; ++i) {
-        renderer.drawSprite(assets_.props, {corner.x + static_cast<float>(i) * kHudSpacing - 2.0f, corner.y},
-                            {kDynamiteCell * size, 0.0f, size, size});
     }
 }
 

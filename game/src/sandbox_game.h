@@ -11,6 +11,7 @@
 #include <animal/framework/climbing.h>
 #include <animal/framework/entity.h>
 #include <animal/framework/level.h>
+#include <animal/framework/loadout.h>
 #include <animal/framework/look.h>
 #include <animal/framework/platformer.h>
 #include <animal/framework/projectile.h>
@@ -52,7 +53,8 @@ enum Action : animal::ActionId {
     Jump,
     Map,   // read every frame (ActionMap::pressedThisFrame)
     Pause,
-    Throw, // dynamite
+    Throw, // use the item in hand
+    Items, // the gear menu: switch the item in hand
 };
 
 // M1b sandbox: a Tiled world of single-screen rooms, a platformer-controlled creature, and the
@@ -148,7 +150,16 @@ private:
     void drawDynamite(animal::Renderer2D& renderer) const;
     void addDynamiteLights(animal::Renderer2D& renderer) const;
     void addBlastSmoke(animal::Renderer2D& renderer) const;
-    void drawDynamiteHud(animal::Renderer2D& renderer) const;
+    // gear.cpp: abilities (all active together) and carried items (one in hand)
+    void syncAbilities();
+    void collectCarriedItems(const animal::IntRect& player);
+    void useHeldItem(animal::Entity& player);
+    void updateGearMenu(const animal::platform::Input& input);
+    void drawHeldItem(animal::Renderer2D& renderer) const;
+    void drawHeldItemCount(animal::Renderer2D& renderer) const;
+    void drawGearMenuWorld(animal::Renderer2D& renderer) const;
+    void drawGearMenu(animal::Renderer2D& renderer) const;
+    std::string gearLabel(std::string_view id, bool ability) const;
     void vineSounds(const animal::Entity& player, bool climbing, float dt); // rustling and swishing
     // text.cpp (ADR-0041)
     bool loadLanguage(const std::string& language); // its string table, English answering missing keys
@@ -214,9 +225,7 @@ private:
     animal::DiveParams diveParams_;
     bool diving_ = false;         // under water with the dive ability
     bool respawnPending_ = false; // hurt this step: back to the checkpoint after it
-    // Dynamite (ADR-0038)
-    static constexpr int kMaxDynamite = 9;
-    int dynamite_ = 0; // carried
+    // Dynamite in flight (ADR-0038). How many are carried lives in loadout_.
     struct Thrown {
         animal::Projectile projectile;
         float fuse = 0.0f; // seconds left
@@ -228,6 +237,9 @@ private:
     };
     std::vector<Blast> blasts_;
     animal::ProjectileParams throwParams_;
+    animal::Loadout loadout_;
+    bool gearOpen_ = false; // B: the 2×5 item grid and the ability row; the world waits
+    int gearIndex_ = 0;     // highlighted item slot (0..9) while the menu is open
     int crawlersKilled_ = 0;
     // Vine sounds
     float vineClimbDistance_ = 0.0f;

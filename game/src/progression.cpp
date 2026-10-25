@@ -89,7 +89,8 @@ void SandboxGame::resetProgress(animal::Renderer2D& renderer) {
             }
         }
     }
-    dynamite_ = 0;
+    loadout_.clear();
+    gearOpen_ = false;
     health_ = kMaxHealth;
     save_.flags.clear();
     save_.visited.clear();
@@ -108,7 +109,7 @@ size_t SandboxGame::collectedGems() const {
 }
 
 bool SandboxGame::canDive() const {
-    return save_.flags.contains(Mechanisms::abilityFlag("dive"));
+    return loadout_.hasAbility("dive");
 }
 
 void SandboxGame::stepPlatforms(animal::Entity& player, float dt) {
@@ -204,6 +205,7 @@ void SandboxGame::updateMechanisms(animal::Entity& player, float dt) {
     }
     Mechanisms::Touch touch = cave_.touchMechanisms(collider);
     save_.flags.insert(touch.flags.begin(), touch.flags.end());
+    syncAbilities();
     for (const std::string& message : touch.messages) {
         showMessage(levelText(message));
     }
@@ -213,7 +215,10 @@ void SandboxGame::updateMechanisms(animal::Entity& player, float dt) {
     if (touch.ability) {
         playSound(sounds_.ability, x);
         if (touch.messages.empty()) {
-            showMessage(text("message.dive"));
+            for (const std::string& name : touch.abilities) {
+                const std::string specific = "message." + name;
+                showMessage(strings_.has(specific) ? text(specific) : text("message.ability", gearLabel(name, true)));
+            }
         }
     }
     if (touch.gateNeeds) {

@@ -145,7 +145,8 @@ cmake --build --preset windows-ninja-debug
 | 跑；在藤蔓上荡 | <kbd>←</kbd> <kbd>→</kbd> <kbd>A</kbd> <kbd>D</kbd> | 左摇杆 / 十字键 |
 | 抓住藤蔓；上下爬，底端向下松手 | <kbd>↑</kbd> <kbd>W</kbd> <kbd>↓</kbd> <kbd>S</kbd> | 摇杆或十字键的上、下 |
 | 跳（按住更高）；从藤蔓上跳离 | <kbd>Space</kbd> <kbd>Z</kbd> | 南键（Xbox A / PlayStation ×） |
-| 朝面朝的方向扔炸药 | <kbd>X</kbd> | 西键 |
+| 使用手持道具（炸药会朝面朝的方向扔出） | <kbd>X</kbd> | 西键 |
+| 道具与能力 | <kbd>B</kbd> | 东键（Xbox B） |
 | 地图 | <kbd>M</kbd> | Back |
 | 暂停 | <kbd>Esc</kbd> <kbd>P</kbd> | Menu |
 
@@ -174,7 +175,7 @@ flowchart TB
 
 - 断桥上有来回移动的平台，和站上去会塌的平台。掉进深渊是尖刺竖井；井底的宝珠让你在水中按住下潜。
 - 学会下潜之后，烟雾深坑的水池下面是一片淹没的区域，水流会推着你走。
-- 炸药捡起来就带走（血量下面按个数显示）。扔出后引信闪两秒，然后炸出一团烟，震开附近的吊灯、藤蔓和草，并炸死甲虫。吊灯比角色重，只会轻轻摆开。
+- 炸药是消耗型道具，捡起来就带走，最多 9 个，不写入存档。血量下面的框里是当前手持的道具：消耗品右下角标着数量，可以反复使用的只有图标。**B** 打开菜单：缺角边框里上面是 2×5 的道具格，方向键移动高亮，跳跃键确认才换手持，空格可以选中但不换；中间一条分界，下面是 1×5 的能力格。没捡过的不画图标；用完了仍留着，角上是 0。能力可以同时生效。扔出的炸药引信闪两秒，然后炸出一团烟，震开附近的吊灯、藤蔓和草，并炸死甲虫。吊灯比角色重，只会轻轻摆开。
 - 左上角是 3 颗心，每颗 4 滴。被甲虫撞到会扣 1 滴并弹开；碰到尖刺或被平台挤住也会扣血，并回到这间房里第一次站稳的位置。血掉光时回到检查点并回满。掉出世界不扣血。
 - 走进提示区域时，屏幕下方会出现一句说明，用的是你最近拿过的键盘或手柄上的键名。
 
@@ -201,7 +202,7 @@ flowchart TB
 | Tile 属性 | `solid`、`grass`、`light*`、`hazard`（`up` / `down` / `full`） | 碰撞、长草、发光砖、尖刺 |
 | 地图属性 | `look`、`look.*` | 观感预设，以及单项覆盖 |
 | 地图属性 | `wind.strength`、`wind.gusts`、`wind.gustInterval`、`wind.gustSpeed` | 微风与阵风 |
-| 点对象 | `spawn`、`candle`、`vent`、`vine`、`light`、`lantern`、`gem`、`crawler`、`wind`、`switch`、`ability`、`dynamite`、`entry` | 起点、道具、光源、宝石、甲虫、气流、开关、能力（`name` = `dive`）、炸药、传送落点 |
+| 点对象 | `spawn`、`candle`、`vent`、`vine`、`light`、`lantern`、`gem`、`crawler`、`wind`、`switch`、`ability`、`dynamite`、`entry` | 起点、道具、光源、宝石、甲虫、气流、开关、能力（`name`，可同时持有多种；`dive` 是下潜）、炸药、传送落点 |
 | 矩形对象 | `trigger`、`water`、`plants`、`emitter`、`platform`、`door`、`goal` | 提示、水域与水流、植物、粒子、移动或坠落平台、门（`flag` 或 `gems`）、终点 |
 | 预设 | `looks/*.look.json`、`effects/*.effect.json`、`plants/*.plant.json` | 可复用的观感、粒子（`"gpu": true` 走 GPU）、植物。格式错误会指出文件和字段 |
 | 文字 | `assets/source/strings/*.strings.json` | 界面文案。对象的 `message` 写键（如 `level.spikes`）就随语言切换，写原文就照原样显示 |
@@ -294,7 +295,7 @@ Windows 用 `windows-vs2022-debug`、`windows-ninja-debug`；Xcode 用 `macos-xc
 测试用独立数据 `tests/data/`，构建后放在 `bin/<Config>/test_data/`。改 `assets/source` 不会影响测试，也不用刷新基准截图。新能力在 `tools/scripts/make_test_data.py` 里加一间测试房，再在 `game/CMakeLists.txt` 里加一条 `animal_add_capability_test`。
 
 ```bash
-# 7 个固定场景 + RHI 一致性图，两后端必须与 tests/golden/ 逐像素相同
+# 8 个固定场景 + RHI 一致性图，两后端必须与 tests/golden/ 逐像素相同
 python3 tools/scripts/render_regression.py
 python3 tools/scripts/render_regression.py --only demo_pit
 python3 tools/scripts/render_regression.py --update   # 有意改画面之后刷新基准

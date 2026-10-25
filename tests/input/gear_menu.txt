@@ -1,0 +1,6 @@
+# Pick up the stick, open the gear menu, step onto an empty slot and confirm. The confirm is ignored.
+1 down Right
+20 up Right
+40 key B
+55 key Right
+70 key Space

@@ -100,7 +100,7 @@ const std::vector<ObjectTemplate>& objectTemplates() {
         {"switch", true, 0, 0, IM_COL32(255, 120, 90, 255), "Floor switch opening doors with its flag (bottom centre)",
          {{"flag", "string", "\"door\""}},
          {{"flag", "string", "\"door\""}, {"message", "string", "\"A DOOR OPENED\""}}},
-        {"ability", true, 0, 0, IM_COL32(110, 170, 255, 255), "Grants an ability (centre)",
+        {"ability", true, 0, 0, IM_COL32(110, 170, 255, 255), "Grants an ability by name (centre); several stay active together",
          {{"name", "string", "\"dive\""}},
          {{"name", "string", "\"dive\""}, {"message", "string", "\"YOU CAN DIVE: HOLD DOWN IN WATER\""}}},
         {"goal", false, 16, 24, IM_COL32(255, 230, 90, 255), "Entering it ends the run", {}, {}},
