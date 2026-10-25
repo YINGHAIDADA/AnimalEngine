@@ -3,13 +3,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/YINGHAIDADA/AnimalEngine/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/YINGHAIDADA/AnimalEngine/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="C++20" src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white">
-  <img alt="macOS 13.3+" src="https://img.shields.io/badge/macOS-13.3%2B-000000?logo=apple&logoColor=white">
-  <img alt="Windows 10+" src="https://img.shields.io/badge/Windows-10%2B-0078D6?logo=windows&logoColor=white">
-  <img alt="OpenGL 4.1" src="https://img.shields.io/badge/OpenGL-4.1-5586A4?logo=opengl&logoColor=white">
-  <img alt="Vulkan 1.2" src="https://img.shields.io/badge/Vulkan-1.2-AC162C?logo=vulkan&logoColor=white">
-  <a href="LICENSE"><img alt="GPL-3.0-or-later" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg"></a>
+<img alt="Views" src="https://komarev.com/ghpvc/?username=AnimalEngine&color=22d495&label=Views&style=for-the-badge">
+  <img alt="C++20" src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white&style=for-the-badge">
+  <img alt="macOS 13.3+" src="https://img.shields.io/badge/macOS-13.3%2B-000000?logo=apple&logoColor=white&style=for-the-badge">
+  <img alt="Windows 10+" src="https://img.shields.io/badge/Windows-10%2B-0078D6?logo=windows&logoColor=white&style=for-the-badge">
+  <img alt="OpenGL 4.1" src="https://img.shields.io/badge/OpenGL-4.1-5586A4?logo=opengl&logoColor=white&style=for-the-badge">
+  <img alt="Vulkan 1.2" src="https://img.shields.io/badge/Vulkan-1.2-AC162C?logo=vulkan&logoColor=white&style=for-the-badge">
+  <a href="LICENSE"><img alt="GPL-3.0-or-later" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg?style=for-the-badge"></a>
 </p>
 
 Animal Engine 是为像素风二维探索游戏准备的 C++20 引擎，并附带一座可以玩通的洞穴。
