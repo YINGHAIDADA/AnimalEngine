@@ -112,6 +112,7 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
     lanterns_.clear();
     largestSwing_ = 0.0f;
     dynamite_.clear();
+    grapples_.clear();
     pools_.clear();
     gpuEmitters_.clear();
     streams_.clear();
@@ -242,6 +243,8 @@ bool CaveRoom::build(const animal::Room& room, const std::string& name, const st
             effects_.addEmitter(*preset, object.position, area, count, rate);
         } else if (object.type == "dynamite") {
             dynamite_.push_back({propTopLeft(object), static_cast<float>(object.id) * 1.1f, false});
+        } else if (object.type == "grapple") {
+            grapples_.push_back({propTopLeft(object), static_cast<float>(object.id) * 1.1f, false});
         } else if (object.type == "vent") {
             vents_.push_back({propTopLeft(object), object.properties.getFloat("rate", 6.0f),
                               object.properties.getFloat("force", 420.0f)});
@@ -384,6 +387,18 @@ int CaveRoom::collectDynamite(const animal::IntRect& player, int capacity) {
         }
     }
     return picked;
+}
+
+bool CaveRoom::collectGrapple(const animal::IntRect& player) {
+    for (DynamitePickup& hook : grapples_) {
+        const animal::Vec2 at = pickupTopLeft(hook);
+        const animal::IntRect area{static_cast<int>(at.x) + 2, static_cast<int>(at.y) + 1, 4, 7};
+        if (!hook.taken && area.overlaps(player)) {
+            hook.taken = true;
+            return true;
+        }
+    }
+    return false;
 }
 
 int CaveRoom::blast(animal::Vec2 centre, float radius, float strength) {
@@ -576,6 +591,11 @@ void CaveRoom::drawBehindPlayer(animal::Renderer2D& renderer, const CaveAssets& 
     for (const DynamitePickup& stick : dynamite_) {
         if (!stick.taken) {
             renderer.drawSprite(assets.props, pickupTopLeft(stick), {12.0f * size, 0.0f, size, size});
+        }
+    }
+    for (const DynamitePickup& hook : grapples_) {
+        if (!hook.taken) {
+            renderer.drawSprite(assets.props, pickupTopLeft(hook), {13.0f * size, 0.0f, size, size});
         }
     }
     for (const Crawler& crawler : crawlers_) {

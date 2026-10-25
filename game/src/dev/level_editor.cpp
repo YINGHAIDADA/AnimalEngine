@@ -108,6 +108,8 @@ const std::vector<ObjectTemplate>& objectTemplates() {
          {}, {}},
         {"dynamite", true, 0, 0, IM_COL32(230, 70, 50, 255), "Dynamite to pick up (bottom centre); back on re-entry", {},
          {}},
+        {"grapple", true, 0, 0, IM_COL32(150, 170, 190, 255), "Grappling hook to pick up (bottom centre); back on re-entry", {},
+         {}},
     };
     return templates;
 }

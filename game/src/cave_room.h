@@ -36,7 +36,7 @@ constexpr int kTileSize = 8;
 struct CaveAssets {
     animal::SpriteMaterial tileset; // tile id = horizontal cell index
     // cells: 0 candle, 1 vent grate, 2 gem, 3 lantern, 4 platform, 5 door, 6 / 7 switch off / on,
-    // 8 ability orb, 9 gem gate, 10 / 11 heart full / empty, 12 dynamite
+    // 8 ability orb, 9 gem gate, 10 / 11 heart full / empty, 12 dynamite, 13 grappling hook
     animal::SpriteMaterial props;
     animal::SpriteMaterial crawler; // two walking frames
 };
@@ -76,6 +76,8 @@ public:
     // Dynamite lying in the room ("dynamite" objects, bottom-centre on the floor): picks up at most
     // `capacity` the player touches; they lie there again when the room is entered again.
     int collectDynamite(const animal::IntRect& player, int capacity);
+    // A grappling hook lying in the room ("grapple" objects). One is enough; it is not saved.
+    bool collectGrapple(const animal::IntRect& player);
     // The current of the deepest pool the box is in (px/s).
     animal::Vec2 currentAt(const animal::IntRect& box) const;
 
@@ -90,6 +92,7 @@ public:
     void addWater(animal::Renderer2D& renderer, double time) const;
     const std::vector<animal::GpuEmitter>& gpuEmitters() const { return gpuEmitters_; }
     animal::Vec2 windAt(animal::Vec2 position, double time) const { return animal::windVectorAt(wind_, position, time); }
+    const animal::WindParams& wind() const { return wind_; }
     static std::string gemFlag(const std::string& room, int objectId) { return room + ":" + std::to_string(objectId); }
 
     void drawBehindPlayer(animal::Renderer2D& renderer, const CaveAssets& assets) const;
@@ -195,6 +198,7 @@ private:
     // Hovering above the floor and bobbing like a gem: it reads as something to pick up.
     animal::Vec2 pickupTopLeft(const DynamitePickup& stick) const;
     std::vector<DynamitePickup> dynamite_;
+    std::vector<DynamitePickup> grapples_;
     animal::PendulumParams lanternParams_;
     float largestSwing_ = 0.0f;
     double lastTime_ = 0.0; // of the last step: drives the shaking of falling platforms

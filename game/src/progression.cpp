@@ -152,6 +152,7 @@ void SandboxGame::hurt(animal::Entity& player) {
     if (respawnPending_) {
         return;
     }
+    clearGrapple();
     playSound(sounds_.hit, player.body.exactPosition().x);
     takeDamage();
     respawnPending_ = true;

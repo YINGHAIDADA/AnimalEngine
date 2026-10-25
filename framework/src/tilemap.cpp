@@ -1,5 +1,7 @@
 #include <animal/framework/tilemap.h>
 
+#include <cmath>
+
 namespace animal {
 
 namespace {
@@ -46,6 +48,34 @@ bool TileMap::overlapsSolid(const IntRect& rect) const {
         }
     }
     return false;
+}
+
+std::optional<TileMap::OverheadHit> TileMap::firstSolidAbove(Vec2 from, float reach) const {
+    if (reach <= 0.0f) {
+        return std::nullopt;
+    }
+    const int32_t x = static_cast<int32_t>(std::lround(from.x));
+    const int32_t start = static_cast<int32_t>(std::floor(from.y)) - 1; // the pixel above the probe
+    const int32_t end = start - static_cast<int32_t>(std::floor(reach));
+    for (int32_t y = start; y >= end; --y) {
+        const IntRect pixel{x, y, 1, 1};
+        for (size_t i = 0; i < dynamic_.size(); ++i) {
+            const IntRect& solid = dynamic_[i];
+            if (solid.width > 0 && solid.height > 0 && solid.overlaps(pixel)) {
+                OverheadHit hit;
+                hit.point = {static_cast<float>(x), static_cast<float>(y)};
+                hit.dynamic = static_cast<int>(i);
+                hit.local = {static_cast<float>(x - solid.x), static_cast<float>(y - solid.y)};
+                return hit;
+            }
+        }
+        if (isSolid(floorDiv(x, tileSize_), floorDiv(y, tileSize_))) {
+            OverheadHit hit;
+            hit.point = {static_cast<float>(x), static_cast<float>(y)};
+            return hit;
+        }
+    }
+    return std::nullopt;
 }
 
 bool TileMap::overlapsHazard(const IntRect& rect) const {

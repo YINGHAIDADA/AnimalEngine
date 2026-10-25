@@ -6,6 +6,7 @@ set(ANIMAL_GAME_SOURCES
     src/dev/dev_tools.h
     src/front_end.cpp
     src/gear.cpp
+    src/grapple.cpp
     src/game_audio.cpp
     src/game_settings.cpp
     src/main.cpp

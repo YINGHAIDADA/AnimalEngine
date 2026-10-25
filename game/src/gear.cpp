@@ -35,6 +35,7 @@ struct AbilityDef {
 
 constexpr ItemDef kItems[] = {
     {"dynamite", animal::ItemUse::Consumable, 9, 12.0f, "item.dynamite"},
+    {"grapple", animal::ItemUse::Reusable, 1, 13.0f, "item.grapple"},
 };
 
 constexpr AbilityDef kAbilities[] = {
@@ -214,13 +215,17 @@ void SandboxGame::collectCarriedItems(const animal::IntRect& player) {
         return;
     }
     const int room = dynamite->maxCount - loadout_.count(dynamite->id);
-    const int picked = cave_.collectDynamite(player, room);
-    if (picked <= 0) {
-        return;
-    }
-    loadout_.gainItem(dynamite->id, dynamite->use, picked, dynamite->maxCount);
     const float x = static_cast<float>(player.x) + static_cast<float>(player.width) * 0.5f;
-    playSound(sounds_.pickup, x, 0.8f);
+    const int picked = cave_.collectDynamite(player, room);
+    if (picked > 0) {
+        loadout_.gainItem(dynamite->id, dynamite->use, picked, dynamite->maxCount);
+        playSound(sounds_.pickup, x, 0.8f);
+    }
+    const ItemDef* grapple = itemDef("grapple");
+    if (grapple && !loadout_.findItem(grapple->id) && cave_.collectGrapple(player)) {
+        loadout_.gainItem(grapple->id, grapple->use, 1, grapple->maxCount);
+        playSound(sounds_.pickup, x, 0.8f);
+    }
 }
 
 void SandboxGame::useHeldItem(animal::Entity& player) {
@@ -230,6 +235,8 @@ void SandboxGame::useHeldItem(animal::Entity& player) {
     }
     if (held->id == "dynamite") {
         throwDynamite(player);
+    } else if (held->id == "grapple") {
+        useGrapple(player);
     }
 }
 

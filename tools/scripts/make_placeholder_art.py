@@ -315,6 +315,18 @@ HEART_FULL = [
 ]
 HEART_EMPTY = [row.replace("j", "z").replace("J", "z") for row in HEART_FULL]
 
+# A grappling hook, tip up: the chain is drawn from its top pixel.
+GRAPPLE = [
+    "..kL....",
+    ".kLLk...",
+    "kLLLk...",
+    ".kLLk...",
+    "..kLk...",
+    "...kk...",
+    "....k...",
+    ".....k..",
+]
+
 # A stick of dynamite standing on its end; the fuse's tip (column 5, row 0) is where the spark glows.
 DYNAMITE = [
     ".....h..",
@@ -483,7 +495,7 @@ def main():
     write_material("creature", CREATURE_FRAMES, dome_heights, wrap=False)
     write_aseprite_json("creature", len(CREATURE_FRAMES), CREATURE_TAGS)
     write_material("props", [CANDLE, VENT, GEM, LANTERN, PLATFORM, DOOR, SWITCH_OFF, SWITCH_ON, ORB, GATE,
-                             HEART_FULL, HEART_EMPTY, DYNAMITE],
+                             HEART_FULL, HEART_EMPTY, DYNAMITE, GRAPPLE],
                    heights_from_palette, wrap=False)
     write_material("crawler", CRAWLER_FRAMES, dome_heights, wrap=False)
     print(f"wrote textures to {OUT_DIR}")

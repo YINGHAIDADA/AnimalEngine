@@ -1,6 +1,9 @@
 #pragma once
 
+#include <animal/core/math.h>
 #include <animal/framework/geometry.h>
+
+#include <optional>
 
 #include <array>
 #include <cstdint>
@@ -46,6 +49,17 @@ public:
 
     // True if any solid tile or dynamic solid overlaps the pixel rectangle.
     bool overlapsSolid(const IntRect& rect) const;
+
+    // The first hard surface straight above `from`, within `reach` pixels: a solid tile or a
+    // dynamic solid (a moving platform, a closed door). `point` is the underside pixel the probe
+    // met. `dynamic` is that solid's index, or -1 for a tile; `local` is `point` relative to the
+    // dynamic rect's top-left, so the hook can ride it.
+    struct OverheadHit {
+        Vec2 point;
+        int dynamic = -1;
+        Vec2 local;
+    };
+    std::optional<OverheadHit> firstSolidAbove(Vec2 from, float reach) const;
     // True if the rectangle touches the hurting part of a hazard tile.
     bool overlapsHazard(const IntRect& rect) const;
 

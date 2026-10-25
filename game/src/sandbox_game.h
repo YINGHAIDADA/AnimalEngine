@@ -150,6 +150,12 @@ private:
     void drawDynamite(animal::Renderer2D& renderer) const;
     void addDynamiteLights(animal::Renderer2D& renderer) const;
     void addBlastSmoke(animal::Renderer2D& renderer) const;
+    // grapple.cpp: the reusable hook. Fired straight up; up and down reel the chain.
+    void useGrapple(animal::Entity& player);
+    void clearGrapple();
+    // True while the chain is holding the player (skip climbing, diving and the platformer).
+    bool stepGrapple(animal::Entity& player, float moveX, float moveY, bool jumpPressed, float dt);
+    void drawGrapple(animal::Renderer2D& renderer) const;
     // gear.cpp: abilities (all active together) and carried items (one in hand)
     void syncAbilities();
     void collectCarriedItems(const animal::IntRect& player);
@@ -238,6 +244,19 @@ private:
     std::vector<Blast> blasts_;
     animal::ProjectileParams throwParams_;
     animal::Loadout loadout_;
+    // Grappling hook in flight or latched. Cleared on room change and when hurt.
+    struct Grapple {
+        enum class Phase { Flying, Latched, Retracting };
+        Phase phase = Phase::Flying;
+        animal::Vec2 hook;
+        animal::Vec2 firedFrom;
+        float length = 0.0f;   // wanted chain length; the vine itself only changes by whole segments
+        int dynamic = -1;      // platform index, or -1 when hooked to a tile
+        animal::Vec2 local;    // hook point relative to that platform's top-left
+        bool active = false;
+    } grapple_;
+    animal::VineSystem grappleChain_;          // the chain is a vine; only the drawing differs
+    animal::VineSystem::Grip grappleGrip_;
     bool gearOpen_ = false; // B: the 2×5 item grid and the ability row; the world waits
     int gearIndex_ = 0;     // highlighted item slot (0..9) while the menu is open
     int crawlersKilled_ = 0;

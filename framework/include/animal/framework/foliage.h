@@ -208,6 +208,14 @@ public:
     };
 
     void addVine(Vec2 anchor, int segments);
+    void clear() { vines_.clear(); }
+    // Slides the whole chain so its pinned end sits on `anchor`, keeping every point's velocity.
+    void moveAnchor(size_t vine, Vec2 anchor);
+    // Lays the chain along the line from `anchor` toward `end`, carrying `velocity` (px/s).
+    // `dt` is the fixed step, so the stored motion matches what `velocityAt` reports.
+    void pose(size_t vine, Vec2 anchor, Vec2 end, Vec2 velocity, float dt);
+    // Grows or trims the free end. Existing points keep their motion; new ones continue the last segment.
+    void setEndLength(size_t vine, float length);
     void step(float dt, double time, std::span<const Influence> influences, const WindParams& wind);
 
     float length(size_t vine) const;

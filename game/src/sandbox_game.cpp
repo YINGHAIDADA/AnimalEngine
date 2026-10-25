@@ -118,6 +118,7 @@ bool SandboxGame::enterRoom(const animal::WorldRoom& worldRoom, animal::Renderer
     diving_ = false;
     thrown_.clear(); // thrown dynamite and blasts stay in the room they happened in
     blasts_.clear();
+    clearGrapple();
     climb_.climbing = false; // vine indices belong to the previous room
     renderer.resetFluid();
     const animal::Vec2 canvasOrigin = camera_.topLeft(animal::Renderer2D::kCanvasExtent);
@@ -610,7 +611,9 @@ bool SandboxGame::setupAnimations() {
 // The animation state machine: the clip follows the movement state.
 void SandboxGame::updateAnimation(float dt) {
     const animal::PlatformerState& s = playerState_;
-    if (climb_.climbing || diving_) {
+    if (grapple_.active && grapple_.phase == Grapple::Phase::Latched) {
+        animator_.play(clips_.climb); // hanging on the chain looks like hanging on a vine
+    } else if (climb_.climbing || diving_) {
         animator_.play(clips_.climb); // paddling under water looks like climbing
     } else if (s.landedThisStep) {
         animator_.restart(clips_.land);
@@ -622,7 +625,9 @@ void SandboxGame::updateAnimation(float dt) {
         animator_.play(s.velocity.y < 0.0f ? clips_.jump : clips_.fall);
     }
     // On a vine the climb cycle only plays while moving along it.
-    const bool idle = (climb_.climbing && !climb_.movedThisStep) ||
+    const bool grappleStill = grapple_.active && grapple_.phase == Grapple::Phase::Latched &&
+                              std::hypot(playerState_.velocity.x, playerState_.velocity.y) < 18.0f;
+    const bool idle = (climb_.climbing && !climb_.movedThisStep) || grappleStill ||
                       (diving_ && std::fabs(playerState_.velocity.x) + std::fabs(playerState_.velocity.y) < 20.0f);
     animator_.update(dt, idle ? 0.0f : 1.0f);
 }
@@ -810,6 +815,7 @@ void SandboxGame::respawn(animal::Renderer2D& renderer) {
     checkpointPending_ = false;
     respawnPending_ = false;
     diving_ = false;
+    clearGrapple();
 }
 
 void SandboxGame::showMessage(std::string text) {
@@ -918,13 +924,14 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
         const float moveX = control ? actions_.strength(MoveRight) - actions_.strength(MoveLeft) : 0.0f;
         const float moveY = control ? actions_.strength(MoveDown) - actions_.strength(MoveUp) : 0.0f;
         const bool jumpPressed = control && actions_.pressed(Jump);
-        if (control && actions_.pressed(Throw)) {
-            useHeldItem(*player);
+        if (control && actions_.pressed(Throw) && !jumpPressed) {
+            useHeldItem(*player); // jump wins while hanging: it lets go and jumps
         }
         stepPlatforms(*player, step);
+        const bool hanging = stepGrapple(*player, moveX, moveY, jumpPressed, step);
         const bool wasClimbing = climb_.climbing;
-        const bool climbing = animal::stepClimb(player->body, playerState_, climb_, {moveX, moveY, jumpPressed},
-                                                climbParams_, cave_.vines(), cave_.tiles(), static_cast<float>(dt));
+        const bool climbing = !hanging && animal::stepClimb(player->body, playerState_, climb_, {moveX, moveY, jumpPressed},
+                                                            climbParams_, cave_.vines(), cave_.tiles(), static_cast<float>(dt));
         const float playerX = player->body.exactPosition().x + 3.0f;
         if (climbing && !wasClimbing) {
             playSound(sounds_.grab, playerX, 0.7f);
@@ -933,11 +940,11 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
         }
         vineSounds(*player, climbing, step);
         const bool wasRising = playerState_.rising;
-        if (!climbing && !stepDive(*player, moveX, moveY, step)) {
+        if (!hanging && !climbing && !stepDive(*player, moveX, moveY, step)) {
             animal::PlatformerInput input;
             input.moveX = moveX;
             // A jump that let go of a vine is already used up.
-            input.jumpPressed = jumpPressed && !wasClimbing;
+            input.jumpPressed = jumpPressed && !wasClimbing && !playerState_.jumpedThisStep;
             input.jumpHeld = control && actions_.down(Jump);
             const float submersion = cave_.submersion(player->body.worldCollider());
             animal::applyWater(playerState_, playerParams_, submersion, static_cast<float>(dt), swimParams_);
@@ -978,7 +985,8 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
     std::vector<animal::Influence> influences;
     if (player && !editing) {
         animal::Influence influence{player->body.worldCollider(), playerState_.velocity, false};
-        influence.pushesVines = !climb_.climbing; // a climber hangs on its vine rather than pushing it
+        const bool onChain = grapple_.active && grapple_.phase == Grapple::Phase::Latched;
+        influence.pushesVines = !climb_.climbing && !onChain; // a climber hangs on its rope rather than pushing it
         if (playerState_.landedThisStep) {
             influence.landed = true;
             influence.velocity.y = playerState_.landingSpeed;
@@ -989,6 +997,9 @@ void SandboxGame::onFixedUpdate(animal::EngineContext& context, double dt) {
     addBlastInfluences(influences);
     addPokeInfluences(influences);
     cave_.step(static_cast<float>(dt), time_, influences);
+    if (grapple_.active && grapple_.phase == Grapple::Phase::Latched && !grappleChain_.vines().empty()) {
+        grappleChain_.step(static_cast<float>(dt), time_, influences, cave_.wind());
+    }
     if (traceEvery_ > 0 && player && ++traceSteps_ % traceEvery_ == 0) {
         const animal::Vec2 p = player->body.exactPosition();
         animal::log::info("TRACE {} {} x {:.1f} y {:.1f} v {:.0f},{:.0f}{}{}{} sub {:.2f}", traceSteps_,
@@ -1009,6 +1020,7 @@ void SandboxGame::onRender(animal::EngineContext&, animal::Renderer2D& renderer)
     cave_.drawBehindPlayer(renderer, assets_);
     cave_.drawGems(renderer, assets_, time_);
     drawDynamite(renderer);
+    drawGrapple(renderer);
     cave_.addWater(renderer, time_);
 
     const animal::Entity* player = entities_.get(player_);

@@ -765,4 +765,68 @@ TEST(loadout_keeps_every_ability_and_one_item_in_hand) {
     CHECK(!loadout.hasAbility("dive") && loadout.items().empty() && loadout.equipped() == nullptr);
 }
 
+// The probe climbs; y grows downward. A platform below a tile ceiling is hit first.
+TEST(first_solid_above_hits_the_nearest_ceiling_or_platform) {
+    TileMap map(8, 8, 8);
+    map.setSolid(1, true);
+    for (int tx = 0; tx < map.width(); ++tx) {
+        map.setTile(tx, 1, 1); // ceiling covering y = 8..15, underside pixel y = 15
+    }
+    const std::optional<TileMap::OverheadHit> ceiling = map.firstSolidAbove({20.0f, 40.0f}, 40.0f);
+    CHECK(ceiling && ceiling->dynamic < 0 && ceiling->point.y == 15.0f && ceiling->point.x == 20.0f);
+    CHECK(!map.firstSolidAbove({20.0f, 40.0f}, 10.0f)); // stops short of the ceiling
+
+    map.setDynamicSolids({{16, 28, 16, 8}}); // underside pixel y = 35, closer than the ceiling
+    const std::optional<TileMap::OverheadHit> platform = map.firstSolidAbove({20.0f, 50.0f}, 40.0f);
+    CHECK(platform && platform->dynamic == 0 && platform->point.y == 35.0f);
+    CHECK(platform->local.x == 4.0f && platform->local.y == 7.0f);
+}
+
+// A catch while the body is off to the side must hang the rope toward it, not straight down.
+TEST(vine_pose_aims_at_the_body_and_keeps_its_speed) {
+    VineSystem vines;
+    vines.addVine({10.0f, 0.0f}, 8);
+    const Vec2 end{40.0f, 30.0f};
+    vines.pose(0, {10.0f, 0.0f}, end, {80.0f, 0.0f}, kDt);
+    const auto& points = vines.vines()[0].points;
+    CHECK(points.front() == (Vec2{10.0f, 0.0f}));
+    CHECK(points.back().x > 20.0f); // not the vertical vine addVine starts with
+    const Vec2 direction = end - Vec2{10.0f, 0.0f};
+    const Vec2 along = points.back() - points.front();
+    CHECK(std::fabs(direction.x * along.y - direction.y * along.x) < 0.05f);
+    const Vec2 speed = vines.velocityAt({0, vines.length(0)}, kDt);
+    CHECK(test::near(speed.x, 80.0f, 0.05f));
+    CHECK(test::near(speed.y, 0.0f, 0.05f));
+}
+
+// The pinned end rides a moving platform, and the swing it already has is kept.
+TEST(vine_anchor_follows_a_moving_platform) {
+    VineSystem vines;
+    vines.addVine({0.0f, 0.0f}, 4);
+    vines.pose(0, {0.0f, 0.0f}, {0.0f, 12.0f}, {30.0f, 0.0f}, kDt);
+    const Vec2 before = vines.velocityAt({0, vines.length(0)}, kDt);
+    vines.moveAnchor(0, {15.0f, 4.0f});
+    const auto& points = vines.vines()[0].points;
+    CHECK(points.front() == (Vec2{15.0f, 4.0f}));
+    CHECK(test::near(points.back().x, 15.0f, 0.01f));
+    CHECK(test::near(points.back().y, 16.0f, 0.01f));
+    const Vec2 after = vines.velocityAt({0, vines.length(0)}, kDt);
+    CHECK(test::near(after.x, before.x, 0.05f));
+    CHECK(test::near(after.y, before.y, 0.05f));
+}
+
+// One frame of reeling is shorter than a segment, so the chain must remember the wanted length.
+TEST(vine_end_length_changes_only_by_whole_segments) {
+    VineSystem vines;
+    vines.addVine({0.0f, 0.0f}, 10); // 30 px
+    vines.setEndLength(0, 30.0f - 0.7f);
+    CHECK(test::near(vines.length(0), 30.0f, 0.01f));
+    vines.setEndLength(0, 28.4f);
+    CHECK(test::near(vines.length(0), 27.0f, 0.01f));
+    CHECK(vines.vines()[0].points.front() == (Vec2{0.0f, 0.0f}));
+    vines.setEndLength(0, 36.0f);
+    CHECK(test::near(vines.length(0), 36.0f, 0.01f));
+    CHECK(vines.vines()[0].points.front() == (Vec2{0.0f, 0.0f}));
+}
+
 } // namespace

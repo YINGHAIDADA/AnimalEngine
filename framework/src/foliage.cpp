@@ -348,6 +348,67 @@ void GrassField::step(float dt, double time, std::span<const Influence> influenc
 
 // --- Vines ---------------------------------------------------------------------------------
 
+void VineSystem::pose(size_t vine, Vec2 anchor, Vec2 end, Vec2 velocity, float dt) {
+    if (vine >= vines_.size() || vines_[vine].points.size() < 2) {
+        return;
+    }
+    Vec2 direction = end - anchor;
+    const float span = animal::length(direction);
+    direction = span > 0.1f ? direction * (1.0f / span) : Vec2{0.0f, 1.0f};
+    const float substep = dt / static_cast<float>(std::max(1, params_.substeps));
+    const Vec2 displacement = velocity * substep;
+    Vine& chain = vines_[vine];
+    const int segments = static_cast<int>(chain.points.size()) - 1;
+    for (int i = 0; i <= segments; ++i) {
+        const Vec2 p = anchor + direction * (params_.segmentLength * static_cast<float>(i));
+        chain.points[static_cast<size_t>(i)] = p;
+        chain.previous[static_cast<size_t>(i)] = i == 0 ? p : p - displacement;
+    }
+}
+
+void VineSystem::moveAnchor(size_t vine, Vec2 anchor) {
+    if (vine >= vines_.size() || vines_[vine].points.empty()) {
+        return;
+    }
+    const Vec2 delta = anchor - vines_[vine].points[0];
+    if (delta.x == 0.0f && delta.y == 0.0f) {
+        return;
+    }
+    Vine& chain = vines_[vine];
+    for (size_t i = 0; i < chain.points.size(); ++i) {
+        chain.points[i] = chain.points[i] + delta;
+        chain.previous[i] = chain.previous[i] + delta;
+    }
+}
+
+void VineSystem::setEndLength(size_t vine, float length) {
+    if (vine >= vines_.size() || vines_[vine].points.size() < 2) {
+        return;
+    }
+    Vine& chain = vines_[vine];
+    const int segments = std::clamp(static_cast<int>(std::lround(length / params_.segmentLength)), 2,
+                                    static_cast<int>(std::lround(220.0f / params_.segmentLength)));
+    while (static_cast<int>(chain.points.size()) - 1 > segments) {
+        chain.points.pop_back();
+        chain.previous.pop_back();
+        chain.forces.pop_back();
+    }
+    while (static_cast<int>(chain.points.size()) - 1 < segments) {
+        const Vec2& last = chain.points.back();
+        const Vec2& before = chain.points[chain.points.size() - 2];
+        Vec2 step{0.0f, params_.segmentLength};
+        const Vec2 along = last - before;
+        const float span = animal::length(along);
+        if (span > 0.1f) {
+            step = along * (params_.segmentLength / span);
+        }
+        const Vec2 added = last + step;
+        chain.points.push_back(added);
+        chain.previous.push_back(added - (last - chain.previous.back()));
+        chain.forces.push_back({});
+    }
+}
+
 void VineSystem::addVine(Vec2 anchor, int segments) {
     Vine vine;
     for (int i = 0; i <= segments; ++i) {

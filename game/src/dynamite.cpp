@@ -95,6 +95,7 @@ void SandboxGame::explode(animal::Vec2 centre) {
         const float distance = std::hypot(away.x, away.y);
         if (distance < kPlayerPushRadius) {
             const animal::Vec2 direction = distance > 0.5f ? away * (1.0f / distance) : animal::Vec2{0.0f, -1.0f};
+            clearGrapple();
             playerState_.velocity = playerState_.velocity + direction * (kPlayerPush * (1.0f - distance / kPlayerPushRadius));
             playerState_.velocity.y = std::min(playerState_.velocity.y, -60.0f); // lifted off the ground
             playerState_.grounded = false;
